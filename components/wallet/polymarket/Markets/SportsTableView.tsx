@@ -43,8 +43,20 @@ const LIVE_RED = '#ff5a5f';
 
 // Sportsbook column template — matches wire-a2-sports.jsx exactly.
 // Mobile widths shrink the right columns to fit; desktop matches A2.
-const COLS_DESKTOP = '1fr 92px 100px 100px';
-const COLS_MOBILE = '1fr 72px 78px 78px';
+// Some leagues (e.g. NBA Summer League) only carry a moneyline on
+// Polymarket, so the Spread/Total columns collapse away when no game in
+// the current view has one.
+function sportsGridColumns(showSpread: boolean, showTotal: boolean) {
+  return {
+    desktop: ['1fr 92px', showSpread && '100px', showTotal && '100px']
+      .filter(Boolean)
+      .join(' '),
+    mobile: ['1fr 72px', showSpread && '78px', showTotal && '78px']
+      .filter(Boolean)
+      .join(' '),
+  };
+}
+type SportsGridColumns = ReturnType<typeof sportsGridColumns>;
 
 interface FuturesMarketGroup {
   id: string;
@@ -182,6 +194,20 @@ export default function SportsTableView({
       ? enrichGamesWithTeamLogos(grouped, teamsData)
       : grouped;
   }, [allMarkets, teamsData]);
+
+  // Moneyline-only leagues (e.g. Summer League) drop the empty columns.
+  const showSpread = useMemo(
+    () => games.some((game) => game.spread),
+    [games],
+  );
+  const showTotal = useMemo(
+    () => games.some((game) => game.total),
+    [games],
+  );
+  const cols = useMemo(
+    () => sportsGridColumns(showSpread, showTotal),
+    [showSpread, showTotal],
+  );
 
   // Infinite-scroll sentinel
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -335,7 +361,7 @@ export default function SportsTableView({
       <div
         className="hidden sm:grid px-4 sm:px-[18px] py-2 border-b text-[9.5px] font-bold uppercase text-gray-500"
         style={{
-          gridTemplateColumns: COLS_DESKTOP,
+          gridTemplateColumns: cols.desktop,
           columnGap: 10,
           letterSpacing: 0.6,
           borderColor: HAIR,
@@ -344,8 +370,8 @@ export default function SportsTableView({
       >
         <span>Matchup</span>
         <span className="text-center">Moneyline</span>
-        <span className="text-center">Spread</span>
-        <span className="text-center">Total</span>
+        {showSpread && <span className="text-center">Spread</span>}
+        {showTotal && <span className="text-center">Total</span>}
       </div>
 
       {/* Game rows */}
@@ -355,6 +381,9 @@ export default function SportsTableView({
           game={game}
           firstRow={gi === 0}
           disabled={isGeoblocked}
+          showSpread={showSpread}
+          showTotal={showTotal}
+          cols={cols}
           onOutcomeClick={(market, outcome, price, tokenId) =>
             stashMarketSelection(market, outcome, price, tokenId, game)
           }
@@ -550,11 +579,17 @@ function SportsTableRow({
   game,
   firstRow,
   disabled,
+  showSpread,
+  showTotal,
+  cols,
   onOutcomeClick,
 }: {
   game: SportsGameGroup;
   firstRow: boolean;
   disabled: boolean;
+  showSpread: boolean;
+  showTotal: boolean;
+  cols: SportsGridColumns;
   onOutcomeClick: (
     market: PolymarketMarket,
     outcome: string,
@@ -673,6 +708,9 @@ function SportsTableRow({
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
         disabled={rowDisabled}
+        showSpread={showSpread}
+        showTotal={showTotal}
+        cols={cols}
         onOutcomeClick={onOutcomeClick}
       />
       <div className="h-1" />
@@ -688,6 +726,9 @@ function SportsTableRow({
         spMarket={game.spread?.market ?? null}
         totMarket={game.total?.market ?? null}
         disabled={rowDisabled}
+        showSpread={showSpread}
+        showTotal={showTotal}
+        cols={cols}
         onOutcomeClick={onOutcomeClick}
       />
       {extraMoneylineOutcomes.map((ml) => (
@@ -703,6 +744,9 @@ function SportsTableRow({
             spMarket={game.spread?.market ?? null}
             totMarket={game.total?.market ?? null}
             disabled={rowDisabled}
+            showSpread={showSpread}
+            showTotal={showTotal}
+            cols={cols}
             onOutcomeClick={onOutcomeClick}
           />
         </div>
@@ -725,6 +769,9 @@ interface TeamRowProps {
   spMarket: PolymarketMarket | null;
   totMarket: PolymarketMarket | null;
   disabled: boolean;
+  showSpread: boolean;
+  showTotal: boolean;
+  cols: SportsGridColumns;
   onOutcomeClick: (
     market: PolymarketMarket,
     outcome: string,
@@ -745,6 +792,9 @@ function TeamRow({
   spMarket,
   totMarket,
   disabled,
+  showSpread,
+  showTotal,
+  cols,
   onOutcomeClick,
 }: TeamRowProps) {
   // Spread labels: prefer just the line ("+4.5", "-4.5") for a clean cell.
@@ -756,7 +806,7 @@ function TeamRow({
       {/* Desktop / tablet — A2 grid */}
       <div
         className="hidden sm:grid items-center"
-        style={{ gridTemplateColumns: COLS_DESKTOP, columnGap: 10 }}
+        style={{ gridTemplateColumns: cols.desktop, columnGap: 10 }}
       >
         <div className="flex items-center gap-3 min-w-0">
           <TeamBadge logoUrl={logoUrl} abbrev={team.abbrev} color={team.color} />
@@ -783,32 +833,36 @@ function TeamRow({
             onOutcomeClick(mlMarket, ml.label, ml.price, ml.tokenId)
           }
         />
-        <OddsButton
-          primary={spLine}
-          sub={formatProbabilityPct(sp?.price) || undefined}
-          disabled={disabled || !sp || !spMarket}
-          onClick={() =>
-            sp &&
-            spMarket &&
-            onOutcomeClick(spMarket, sp.label, sp.price, sp.tokenId)
-          }
-        />
-        <OddsButton
-          primary={totLine ?? ''}
-          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
-          disabled={disabled || !tot || !totMarket}
-          onClick={() =>
-            tot &&
-            totMarket &&
-            onOutcomeClick(totMarket, tot.label, tot.price, tot.tokenId)
-          }
-        />
+        {showSpread && (
+          <OddsButton
+            primary={spLine}
+            sub={formatProbabilityPct(sp?.price) || undefined}
+            disabled={disabled || !sp || !spMarket}
+            onClick={() =>
+              sp &&
+              spMarket &&
+              onOutcomeClick(spMarket, sp.label, sp.price, sp.tokenId)
+            }
+          />
+        )}
+        {showTotal && (
+          <OddsButton
+            primary={totLine ?? ''}
+            sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
+            disabled={disabled || !tot || !totMarket}
+            onClick={() =>
+              tot &&
+              totMarket &&
+              onOutcomeClick(totMarket, tot.label, tot.price, tot.tokenId)
+            }
+          />
+        )}
       </div>
 
       {/* Mobile — narrower grid (same shape, smaller buttons) */}
       <div
         className="sm:hidden grid items-center"
-        style={{ gridTemplateColumns: COLS_MOBILE, columnGap: 6 }}
+        style={{ gridTemplateColumns: cols.mobile, columnGap: 6 }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <TeamBadge logoUrl={logoUrl} abbrev={team.abbrev} color={team.color} />
@@ -836,28 +890,32 @@ function TeamRow({
             onOutcomeClick(mlMarket, ml.label, ml.price, ml.tokenId)
           }
         />
-        <OddsButton
-          primary={spLine}
-          sub={formatProbabilityPct(sp?.price) || undefined}
-          compact
-          disabled={disabled || !sp || !spMarket}
-          onClick={() =>
-            sp &&
-            spMarket &&
-            onOutcomeClick(spMarket, sp.label, sp.price, sp.tokenId)
-          }
-        />
-        <OddsButton
-          primary={totLine ?? ''}
-          sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
-          compact
-          disabled={disabled || !tot || !totMarket}
-          onClick={() =>
-            tot &&
-            totMarket &&
-            onOutcomeClick(totMarket, tot.label, tot.price, tot.tokenId)
-          }
-        />
+        {showSpread && (
+          <OddsButton
+            primary={spLine}
+            sub={formatProbabilityPct(sp?.price) || undefined}
+            compact
+            disabled={disabled || !sp || !spMarket}
+            onClick={() =>
+              sp &&
+              spMarket &&
+              onOutcomeClick(spMarket, sp.label, sp.price, sp.tokenId)
+            }
+          />
+        )}
+        {showTotal && (
+          <OddsButton
+            primary={totLine ?? ''}
+            sub={totLine ? formatProbabilityPct(tot?.price) || undefined : undefined}
+            compact
+            disabled={disabled || !tot || !totMarket}
+            onClick={() =>
+              tot &&
+              totMarket &&
+              onOutcomeClick(totMarket, tot.label, tot.price, tot.tokenId)
+            }
+          />
+        )}
       </div>
     </>
   );
