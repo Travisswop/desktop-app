@@ -396,6 +396,10 @@ const SmartsiteIconLivePreview = ({
   );
   const activeTabIdRef = useRef<string | null>(activeTabId);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const renamingTabIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    renamingTabIdRef.current = renamingTabId;
+  }, [renamingTabId]);
   const [tabDeleteTarget, setTabDeleteTarget] = useState<SmartsiteTab | null>(
     null,
   );
@@ -674,6 +678,14 @@ const SmartsiteIconLivePreview = ({
   // one central hook instead of patching every Add* component.
   useEffect(() => {
     if (dragStartOrderRef.current) {
+      return;
+    }
+
+    // Skip while the user is typing a tab name — a refetch landing mid-rename
+    // (e.g. right after add-tab persists) would snap the input back to the
+    // server value. commitTabRename clears this and persists, which brings
+    // fresh data and re-runs the sync.
+    if (renamingTabIdRef.current) {
       return;
     }
 
