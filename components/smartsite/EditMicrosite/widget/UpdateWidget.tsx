@@ -10,6 +10,11 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { handleDeleteWidget, handleUpdateWidget } from "@/actions/widget";
 import { parsePolymarketRef } from "./AddPredictionMarket";
+import {
+  LEAD_FORM_FIELD_ORDER,
+  LEAD_FORM_FIELD_META,
+  LeadFormFieldKey,
+} from "@/components/publicProfile/widgets/LeadFormCard";
 
 const CURRENCIES = ["USDC", "SOL", "pUSD"] as const;
 const MAX_PRESETS = 6;
@@ -18,6 +23,7 @@ const WIDGET_TITLES: Record<string, string> = {
   tipJar: "Tip Jar",
   predictionMarket: "Prediction Market",
   vaultCard: "Agent Vault",
+  leadForm: "Leads Form",
 };
 
 const inputClass =
@@ -57,6 +63,18 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [ensName, setEnsName] = useState("");
   const [headline, setHeadline] = useState("");
 
+  // leadForm fields
+  const [description, setDescription] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [leadFields, setLeadFields] = useState<
+    Record<LeadFormFieldKey, boolean>
+  >({
+    email: false,
+    mobileNo: false,
+    jobTitle: false,
+    website: false,
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 
@@ -75,6 +93,17 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     setQuestion(config.question || "");
     setEnsName(config.ensName || "");
     setHeadline(config.headline || "");
+    setDescription(config.description || "");
+    setSuccessMessage(config.successMessage || "");
+    setLeadFields({
+      email: Array.isArray(config.fields) && config.fields.includes("email"),
+      mobileNo:
+        Array.isArray(config.fields) && config.fields.includes("mobileNo"),
+      jobTitle:
+        Array.isArray(config.fields) && config.fields.includes("jobTitle"),
+      website:
+        Array.isArray(config.fields) && config.fields.includes("website"),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widget._id]);
 
@@ -131,6 +160,16 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
       return {
         ensName: ensName.trim(),
         headline: headline.trim() || undefined,
+      };
+    }
+
+    if (widgetType === "leadForm") {
+      return {
+        title: title.trim() || undefined,
+        description: description.trim() || undefined,
+        buttonText: buttonText.trim() || undefined,
+        successMessage: successMessage.trim() || undefined,
+        fields: LEAD_FORM_FIELD_ORDER.filter((key) => leadFields[key]),
       };
     }
 
@@ -343,6 +382,80 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
                     onChange={(e) => setHeadline(e.target.value)}
                     className={inputClass}
                   />
+                </div>
+              </>
+            )}
+
+            {widgetType === "leadForm" && (
+              <>
+                <div>
+                  <p className="font-medium mb-1">Title</p>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className={inputClass}
+                    placeholder="Leads Form"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Description</p>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className={inputClass}
+                    placeholder="Get in touch with me"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Button Text</p>
+                  <input
+                    type="text"
+                    value={buttonText}
+                    onChange={(e) => setButtonText(e.target.value)}
+                    className={inputClass}
+                    placeholder="Submit"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Success Message</p>
+                  <input
+                    type="text"
+                    value={successMessage}
+                    onChange={(e) => setSuccessMessage(e.target.value)}
+                    className={inputClass}
+                    placeholder="Thanks!"
+                  />
+                </div>
+                <div>
+                  <p className="font-medium mb-1">
+                    Ask For{" "}
+                    <span className="text-xs font-normal text-gray-400">
+                      (name is always collected)
+                    </span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {LEAD_FORM_FIELD_ORDER.map((key) => (
+                      <label
+                        key={key}
+                        className="flex items-center gap-2 font-medium"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={leadFields[key]}
+                          onChange={() =>
+                            setLeadFields((prev) => ({
+                              ...prev,
+                              [key]: !prev[key],
+                            }))
+                          }
+                          className="h-4 w-4 accent-black"
+                        />
+                        {LEAD_FORM_FIELD_META[key].label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

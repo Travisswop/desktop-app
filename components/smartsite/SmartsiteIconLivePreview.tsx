@@ -93,6 +93,7 @@ import {
 import TipJarCard from "../publicProfile/widgets/TipJarCard";
 import PredictionMarketCard from "../publicProfile/widgets/PredictionMarketCard";
 import VaultCard from "../publicProfile/widgets/VaultCard";
+import LeadFormCard from "../publicProfile/widgets/LeadFormCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2108,6 +2109,12 @@ const SmartsiteIconLivePreview = ({
                               />
                             ) : item.widgetType === "vaultCard" ? (
                               <VaultCard
+                                config={item.config || {}}
+                                mode="builder"
+                              />
+                            ) : item.widgetType === "leadForm" ? (
+                              <LeadFormCard
+                                widgetId={item._id}
                                 config={item.config || {}}
                                 mode="builder"
                               />

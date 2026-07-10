@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-export type SmartsiteWidgetType = "tipJar" | "predictionMarket" | "vaultCard";
+export type SmartsiteWidgetType =
+  | "tipJar"
+  | "predictionMarket"
+  | "vaultCard"
+  | "leadForm";
 
 const revalidateMicrosite = (micrositeId: string) => {
   revalidatePath(`/smartsite/icons/${micrositeId}`);

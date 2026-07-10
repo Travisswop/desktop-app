@@ -50,6 +50,7 @@ import { Lock } from "lucide-react";
 import TipJarCard from "@/components/publicProfile/widgets/TipJarCard";
 import PredictionMarketCard from "@/components/publicProfile/widgets/PredictionMarketCard";
 import VaultCard from "@/components/publicProfile/widgets/VaultCard";
+import LeadFormCard from "@/components/publicProfile/widgets/LeadFormCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -665,6 +666,14 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       />
                     ) : item.widgetType === "vaultCard" ? (
                       <VaultCard config={item.config || {}} mode="public" />
+                    ) : item.widgetType === "leadForm" ? (
+                      <LeadFormCard
+                        widgetId={item._id}
+                        config={item.config || {}}
+                        mode="public"
+                        parentId={parentId}
+                        micrositeId={_id}
+                      />
                     ) : null}
                   </div>
                 ))}

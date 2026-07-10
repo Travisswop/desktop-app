@@ -6,6 +6,7 @@ import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import {
   Bot,
+  ClipboardList,
   HandCoins,
   Layers,
   LayoutGrid,
@@ -59,6 +60,7 @@ import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
 import AddPredictionMarket from "../smartsite/EditMicrosite/widget/AddPredictionMarket";
 import AddVaultCard from "../smartsite/EditMicrosite/widget/AddVaultCard";
+import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
@@ -144,6 +146,12 @@ const SMARTSITE_TEMPLATES = [
     title: "Agent Vault",
     description: "Show your trading agent",
     icon: Bot,
+  },
+  {
+    id: "leads-form",
+    title: "Leads Form",
+    description: "Collect leads right on your page",
+    icon: ClipboardList,
   },
 ] as Array<{
   id: string;
@@ -661,6 +669,32 @@ const BottomNavContent = () => {
               Back to Templates
             </button>
             <AddVaultCard onCloseModal={handleCloseIconsModal} />
+          </div>
+        );
+
+      case "leads-form":
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              Back to Templates
+            </button>
+            <AddLeadForm onCloseModal={handleCloseIconsModal} />
           </div>
         );
       default:
