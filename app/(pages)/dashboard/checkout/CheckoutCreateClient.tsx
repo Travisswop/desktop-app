@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ArrowLeft,
+  Ban,
   Check,
   Clock3,
   Copy,
@@ -33,10 +34,12 @@ import {
   CheckoutIntent,
   StablecoinMerchantStatus,
   activateCheckoutNfcTerminal,
+  cancelCheckoutIntent,
   createCheckoutRefundRequest,
   createCheckoutIntent,
   getStablecoinMerchantStatus,
-  listCheckoutIntents,
+  isCancellableCheckoutIntent,
+  listCheckoutIntentsPage,
   listCheckoutNfcTerminals,
   reconcileCheckoutIntent,
 } from '@/lib/checkout-api';
@@ -57,6 +60,25 @@ import { useUser } from '@/lib/UserContext';
 const PLATFORM_FEE_BPS = 50;
 
 type PaymentType = 'swop' | 'phantom';
+
+type RecentFilter = 'all' | 'pending' | 'paid' | 'closed';
+
+const RECENT_FILTERS: {
+  key: RecentFilter;
+  label: string;
+  statuses?: CheckoutIntent['status'][];
+}[] = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending', statuses: ['active', 'pending_payment'] },
+  {
+    key: 'paid',
+    label: 'Paid',
+    statuses: ['paid', 'conversion_failed', 'settlement_failed', 'settled'],
+  },
+  { key: 'closed', label: 'Closed', statuses: ['expired', 'cancelled'] },
+];
+
+const RECENT_PAGE_SIZE = 20;
 
 function PhantomMark({ className = '' }: { className?: string }) {
   return (
@@ -263,6 +285,14 @@ export default function CheckoutCreateClient() {
   const [refundWallet, setRefundWallet] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [recentFilter, setRecentFilter] = useState<RecentFilter>('all');
+  const [recentHasMore, setRecentHasMore] = useState(false);
+  const [recentCursor, setRecentCursor] = useState<string | null>(null);
+  const [loadingMoreRecent, setLoadingMoreRecent] = useState(false);
+  const [cancellingIntentId, setCancellingIntentId] = useState<string | null>(
+    null
+  );
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.solanaWallet && !merchantWalletAddress) {
@@ -433,8 +463,16 @@ export default function CheckoutCreateClient() {
     if (!accessToken) return;
     setLoadingRecent(true);
     try {
-      const intents = await listCheckoutIntents(accessToken);
-      setRecentIntents(intents);
+      const statuses = RECENT_FILTERS.find(
+        (entry) => entry.key === recentFilter
+      )?.statuses;
+      const page = await listCheckoutIntentsPage(
+        { statuses, limit: RECENT_PAGE_SIZE },
+        accessToken
+      );
+      setRecentIntents(page.intents);
+      setRecentHasMore(page.hasMore);
+      setRecentCursor(page.nextCursor);
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -444,7 +482,38 @@ export default function CheckoutCreateClient() {
     } finally {
       setLoadingRecent(false);
     }
-  }, [accessToken]);
+  }, [accessToken, recentFilter]);
+
+  const loadMoreRecent = useCallback(async () => {
+    if (!accessToken || !recentCursor || loadingMoreRecent) return;
+    setLoadingMoreRecent(true);
+    try {
+      const statuses = RECENT_FILTERS.find(
+        (entry) => entry.key === recentFilter
+      )?.statuses;
+      const page = await listCheckoutIntentsPage(
+        { statuses, limit: RECENT_PAGE_SIZE, before: recentCursor },
+        accessToken
+      );
+      setRecentIntents((current) => {
+        const seen = new Set(current.map((intent) => intent.intentId));
+        return [
+          ...current,
+          ...page.intents.filter((intent) => !seen.has(intent.intentId)),
+        ];
+      });
+      setRecentHasMore(page.hasMore);
+      setRecentCursor(page.nextCursor);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load older checkouts'
+      );
+    } finally {
+      setLoadingMoreRecent(false);
+    }
+  }, [accessToken, recentCursor, recentFilter, loadingMoreRecent]);
 
   const loadTerminals = useCallback(async () => {
     if (!accessToken) return;
@@ -485,10 +554,15 @@ export default function CheckoutCreateClient() {
 
   useEffect(() => {
     loadProducts();
-    loadRecent();
     loadTerminals();
     loadMerchantStatus();
-  }, [loadProducts, loadRecent, loadTerminals, loadMerchantStatus]);
+  }, [loadProducts, loadTerminals, loadMerchantStatus]);
+
+  // Separate effect: loadRecent re-runs when the status filter changes and
+  // shouldn't drag products/terminals/status along with it.
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent]);
 
   useEffect(() => {
     if (!copyFallback) return;
@@ -736,6 +810,37 @@ export default function CheckoutCreateClient() {
       );
     } finally {
       setReconcilingIntentId(null);
+    }
+  };
+
+  const handleCancelIntent = async (intent: CheckoutIntent) => {
+    if (!accessToken) return;
+    // Two-step confirm: first click arms the button, second click cancels.
+    if (cancelConfirmId !== intent.intentId) {
+      setCancelConfirmId(intent.intentId);
+      return;
+    }
+    setCancelConfirmId(null);
+    setCancellingIntentId(intent.intentId);
+    try {
+      const updated = await cancelCheckoutIntent(intent.intentId, accessToken);
+      setRecentIntents((current) =>
+        current.map((item) =>
+          item.intentId === updated.intentId ? updated : item
+        )
+      );
+      setCreatedIntent((current) =>
+        current?.intentId === updated.intentId ? updated : current
+      );
+      toast.success('Checkout cancelled');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to cancel checkout'
+      );
+      // The guard may have raced an incoming payment — refresh to show reality.
+      loadRecent();
+    } finally {
+      setCancellingIntentId(null);
     }
   };
 
@@ -1501,6 +1606,23 @@ export default function CheckoutCreateClient() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md border border-[#e6e9ef] bg-white p-1">
+              {RECENT_FILTERS.map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => setRecentFilter(entry.key)}
+                  aria-pressed={recentFilter === entry.key}
+                  className={`inline-flex h-7 items-center justify-center rounded px-2.5 text-xs font-semibold transition ${
+                    recentFilter === entry.key
+                      ? 'bg-[#101114] text-white'
+                      : 'text-[#5d6673] hover:bg-[#f4f5f7]'
+                  }`}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
             <input
               value={reconcileHash}
               onChange={(event) => setReconcileHash(event.target.value)}
@@ -1527,7 +1649,9 @@ export default function CheckoutCreateClient() {
             <div className="flex min-h-[128px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d4dae3] bg-[#fbfcfd] p-8 text-center">
               <ReceiptText className="h-5 w-5 text-[#8b93a3]" />
               <p className="mt-2 text-sm font-semibold text-[#303642]">
-                No checkout sales yet
+                {recentFilter === 'all'
+                  ? 'No checkout sales yet'
+                  : 'No checkouts match this filter'}
               </p>
             </div>
           ) : (
@@ -1614,11 +1738,50 @@ export default function CheckoutCreateClient() {
                         Refund
                       </button>
                     )}
+                    {isCancellableCheckoutIntent(intent) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelIntent(intent)}
+                        onBlur={() =>
+                          setCancelConfirmId((current) =>
+                            current === intent.intentId ? null : current
+                          )
+                        }
+                        disabled={cancellingIntentId === intent.intentId}
+                        className={`inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          cancelConfirmId === intent.intentId
+                            ? 'border-[#dc2626] bg-[#dc2626] text-white hover:bg-[#b91c1c]'
+                            : 'border-[#f3c8c8] bg-white text-[#b91c1c] hover:border-[#e5a3a3] hover:bg-[#fdf3f3]'
+                        }`}
+                      >
+                        {cancellingIntentId === intent.intentId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Ban className="h-4 w-4" />
+                        )}
+                        {cancelConfirmId === intent.intentId
+                          ? 'Confirm cancel'
+                          : 'Cancel'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               );
             })
           )}
+          {recentHasMore ? (
+            <button
+              type="button"
+              onClick={loadMoreRecent}
+              disabled={loadingMoreRecent}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-dashed border-[#d4dae3] bg-[#fbfcfd] px-3 text-sm font-semibold text-[#5d6673] transition hover:border-[#c8d0dc] hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingMoreRecent ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              Load older checkouts
+            </button>
+          ) : null}
         </div>
       </section>
 

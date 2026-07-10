@@ -353,6 +353,65 @@ export async function listCheckoutIntents(accessToken: string) {
   return data.data || [];
 }
 
+export type CheckoutIntentPage = {
+  intents: CheckoutIntent[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+export async function listCheckoutIntentsPage(
+  params: {
+    statuses?: CheckoutIntent['status'][];
+    limit?: number;
+    before?: string | null;
+  },
+  accessToken: string
+): Promise<CheckoutIntentPage> {
+  const query = new URLSearchParams();
+  if (params.statuses?.length) query.set('status', params.statuses.join(','));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.before) query.set('before', params.before);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents${suffix}`, {
+    headers: authHeaders(accessToken),
+    cache: 'no-store',
+  });
+  const data = (await parseResponse<CheckoutIntent[]>(response)) as ApiResponse<
+    CheckoutIntent[]
+  > & {
+    pagination?: { hasMore?: boolean; nextCursor?: string | null };
+  };
+
+  return {
+    intents: data.data || [],
+    hasMore: Boolean(data.pagination?.hasMore),
+    nextCursor: data.pagination?.nextCursor ?? null,
+  };
+}
+
+export async function cancelCheckoutIntent(intentId: string, accessToken: string) {
+  const response = await apiFetch(
+    `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(intentId)}/cancel`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+    }
+  );
+  const data = await parseResponse<CheckoutIntent>(response);
+  if (!data.data) throw new Error('Checkout intent was not cancelled');
+  return data.data;
+}
+
+// Mirrors the backend cancel guard: only awaiting-payment intents with no
+// detected/recorded payment can be cancelled.
+export function isCancellableCheckoutIntent(intent: CheckoutIntent) {
+  if (!['active', 'pending_payment'].includes(intent.status)) return false;
+  if (intent.payment?.txHash) return false;
+  if (intent.paymentRequest?.status === 'detected') return false;
+  return true;
+}
+
 export async function getStablecoinMerchantStatus(accessToken: string) {
   const response = await apiFetch(`${API_URL}/api/v5/checkout-intents/merchant-status`, {
     headers: authHeaders(accessToken),
