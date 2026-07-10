@@ -119,6 +119,7 @@ export type SportSubcategoryId =
   | 'all'
   | 'nfl'
   | 'nba'
+  | 'nbasl'
   | 'wnba'
   | 'mlb'
   | 'nhl'
@@ -149,6 +150,7 @@ export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
   { id: 'all', label: 'All Sports', tagId: null, emoji: '🏆' },
   { id: 'nfl', label: 'NFL', tagId: 450, emoji: '🏈' },
   { id: 'nba', label: 'NBA', tagId: 745, emoji: '🏀' },
+  { id: 'nbasl', label: 'Summer League', tagId: 105577, emoji: '🏀' },
   { id: 'wnba', label: 'WNBA', tagId: 100254, emoji: '🏀' },
   { id: 'cfb', label: 'CFB', tagId: 100351, emoji: '🏈' },
   { id: 'ncaab', label: 'NCAAB', tagId: 101178, emoji: '🏐' },
