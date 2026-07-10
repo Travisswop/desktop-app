@@ -43,6 +43,8 @@ import {
 import {
   flattenSmartsiteTabs,
   getSmartsiteTemplateItemKey,
+  isTabbedSmartsite,
+  normalizeSmartsitePinnedOrder,
   normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
 } from "@/lib/smartsite-template-order";
@@ -73,6 +75,15 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   const searchParams = useSearchParams();
   const tabs = useMemo(
     () => normalizeSmartsiteTabs(micrositeData),
+    [micrositeData],
+  );
+  // Pinned-header zone: templates pinned above the tab bar, visible on every
+  // tab (like the small icons). Legacy sites (tabs=[]) ignore it entirely.
+  const pinnedOrder = useMemo(
+    () =>
+      isTabbedSmartsite(micrositeData)
+        ? normalizeSmartsitePinnedOrder(micrositeData)
+        : [],
     [micrositeData],
   );
   const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
@@ -139,19 +150,34 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
         micrositeData,
         micrositeData.templateOrder,
       );
-  const getTemplateBlockOrder = (orderKey: string) =>
-    templateOrder.indexOf(orderKey) + 10;
-  // Blocks on inactive tabs stay mounted but hidden — the whole page is one
-  // flex column ordered by these values, panels are just visibility.
-  const getTemplateBlockStyle = (orderKey: string) => ({
-    order: getTemplateBlockOrder(orderKey),
-    display:
-      (activeTabKeySet && !activeTabKeySet.has(orderKey)) ||
-      // Locked gated tab: hide its blocks and show the verification panel
-      (isActiveTabLocked && activeTabKeySet?.has(orderKey))
-        ? ("none" as const)
-        : undefined,
-  });
+  // The whole page is one flex column ordered by these constants:
+  //   socialTop pinned row 3 → pinned zone 400+i → tab bar 500 → gate panel
+  //   600 → tab content 1000+i → footer 10000. Legacy sites only ever use
+  //   the 1000+i band (plus the footer), so relative order is unchanged.
+  const getTemplateBlockOrder = (orderKey: string) => {
+    const pinnedIndex = pinnedOrder.indexOf(orderKey);
+    if (pinnedIndex !== -1) {
+      return 400 + pinnedIndex;
+    }
+    return 1000 + templateOrder.indexOf(orderKey);
+  };
+  // Blocks on inactive tabs stay mounted but hidden — panels are just
+  // visibility. Pinned-header blocks are visible on EVERY tab and even while
+  // a gated tab is locked (never display:none), like the small icons.
+  const getTemplateBlockStyle = (orderKey: string) => {
+    if (pinnedOrder.includes(orderKey)) {
+      return { order: getTemplateBlockOrder(orderKey) };
+    }
+    return {
+      order: getTemplateBlockOrder(orderKey),
+      display:
+        (activeTabKeySet && !activeTabKeySet.has(orderKey)) ||
+        // Locked gated tab: hide its blocks and show the verification panel
+        (isActiveTabLocked && activeTabKeySet?.has(orderKey))
+          ? ("none" as const)
+          : undefined,
+    };
+  };
 
   return (
     <>
@@ -196,7 +222,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               <nav
                 aria-label="Site sections"
                 className="w-full flex items-center gap-2 overflow-x-auto scrollbar-hide px-1 pb-1 pt-2"
-                style={{ order: 5 }}
+                style={{ order: 500 }}
               >
                 {tabs.map((tab) => {
                   const isActive = activeTab?.id === tab.id;
@@ -233,7 +259,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             {/* Token-gate panel for a locked gated tab — scoped to the tab
                 panel area; the tab's blocks stay hidden until verified */}
             {isActiveTabLocked && gatedInfo && (
-              <div className="w-full" style={{ order: 6 }}>
+              <div className="w-full" style={{ order: 600 }}>
                 <TokenGateVerification
                   inline
                   gatedInfo={gatedInfo}
@@ -252,15 +278,16 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             )}
 
             {/* Social Media Small — on tabbed sites the icons are pinned in
-                the header: fixed between the Bio and the tab bar (order 5),
-                visible on every tab and even while a gated tab is locked
-                (never display:none). Legacy sites keep the ordered block. */}
+                the header: fixed between the Bio and the pinned zone /
+                tab bar (order 500), visible on every tab and even while a
+                gated tab is locked (never display:none). Legacy sites keep
+                the ordered block. */}
             {info?.socialTop && info.socialTop.length > 0 && (
               <div
                 className="space-y-4"
                 style={
                   isTabbed
-                    ? { order: 4 }
+                    ? { order: 3 }
                     : { ...getTemplateBlockStyle("socialTop") }
                 }
               >
@@ -710,8 +737,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </div>
             )}
 
-            {/* Message */}
-            <div style={{ order: 1000 }}>
+            {/* Footer stays below every band (tab content is 1000+i) */}
+            <div style={{ order: 10000 }}>
               <Footer brandIcon="/brand-icon.svg" />
             </div>
           </CartProvider>

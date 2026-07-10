@@ -10,8 +10,11 @@ import {
   hasSmartsiteTemplateSectionContent,
   isTabbedSmartsite,
   moveKeyBetweenSmartsiteTabs,
+  normalizeSmartsitePinnedOrder,
   normalizeSmartsiteTabs,
+  pinKeyToHeader,
   pinSocialTopFirstInFlatOrder,
+  unpinKeyToTab,
 } from "@/lib/smartsite-template-order";
 
 // A microsite with content across several sections. Item-level sections
@@ -365,6 +368,176 @@ describe("pinSocialTopFirstInFlatOrder (legacy flat saves)", () => {
         "socialTop",
       ]),
     ).toEqual(["marketPlace"]);
+  });
+});
+
+describe("normalizeSmartsitePinnedOrder (pinned header zone)", () => {
+  it("keeps only keys whose content exists, deduped, order preserved", () => {
+    expect(
+      normalizeSmartsitePinnedOrder(site, [
+        "video",
+        "redeemLink:gone:0", // deleted content → dropped
+        blogKey0,
+        42, // non-string → dropped
+        "video", // dupe → dropped
+        "notAKey",
+      ]),
+    ).toEqual(["video", blogKey0]);
+  });
+
+  it("never contains socialTop (implicitly pinned separately)", () => {
+    expect(
+      normalizeSmartsitePinnedOrder(site, ["socialTop", "marketPlace"]),
+    ).toEqual(["marketPlace"]);
+  });
+
+  it("reads micrositeData.pinnedOrder when no explicit order is passed", () => {
+    expect(
+      normalizeSmartsitePinnedOrder({ ...site, pinnedOrder: ["feed"] }),
+    ).toEqual(["feed"]);
+    expect(normalizeSmartsitePinnedOrder(site)).toEqual([]);
+  });
+
+  it("prefers an explicitly passed order over the stored pinnedOrder", () => {
+    expect(
+      normalizeSmartsitePinnedOrder({ ...site, pinnedOrder: ["feed"] }, [
+        "video",
+      ]),
+    ).toEqual(["video"]);
+  });
+
+  it("handles missing/garbage input", () => {
+    expect(normalizeSmartsitePinnedOrder(site, "feed")).toEqual([]);
+    expect(normalizeSmartsitePinnedOrder(null)).toEqual([]);
+  });
+});
+
+describe("pinned keys in normalizeSmartsiteTabs", () => {
+  const pinnedSite = { ...site, pinnedOrder: ["video", blogKey0] };
+
+  it("strips pinned keys from every tab's order", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["video", "marketPlace"] },
+      { id: "b", name: "B", order: ["feed", blogKey0] },
+    ];
+    const normalized = normalizeSmartsiteTabs(pinnedSite, tabs);
+    expect(normalized[0].order).not.toContain("video");
+    expect(normalized[1].order).not.toContain(blogKey0);
+    expect(normalized[0].order).toContain("marketPlace");
+    expect(normalized[1].order).toContain("feed");
+  });
+
+  it("never re-homes pinned keys to the first tab (they live in no tab)", () => {
+    const tabs: SmartsiteTab[] = [
+      { id: "a", name: "A", order: ["marketPlace"] },
+      { id: "b", name: "B", order: ["feed"] },
+    ];
+    const normalized = normalizeSmartsiteTabs(pinnedSite, tabs);
+    normalized.forEach((tab) => {
+      expect(tab.order).not.toContain("video");
+      expect(tab.order).not.toContain(blogKey0);
+    });
+    // unpinned unassigned content still re-homes to the first tab
+    expect(normalized[0].order).toContain(blogKey1);
+    expect(normalized[0].order).toContain(infoBarKey);
+  });
+});
+
+describe("pinned keys in buildFlatTemplateOrderForTabs", () => {
+  const tabs: SmartsiteTab[] = [
+    { id: "a", name: "A", order: ["marketPlace", blogKey0] },
+    { id: "b", name: "B", order: ["feed"] },
+  ];
+
+  it("flat order = socialTop + pinned zone + tab content", () => {
+    expect(
+      buildFlatTemplateOrderForTabs(
+        { ...site, pinnedOrder: ["video", infoBarKey] },
+        tabs,
+      ),
+    ).toEqual(["socialTop", "video", infoBarKey, "marketPlace", blogKey0, "feed"]);
+  });
+
+  it("prefers an explicitly passed pinned order (optimistic save)", () => {
+    expect(
+      buildFlatTemplateOrderForTabs({ ...site, pinnedOrder: ["video"] }, tabs, [
+        infoBarKey,
+      ]),
+    ).toEqual(["socialTop", infoBarKey, "marketPlace", blogKey0, "feed"]);
+  });
+
+  it("dedupes a key that a stale tab still carries", () => {
+    expect(
+      buildFlatTemplateOrderForTabs({ ...site, pinnedOrder: [blogKey0] }, tabs),
+    ).toEqual(["socialTop", blogKey0, "marketPlace", "feed"]);
+  });
+
+  it("no pinned zone → unchanged behavior", () => {
+    expect(buildFlatTemplateOrderForTabs(site, tabs)).toEqual([
+      "socialTop",
+      "marketPlace",
+      blogKey0,
+      "feed",
+    ]);
+  });
+});
+
+describe("pinKeyToHeader / unpinKeyToTab", () => {
+  const tabs: SmartsiteTab[] = [
+    { id: "a", name: "A", order: ["marketPlace", blogKey0] },
+    { id: "b", name: "B", order: ["feed"], gated: true },
+  ];
+
+  it("pinKeyToHeader appends to pinned and strips the key from its tab", () => {
+    const result = pinKeyToHeader(["video"], tabs, blogKey0);
+    expect(result.pinned).toEqual(["video", blogKey0]);
+    expect(result.tabs[0].order).toEqual(["marketPlace"]);
+    expect(result.tabs[1].order).toEqual(["feed"]);
+    expect(result.tabs[1].gated).toBe(true);
+  });
+
+  it("pinKeyToHeader is a no-op for socialTop and already-pinned keys", () => {
+    expect(pinKeyToHeader([], tabs, "socialTop")).toEqual({
+      pinned: [],
+      tabs,
+    });
+    const result = pinKeyToHeader(["video"], tabs, "video");
+    expect(result.pinned).toEqual(["video"]);
+    expect(result.tabs).toBe(tabs);
+  });
+
+  it("pinKeyToHeader does not mutate its inputs", () => {
+    const pinnedBefore = ["video"];
+    const tabsBefore = JSON.parse(JSON.stringify(tabs));
+    pinKeyToHeader(pinnedBefore, tabs, blogKey0);
+    expect(pinnedBefore).toEqual(["video"]);
+    expect(tabs).toEqual(tabsBefore);
+  });
+
+  it("unpinKeyToTab removes from pinned and appends to the END of the tab", () => {
+    const result = unpinKeyToTab(["video", blogKey0], tabs, "b", "video");
+    expect(result.pinned).toEqual([blogKey0]);
+    expect(result.tabs[1].order).toEqual(["feed", "video"]);
+    expect(result.tabs[1].gated).toBe(true);
+    expect(result.tabs[0].order).toEqual(["marketPlace", blogKey0]);
+  });
+
+  it("unpinKeyToTab is a no-op for unpinned keys or unknown tabs", () => {
+    const noKey = unpinKeyToTab([], tabs, "a", "video");
+    expect(noKey.pinned).toEqual([]);
+    expect(noKey.tabs).toBe(tabs);
+
+    const noTab = unpinKeyToTab(["video"], tabs, "missing", "video");
+    expect(noTab.pinned).toEqual(["video"]);
+    expect(noTab.tabs).toBe(tabs);
+  });
+
+  it("pin → unpin round-trips content back into a tab", () => {
+    const pinned = pinKeyToHeader([], tabs, "feed");
+    const unpinned = unpinKeyToTab(pinned.pinned, pinned.tabs, "a", "feed");
+    expect(unpinned.pinned).toEqual([]);
+    expect(unpinned.tabs[0].order).toEqual(["marketPlace", blogKey0, "feed"]);
+    expect(unpinned.tabs[1].order).toEqual([]);
   });
 });
 

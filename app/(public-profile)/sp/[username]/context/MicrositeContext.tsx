@@ -23,6 +23,8 @@ interface MicrositeData {
   showFeed?: boolean;
   templateOrder?: string[];
   tabs?: SmartsiteTab[];
+  /** Templates pinned above the tab bar (visible on every tab). */
+  pinnedOrder?: string[];
   redirect?: string;
   username?: string;
 }

@@ -73,10 +73,13 @@ import {
   getSmartsiteTemplateSectionKeyFromOrderKey,
   getStableSmartsiteOrderKeyPrefix,
   moveKeyBetweenSmartsiteTabs,
+  normalizeSmartsitePinnedOrder,
   normalizeSmartsiteTabs,
   normalizeSmartsiteTemplateBlockOrder,
+  pinKeyToHeader,
   pinSocialTopFirstInFlatOrder,
   SmartsiteTemplateSectionKey,
+  unpinKeyToTab,
 } from "@/lib/smartsite-template-order";
 import {
   handleV5SmartSiteTabDelete,
@@ -89,6 +92,7 @@ import {
   Lock,
   LockOpen,
   Pencil,
+  Pin,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -188,6 +192,11 @@ const SortablePreviewSection = ({
   className = "w-full",
   moveTargets,
   onMoveToTab,
+  pinned = false,
+  canPin = false,
+  activeTabName,
+  onPinToHeader,
+  onUnpinToTab,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -204,6 +213,13 @@ const SortablePreviewSection = ({
   /** Other tabs this block can move to (tabbed sites with >1 tab, edit mode). */
   moveTargets?: Array<{ id: string; name: string }>;
   onMoveToTab?: (orderKey: string, targetTabId: string) => void;
+  /** Block lives in the pinned-header zone (above the tab bar, on every tab). */
+  pinned?: boolean;
+  /** Pin/unpin affordances available (tabbed sites, edit mode). */
+  canPin?: boolean;
+  activeTabName?: string;
+  onPinToHeader?: (orderKey: string) => void;
+  onUnpinToTab?: (orderKey: string) => void;
   onDragStart: (orderKey: string) => void;
   onDragMove: (orderKey: string, pointerY: number) => void;
   onDragEnd: () => void;
@@ -280,7 +296,7 @@ const SortablePreviewSection = ({
             onDragStart(orderKey);
             dragControls.start(event);
           }}
-          className={`flex ${
+          className={`relative flex ${
             isCompactRow ? "h-12 w-10" : "h-10 w-8"
           } cursor-grab touch-none items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 shadow-[0_4px_14px_rgba(15,23,42,0.10)] transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-950 active:cursor-grabbing`}
         >
@@ -289,9 +305,13 @@ const SortablePreviewSection = ({
           ) : (
             <GripVertical className="h-4 w-4" />
           )}
+          {/* subtle pin glyph: this block lives in the pinned header zone */}
+          {pinned && (
+            <Pin className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full border border-gray-200 bg-white p-0.5 text-gray-500" />
+          )}
         </button>
-        {/* move-to-tab affordance (tabbed sites with >1 tab, edit mode) */}
-        {moveTargets && moveTargets.length > 0 && onMoveToTab && (
+        {/* move-to-tab / pin affordance (tabbed sites, edit mode) */}
+        {((moveTargets && moveTargets.length > 0 && onMoveToTab) || canPin) && (
           <Dropdown className="w-max rounded-lg" placement="bottom-start">
             <DropdownTrigger>
               <button
@@ -311,22 +331,59 @@ const SortablePreviewSection = ({
               disabledKeys={["move-title"]}
               className="p-2"
             >
-              <DropdownItem
-                key="move-title"
-                className="hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
-              >
-                <p className="text-xs font-semibold text-gray-400">Move to</p>
-              </DropdownItem>
               {
-                moveTargets.map((target) => (
+                [
                   <DropdownItem
-                    key={target.id}
-                    onClick={() => onMoveToTab(orderKey, target.id)}
-                    className="border-b rounded-none last:border-b-0 hover:rounded-md"
+                    key="move-title"
+                    className="hover:!bg-white opacity-100 cursor-text disabled dropDownTitle"
                   >
-                    <span className="text-sm font-semibold">{target.name}</span>
-                  </DropdownItem>
-                )) as any
+                    <p className="text-xs font-semibold text-gray-400">
+                      Move to
+                    </p>
+                  </DropdownItem>,
+                  // Pinned blocks: "move to tab X" unpins into that tab (the
+                  // parent routes pinned keys through unpinKeyToTab).
+                  ...(moveTargets && onMoveToTab
+                    ? moveTargets.map((target) => (
+                        <DropdownItem
+                          key={target.id}
+                          onClick={() => onMoveToTab(orderKey, target.id)}
+                          className="border-b rounded-none last:border-b-0 hover:rounded-md"
+                        >
+                          <span className="text-sm font-semibold">
+                            {target.name}
+                          </span>
+                        </DropdownItem>
+                      ))
+                    : []),
+                  ...(canPin
+                    ? [
+                        pinned && onUnpinToTab ? (
+                          <DropdownItem
+                            key="unpin-to-tab"
+                            onClick={() => onUnpinToTab(orderKey)}
+                            className="border-b rounded-none last:border-b-0 hover:rounded-md"
+                          >
+                            <span className="flex items-center gap-1.5 text-sm font-semibold">
+                              <Pin className="h-3.5 w-3.5 rotate-45 text-gray-400" />
+                              Unpin to {activeTabName || "this tab"}
+                            </span>
+                          </DropdownItem>
+                        ) : !pinned && onPinToHeader ? (
+                          <DropdownItem
+                            key="pin-above-tabs"
+                            onClick={() => onPinToHeader(orderKey)}
+                            className="border-b rounded-none last:border-b-0 hover:rounded-md"
+                          >
+                            <span className="flex items-center gap-1.5 text-sm font-semibold">
+                              <Pin className="h-3.5 w-3.5 text-gray-400" />
+                              Pin above tabs
+                            </span>
+                          </DropdownItem>
+                        ) : null,
+                      ].filter(Boolean)
+                    : []),
+                ] as any
               }
             </DropdownMenu>
           </Dropdown>
@@ -384,6 +441,10 @@ const SmartsiteIconLivePreview = ({
   const pendingDragMoveRef = useRef<PendingDragMove | null>(null);
   const dragMoveFrameRef = useRef<number | null>(null);
   const lastDragOverOrderKeyRef = useRef<string | null>(null);
+  // Zone-crossing drags (pinned header ↔ active tab): the key being dragged
+  // and the last pointer Y, so the drop can be resolved against the tab bar.
+  const dragSourceKeyRef = useRef<string | null>(null);
+  const lastDragPointerYRef = useRef<number | null>(null);
 
   // ── Named tabs ──
   const normalizedTabsFromData = useMemo(
@@ -392,6 +453,18 @@ const SmartsiteIconLivePreview = ({
   );
   const [tabs, setTabs] = useState<SmartsiteTab[]>(normalizedTabsFromData);
   const tabsRef = useRef<SmartsiteTab[]>(normalizedTabsFromData);
+  // ── Pinned header zone ── templates pinned ABOVE the tab bar, visible on
+  // every tab (like the Small Icons row). Lives in no tab; synced from data
+  // and updated optimistically alongside tabs.
+  const normalizedPinnedFromData = useMemo(
+    () => normalizeSmartsitePinnedOrder(data),
+    [data],
+  );
+  const [pinnedOrder, setPinnedOrder] = useState<string[]>(
+    normalizedPinnedFromData,
+  );
+  const pinnedOrderRef = useRef<string[]>(normalizedPinnedFromData);
+  const lastSyncedPinnedRef = useRef<string[]>(normalizedPinnedFromData);
   const [activeTabId, setActiveTabId] = useState<string | null>(
     normalizedTabsFromData[0]?.id ?? null,
   );
@@ -421,6 +494,11 @@ const SmartsiteIconLivePreview = ({
   const activeTabKeySet = useMemo(
     () => (activeTab ? new Set(activeTab.order) : null),
     [activeTab],
+  );
+  // Pinned zone is a tabbed-sites concept — legacy sites ignore pinnedOrder
+  const pinnedKeySet = useMemo(
+    () => (isTabbed ? new Set(pinnedOrder) : new Set<string>()),
+    [isTabbed, pinnedOrder],
   );
 
   useEffect(() => {
@@ -626,11 +704,17 @@ const SmartsiteIconLivePreview = ({
     setTemplateOrder(normalizedTemplateOrder);
   }, [normalizedTemplateOrder, normalizedTabsFromData]);
 
-  const applyTabsState = (nextTabs: SmartsiteTab[]) => {
+  const applyTabsState = (
+    nextTabs: SmartsiteTab[],
+    nextPinnedOrder?: string[],
+  ) => {
+    const nextPinned = nextPinnedOrder ?? pinnedOrderRef.current;
+    pinnedOrderRef.current = nextPinned;
+    setPinnedOrder(nextPinned);
     tabsRef.current = nextTabs;
     setTabs(nextTabs);
-    // Dual-write flat order leads with the pinned 'socialTop' (see helper)
-    const flatOrder = buildFlatTemplateOrderForTabs(data, nextTabs);
+    // Dual-write flat order leads with the pinned 'socialTop' + pinned zone
+    const flatOrder = buildFlatTemplateOrderForTabs(data, nextTabs, nextPinned);
     templateOrderRef.current = flatOrder;
     setTemplateOrder(flatOrder);
     onTemplateOrderChange?.(flatOrder);
@@ -639,8 +723,14 @@ const SmartsiteIconLivePreview = ({
   const persistTabs = async (
     nextTabs: SmartsiteTab[],
     previousTabs: SmartsiteTab[],
+    nextPinnedOrder?: string[],
+    previousPinnedOrder?: string[],
   ) => {
-    applyTabsState(nextTabs);
+    // Capture BEFORE applyTabsState mutates pinnedOrderRef
+    const nextPinned = nextPinnedOrder ?? pinnedOrderRef.current;
+    const previousPinned = previousPinnedOrder ?? pinnedOrderRef.current;
+
+    applyTabsState(nextTabs, nextPinned);
 
     if (!token || !data?._id) {
       return true;
@@ -653,7 +743,12 @@ const SmartsiteIconLivePreview = ({
         {
           _id: data._id,
           tabs: nextTabs,
-          templateOrder: buildFlatTemplateOrderForTabs(data, nextTabs),
+          pinnedOrder: nextPinned,
+          templateOrder: buildFlatTemplateOrderForTabs(
+            data,
+            nextTabs,
+            nextPinned,
+          ),
         },
         token,
       );
@@ -667,12 +762,51 @@ const SmartsiteIconLivePreview = ({
       return true;
     } catch (error) {
       console.error(error);
-      applyTabsState(previousTabs);
+      applyTabsState(previousTabs, previousPinned);
       setOrderSaveState("error");
       toast.error("Couldn't save tabs");
       return false;
     }
   };
+
+  // Sync the pinned-header zone from fetched data (skipped mid-drag). Same
+  // guard pattern as the tabs sync: only apply when the DATA-derived pinned
+  // order actually changed, so optimistic local updates aren't clobbered by
+  // the parent feedback loop re-running this with stale data.pinnedOrder.
+  // Runs BEFORE the tabs sync so a refetch that changed both leaves
+  // pinnedOrderRef fresh when the tabs sync rebuilds the flat order.
+  useEffect(() => {
+    if (dragStartOrderRef.current) {
+      return;
+    }
+
+    if (
+      areTemplateOrdersEqual(
+        lastSyncedPinnedRef.current,
+        normalizedPinnedFromData,
+      )
+    ) {
+      return;
+    }
+    lastSyncedPinnedRef.current = normalizedPinnedFromData;
+
+    if (
+      areTemplateOrdersEqual(pinnedOrderRef.current, normalizedPinnedFromData)
+    ) {
+      return;
+    }
+
+    if (tabsRef.current.length === 0) {
+      // Legacy sites ignore pinnedOrder — track it without touching the flat
+      // order (flatten([]) would wipe templateOrder).
+      pinnedOrderRef.current = normalizedPinnedFromData;
+      setPinnedOrder(normalizedPinnedFromData);
+      return;
+    }
+
+    applyTabsState(tabsRef.current, normalizedPinnedFromData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normalizedPinnedFromData]);
 
   // Sync tabs from fetched data (skipped mid-drag). When new content appears
   // (a template was just added via the Add flows), reassign it from the
@@ -781,8 +915,18 @@ const SmartsiteIconLivePreview = ({
     [],
   );
 
-  const getTemplateBlockOrder = (orderKey: string) =>
-    templateOrder.indexOf(orderKey) + 10;
+  // Flex-order bands: header rows (Header/Bio/icons) are source-order 0,
+  // pinned zone 100+flatIndex, tab bar 500, empty-tab placeholder 600, tab
+  // content (and the whole legacy flat column) 1000+flatIndex. Pinned keys
+  // lead the flat order, so 100+flatIndex both stays under 500 and gives
+  // live reorder preview inside the zone while dragging.
+  const getTemplateBlockOrder = (orderKey: string) => {
+    const flatIndex = templateOrder.indexOf(orderKey);
+    if (pinnedKeySet.has(orderKey)) {
+      return 100 + flatIndex;
+    }
+    return 1000 + flatIndex;
+  };
 
   const moveTemplateOrderKey = (
     order: string[],
@@ -807,31 +951,66 @@ const SmartsiteIconLivePreview = ({
     return nextOrder;
   };
 
+  /**
+   * Tabbed drop: the drag preview shuffled the FLAT order; membership
+   * (pinned header zone vs active tab) is decided by where the pointer
+   * ended relative to the tab bar. Rebuild pinnedOrder + the active tab's
+   * order from the final flat order and persist everything.
+   */
+  const saveTabbedTemplateDrag = async (
+    sourceKey: string,
+    flatOrder: string[],
+    droppedInPinnedZone: boolean,
+  ) => {
+    const previousTabs = tabsRef.current;
+    const previousPinned = pinnedOrderRef.current;
+    const currentActiveTab =
+      previousTabs.find((tab) => tab.id === activeTabIdRef.current) ??
+      previousTabs[0];
+
+    if (!currentActiveTab) {
+      return;
+    }
+
+    const pinnedSet = new Set(previousPinned);
+    const activeKeys = new Set(currentActiveTab.order);
+
+    if (droppedInPinnedZone) {
+      pinnedSet.add(sourceKey);
+      activeKeys.delete(sourceKey);
+    } else {
+      pinnedSet.delete(sourceKey);
+      activeKeys.add(sourceKey);
+    }
+    // 'socialTop' is implicitly pinned — never part of the explicit zone
+    pinnedSet.delete("socialTop");
+
+    // Both zones keep the relative order the drag preview produced
+    const nextPinned = flatOrder.filter((key) => pinnedSet.has(key));
+    const nextActiveOrder = flatOrder.filter(
+      (key) => activeKeys.has(key) && !pinnedSet.has(key),
+    );
+    const nextTabs = previousTabs.map((tab) =>
+      tab.id === currentActiveTab.id
+        ? { ...tab, order: nextActiveOrder }
+        : { ...tab, order: tab.order.filter((key) => key !== sourceKey) },
+    );
+
+    await persistTabs(nextTabs, previousTabs, nextPinned, previousPinned);
+  };
+
   const saveTemplateOrder = async (
     nextOrder: string[],
     previousOrder: string[],
   ) => {
-    // Tabbed: a drag reorders within the active tab — rebuild that tab's
-    // order from the flat result and save tabs + dual-written templateOrder.
-    if (isTabbed && activeTab) {
-      const activeKeys = new Set(activeTab.order);
-      const nextActiveOrder = nextOrder.filter((key) => activeKeys.has(key));
-      const previousTabs = tabsRef.current;
-      const nextTabs = previousTabs.map((tab) =>
-        tab.id === activeTab.id ? { ...tab, order: nextActiveOrder } : tab,
-      );
-      await persistTabs(nextTabs, previousTabs);
-      return;
-    }
-
     // Legacy (untabbed) flat save: the builder pins Small Icons in the
     // header, so the saved flat order must lead with 'socialTop' (deduped) —
     // the public flat renderer then converges to the pinned layout.
-    const pinnedOrder = pinSocialTopFirstInFlatOrder(data, nextOrder);
+    const pinnedFlatOrder = pinSocialTopFirstInFlatOrder(data, nextOrder);
 
-    templateOrderRef.current = pinnedOrder;
-    setTemplateOrder(pinnedOrder);
-    onTemplateOrderChange?.(pinnedOrder);
+    templateOrderRef.current = pinnedFlatOrder;
+    setTemplateOrder(pinnedFlatOrder);
+    onTemplateOrderChange?.(pinnedFlatOrder);
 
     if (!token || !data?._id) {
       return;
@@ -843,7 +1022,7 @@ const SmartsiteIconLivePreview = ({
       const result = await handleV5SmartSiteUpdate(
         {
           _id: data._id,
-          templateOrder: pinnedOrder,
+          templateOrder: pinnedFlatOrder,
         },
         token,
       );
@@ -913,8 +1092,65 @@ const SmartsiteIconLivePreview = ({
     void persistTabs(nextTabs, previousTabs);
   };
 
-  // Move a block from the active tab to the end of another tab
+  // Pin a block above the tab bar (visible on every tab, like the icons)
+  const handlePinToHeader = (orderKey: string) => {
+    const previousTabs = tabsRef.current;
+    const previousPinned = pinnedOrderRef.current;
+    const result = pinKeyToHeader(previousPinned, previousTabs, orderKey);
+
+    if (result.pinned === previousPinned) {
+      return;
+    }
+
+    void persistTabs(
+      result.tabs,
+      previousTabs,
+      result.pinned,
+      previousPinned,
+    ).then((saved) => {
+      if (saved) {
+        toast.success("Pinned above tabs");
+      }
+    });
+  };
+
+  // Unpin a block from the header into a tab (defaults to the active tab)
+  const handleUnpinToTab = (orderKey: string, targetTabId?: string) => {
+    const tabId = targetTabId ?? activeTabIdRef.current;
+    if (!tabId) {
+      return;
+    }
+
+    const previousTabs = tabsRef.current;
+    const previousPinned = pinnedOrderRef.current;
+    const result = unpinKeyToTab(previousPinned, previousTabs, tabId, orderKey);
+
+    if (result.pinned === previousPinned) {
+      return;
+    }
+
+    const targetName =
+      previousTabs.find((tab) => tab.id === tabId)?.name || "tab";
+    void persistTabs(
+      result.tabs,
+      previousTabs,
+      result.pinned,
+      previousPinned,
+    ).then((saved) => {
+      if (saved) {
+        toast.success(`Moved to ${targetName}`);
+      }
+    });
+  };
+
+  // Move a block from the active tab to the end of another tab. Pinned
+  // blocks live in no tab — "move to tab X" unpins them into that tab.
   const handleMoveToTab = (orderKey: string, targetTabId: string) => {
+    if (pinnedOrderRef.current.includes(orderKey)) {
+      handleUnpinToTab(orderKey, targetTabId);
+      return;
+    }
+
     const currentActiveTabId = activeTabIdRef.current;
     if (!currentActiveTabId) {
       return;
@@ -1099,7 +1335,11 @@ const SmartsiteIconLivePreview = ({
           // Tabs: hidden blocks (inactive tabs) report zero-height rects and
           // must never become drop targets
           row.height > 0 &&
-          (!activeTabKeySet || activeTabKeySet.has(row.key)),
+          // Visible rows: the active tab's blocks plus the pinned header
+          // zone — a drag can cross between the two.
+          (!activeTabKeySet ||
+            activeTabKeySet.has(row.key) ||
+            pinnedKeySet.has(row.key)),
       );
 
     if (!rows.length) {
@@ -1179,11 +1419,14 @@ const SmartsiteIconLivePreview = ({
     pendingDragMoveRef.current = null;
     lastDragOverOrderKeyRef.current = null;
     dragStartOrderRef.current = [...templateOrderRef.current];
+    dragSourceKeyRef.current = orderKey;
+    lastDragPointerYRef.current = null;
     setDraggingOrderKey(orderKey);
     setDragOverOrderKey(null);
   };
 
   const processTemplateDragMove = (sourceKey: string, pointerY: number) => {
+    lastDragPointerYRef.current = pointerY;
     maybeScrollPreviewWhileDragging(pointerY);
 
     const targetKey = findTemplateDragTarget(sourceKey, pointerY);
@@ -1223,6 +1466,28 @@ const SmartsiteIconLivePreview = ({
     );
   };
 
+  /**
+   * Zone membership on drop: pointer above the tab bar's top edge → pinned
+   * header zone; below → active tab. Returns null when it can't be resolved
+   * (no pointer recorded, or no tab bar rendered) — caller keeps the
+   * original membership then.
+   */
+  const isDropPointerAboveTabBar = (): boolean | null => {
+    const pointerY = lastDragPointerYRef.current;
+    if (pointerY === null) {
+      return null;
+    }
+
+    const tabBar = document.querySelector<HTMLElement>(
+      "[data-smartsite-tab-bar]",
+    );
+    if (!tabBar) {
+      return null;
+    }
+
+    return pointerY < tabBar.getBoundingClientRect().top;
+  };
+
   const handleTemplateDragEnd = () => {
     if (dragMoveFrameRef.current !== null) {
       window.cancelAnimationFrame(dragMoveFrameRef.current);
@@ -1238,13 +1503,39 @@ const SmartsiteIconLivePreview = ({
 
     const previousOrder = dragStartOrderRef.current;
     const nextOrder = templateOrderRef.current;
+    const sourceKey = dragSourceKeyRef.current;
 
     dragStartOrderRef.current = null;
+    dragSourceKeyRef.current = null;
     lastDragOverOrderKeyRef.current = null;
     setDraggingOrderKey(null);
     setDragOverOrderKey(null);
 
-    if (!previousOrder || areTemplateOrdersEqual(previousOrder, nextOrder)) {
+    if (!previousOrder) {
+      return;
+    }
+
+    if (isTabbed && sourceKey) {
+      // Sliding a block above the tab bar pins it; sliding a pinned block
+      // back below unpins it into the active tab.
+      const wasPinned = pinnedOrderRef.current.includes(sourceKey);
+      const aboveTabBar = isDropPointerAboveTabBar();
+      const droppedInPinnedZone = aboveTabBar === null ? wasPinned : aboveTabBar;
+
+      // A pure zone change (e.g. dragging into an EMPTY pinned zone) can
+      // leave the flat order untouched — it must still persist.
+      if (
+        areTemplateOrdersEqual(previousOrder, nextOrder) &&
+        droppedInPinnedZone === wasPinned
+      ) {
+        return;
+      }
+
+      void saveTabbedTemplateDrag(sourceKey, nextOrder, droppedInPinnedZone);
+      return;
+    }
+
+    if (areTemplateOrdersEqual(previousOrder, nextOrder)) {
       return;
     }
 
@@ -1258,18 +1549,31 @@ const SmartsiteIconLivePreview = ({
           .map((tab) => ({ id: tab.id, name: tab.name }))
       : undefined;
 
-  const getSortablePreviewProps = (orderKey: string) => ({
-    order: getTemplateBlockOrder(orderKey),
-    isDragging: draggingOrderKey === orderKey,
-    isDragOver: dragOverOrderKey === orderKey,
-    isSaving: orderSaveState === "saving" && draggingOrderKey === orderKey,
-    hidden: Boolean(activeTabKeySet && !activeTabKeySet.has(orderKey)),
-    moveTargets: tabMoveTargets,
-    onMoveToTab: handleMoveToTab,
-    onDragStart: handleTemplateDragStart,
-    onDragMove: handleTemplateDragMove,
-    onDragEnd: handleTemplateDragEnd,
-  });
+  const getSortablePreviewProps = (orderKey: string) => {
+    const isPinned = pinnedKeySet.has(orderKey);
+
+    return {
+      order: getTemplateBlockOrder(orderKey),
+      isDragging: draggingOrderKey === orderKey,
+      isDragOver: dragOverOrderKey === orderKey,
+      isSaving: orderSaveState === "saving" && draggingOrderKey === orderKey,
+      // Pinned-header blocks are visible on EVERY tab (never hidden by the
+      // active tab — and, on the public page, never by a gate lock either)
+      hidden: Boolean(
+        !isPinned && activeTabKeySet && !activeTabKeySet.has(orderKey),
+      ),
+      pinned: isPinned,
+      canPin: isTabEditable && isTabbed,
+      activeTabName: activeTab?.name,
+      moveTargets: tabMoveTargets,
+      onMoveToTab: handleMoveToTab,
+      onPinToHeader: handlePinToHeader,
+      onUnpinToTab: (key: string) => handleUnpinToTab(key),
+      onDragStart: handleTemplateDragStart,
+      onDragMove: handleTemplateDragMove,
+      onDragEnd: handleTemplateDragEnd,
+    };
+  };
 
   return (
     <div
@@ -1347,10 +1651,17 @@ const SmartsiteIconLivePreview = ({
                   </div>
                 )}
 
-                {/* ── tab bar ── */}
+                {/* ── tab bar ── order 500 puts it BELOW the pinned header
+                    zone (100+i) and above the tab content (1000+i). The
+                    data attribute is the pin/unpin drop boundary: a block
+                    released above this element's top pins to the header. */}
                 {(isTabEditable || tabs.length > 1) &&
                   (isTabbed || isTabEditable) && (
-                    <div className="flex items-center gap-2 overflow-x-auto px-3 pb-1 pt-2 hide-scrollbar">
+                    <div
+                      data-smartsite-tab-bar
+                      style={{ order: 500 }}
+                      className="flex items-center gap-2 overflow-x-auto px-3 pb-1 pt-2 hide-scrollbar"
+                    >
                       {tabs.map((tab, index) => {
                         const isActive = activeTab?.id === tab.id;
 
@@ -1461,7 +1772,10 @@ const SmartsiteIconLivePreview = ({
 
                 {/* empty tab placeholder */}
                 {isTabbed && activeTab && activeTab.order.length === 0 && (
-                  <div className="mx-3 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center">
+                  <div
+                    style={{ order: 600 }}
+                    className="mx-3 rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center"
+                  >
                     <p
                       className="text-[15px] font-semibold"
                       style={{ color: previewFontColor }}

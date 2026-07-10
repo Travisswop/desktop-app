@@ -277,17 +277,121 @@ export const pinSocialTopFirstInFlatOrder = (
 };
 
 /**
+ * Normalize the pinned-header zone (templates pinned ABOVE the tab bar,
+ * visible on every tab). Rules:
+ *  - only keys whose content actually exists (default block order set)
+ *  - never contains 'socialTop' — the Small Icons row is implicitly pinned
+ *    separately and handled by pinSocialTopFirstInFlatOrder
+ *  - deduped, stored order preserved
+ * Callers holding a fresher local pinned order than
+ * `micrositeData.pinnedOrder` can pass it as `pinnedOrder`.
+ */
+export const normalizeSmartsitePinnedOrder = (
+  micrositeData: any,
+  pinnedOrder?: unknown,
+): string[] => {
+  const requested = pinnedOrder ?? micrositeData?.pinnedOrder;
+
+  if (!Array.isArray(requested) || requested.length === 0) {
+    return [];
+  }
+
+  const defaultOrderSet = new Set(
+    getDefaultSmartsiteTemplateBlockOrder(micrositeData),
+  );
+  const normalized: string[] = [];
+
+  requested.forEach((rawKey: unknown) => {
+    if (
+      typeof rawKey === "string" &&
+      rawKey !== "socialTop" &&
+      defaultOrderSet.has(rawKey) &&
+      !normalized.includes(rawKey)
+    ) {
+      normalized.push(rawKey);
+    }
+  });
+
+  return normalized;
+};
+
+/**
  * The flat templateOrder dual-written alongside tabs on every save. On tabbed
  * sites 'socialTop' (Small Icons) is pinned in the header — it lives in no
  * tab — but pre-tabs clients render only the flat order, so it must LEAD the
  * flattened payload whenever the site has socialTop content (icons stay at
- * the top for them, matching the pinned header position).
+ * the top for them, matching the pinned header position). Pinned-header
+ * templates come next (they render above the tab bar), then the tabs'
+ * content in tab order. Callers holding a fresher local pinned order than
+ * `micrositeData.pinnedOrder` (optimistic save in flight) pass it as
+ * `pinnedOrder`.
  */
 export const buildFlatTemplateOrderForTabs = (
   micrositeData: any,
   tabs?: SmartsiteTab[] | null,
-): string[] =>
-  pinSocialTopFirstInFlatOrder(micrositeData, flattenSmartsiteTabs(tabs));
+  pinnedOrder?: string[] | null,
+): string[] => {
+  const pinned = normalizeSmartsitePinnedOrder(micrositeData, pinnedOrder);
+  const pinnedSet = new Set(pinned);
+
+  return pinSocialTopFirstInFlatOrder(micrositeData, [
+    ...pinned,
+    ...flattenSmartsiteTabs(tabs).filter((key) => !pinnedSet.has(key)),
+  ]);
+};
+
+/**
+ * Pin a template above the tab bar: appends the key to the pinned-header
+ * zone and strips it from every tab (pinned blocks are visible on every
+ * tab, so they live in no tab — mirroring 'socialTop'). Pure; returns the
+ * inputs unchanged when the pin is a no-op ('socialTop' or already pinned).
+ */
+export const pinKeyToHeader = (
+  pinned: string[],
+  tabs: SmartsiteTab[],
+  orderKey: string,
+): { pinned: string[]; tabs: SmartsiteTab[] } => {
+  if (orderKey === "socialTop" || pinned.includes(orderKey)) {
+    return { pinned, tabs };
+  }
+
+  return {
+    pinned: [...pinned, orderKey],
+    tabs: tabs.map((tab) =>
+      tab.order.includes(orderKey)
+        ? { ...tab, order: tab.order.filter((key) => key !== orderKey) }
+        : tab,
+    ),
+  };
+};
+
+/**
+ * Unpin a template from the pinned-header zone to the END of a tab (the
+ * discoverable "unpin to this tab" affordance). Pure; returns the inputs
+ * unchanged when the move is a no-op (key not pinned, or unknown tab).
+ */
+export const unpinKeyToTab = (
+  pinned: string[],
+  tabs: SmartsiteTab[],
+  tabId: string,
+  orderKey: string,
+): { pinned: string[]; tabs: SmartsiteTab[] } => {
+  if (!pinned.includes(orderKey) || !tabs.some((tab) => tab.id === tabId)) {
+    return { pinned, tabs };
+  }
+
+  return {
+    pinned: pinned.filter((key) => key !== orderKey),
+    tabs: tabs.map((tab) =>
+      tab.id === tabId
+        ? {
+            ...tab,
+            order: [...tab.order.filter((key) => key !== orderKey), orderKey],
+          }
+        : tab,
+    ),
+  };
+};
 
 export const areSmartsiteTabsEqual = (
   a?: SmartsiteTab[] | null,
@@ -323,6 +427,8 @@ export const buildDefaultSmartsiteTabs = (
  *  - 'socialTop' is stripped from every tab — on tabbed sites the Small
  *    Icons are pinned in the header (under the Bio, above the tab bar), not
  *    tab content, and must never be re-homed to a tab
+ *  - keys in the site's pinned-header zone (micrositeData.pinnedOrder) are
+ *    pre-claimed the same way: stripped from every tab, never re-homed
  *  - a key lives in exactly one tab (first occurrence wins)
  *  - a bare item-level section key expands to that section's blocks
  *  - content assigned to no tab appends to the FIRST tab in default order
@@ -353,9 +459,13 @@ export const normalizeSmartsiteTabs = (
     defaultBlocksBySection.set(sectionKey, sectionOrder);
   });
 
-  // Pre-claiming 'socialTop' both strips it from stored tab orders and
-  // excludes it from the unassigned-content re-home below.
-  const claimed = new Set<string>(["socialTop"]);
+  // Pre-claiming 'socialTop' and the pinned-header keys both strips them
+  // from stored tab orders and excludes them from the unassigned-content
+  // re-home below (pinned blocks live in no tab).
+  const claimed = new Set<string>([
+    "socialTop",
+    ...normalizeSmartsitePinnedOrder(micrositeData),
+  ]);
   const normalizedTabs: SmartsiteTab[] = requestedTabs.map(
     (tab: any, index: number) => {
       const rawName = typeof tab?.name === "string" ? tab.name.trim() : "";
