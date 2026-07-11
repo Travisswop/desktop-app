@@ -98,6 +98,7 @@ import {
 } from "lucide-react";
 import TipJarCard from "../publicProfile/widgets/TipJarCard";
 import LeadFormCard from "../publicProfile/widgets/LeadFormCard";
+import AiChatCard from "../publicProfile/widgets/AiChatCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2502,6 +2503,8 @@ const SmartsiteIconLivePreview = ({
                                 config={item.config || {}}
                                 mode="builder"
                               />
+                            ) : item.widgetType === "aiChat" ? (
+                              <AiChatCard widgetId={item._id} config={item.config || {}} mode="builder" />
                             ) : null}
                           </div>
                         </SortablePreviewSection>

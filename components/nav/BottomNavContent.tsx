@@ -6,6 +6,7 @@ import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import {
   ClipboardList,
+  Bot,
   HandCoins,
   Layers,
   LayoutGrid,
@@ -57,6 +58,7 @@ import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplac
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
 import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
+import AddAiChat from "../smartsite/EditMicrosite/widget/AddAiChat";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
@@ -84,6 +86,7 @@ const TEMPLATE_VISUALS: Record<
   feed: { image: feedImg },
   "tip-jar": { icon: HandCoins },
   "leads-form": { icon: ClipboardList },
+  "ai-chat": { icon: Bot },
 };
 
 const SMARTSITE_TEMPLATES = SMARTSITE_TEMPLATE_CATALOG.map((entry) => ({
@@ -595,6 +598,8 @@ const BottomNavContent = () => {
             <AddLeadForm onCloseModal={handleTemplateSaved} />
           </div>
         );
+      case "ai-chat":
+        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddAiChat onCloseModal={handleTemplateSaved} /></div>;
       default:
         return null;
     }

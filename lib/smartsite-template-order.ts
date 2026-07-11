@@ -125,6 +125,12 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
     description: "Accept preset or custom USDC tips",
   },
   {
+    id: "ai-chat",
+    sectionKey: "widget",
+    title: "Chat",
+    description: "Train an AI concierge on Markdown files",
+  },
+  {
     id: "leads-form",
     sectionKey: "widget",
     title: "Form",
