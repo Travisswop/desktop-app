@@ -28,13 +28,17 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
     setInput("");
     setMessages((current) => [...current, { role: "visitor", text: cleanQuestion }]);
     setSending(true);
+    const history = messages.slice(-10).map((message) => ({
+      role: message.role === "visitor" ? "user" : "assistant",
+      content: message.text,
+    }));
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/widget/${widgetId}/chat`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: cleanQuestion }),
+          body: JSON.stringify({ message: cleanQuestion, history }),
         },
       );
       const body = await response.json();
