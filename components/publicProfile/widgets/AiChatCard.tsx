@@ -21,10 +21,12 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const interactive = mode === "public" && Boolean(widgetId);
+  const training = config.documents?.some((doc: { status?: string }) => doc.status !== "trained");
 
   const send = async (question = input) => {
     const cleanQuestion = question.trim();
-    if (mode !== "public" || !widgetId || !cleanQuestion || sending) return;
+    if (!interactive || !widgetId || !cleanQuestion || sending) return;
     setInput("");
     setMessages((current) => [...current, { role: "visitor", text: cleanQuestion }]);
     setSending(true);
@@ -66,9 +68,9 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><Bot size={19} /></span>
         <div className="flex-1">
           <p className="font-bold">{config.name || "SmartSite Concierge"}</p>
-          <p className="text-xs text-gray-500">Trained on {config.documents?.length || 0} docs</p>
+          <p className="text-xs text-gray-500">{interactive ? `Trained on ${config.documents?.length || 0} docs` : training ? "Training · save to activate" : "Preview · save to activate"}</p>
         </div>
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+        <span className={`h-2.5 w-2.5 rounded-full ${interactive ? "bg-emerald-500" : "bg-gray-300"}`} />
       </div>
       <div className="flex max-h-72 flex-col gap-2 overflow-y-auto p-4">
         {messages.map((message, index) => (
@@ -95,8 +97,8 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
         </div>
       )}
       <div className="flex items-center gap-2 border-t p-3">
-        <input disabled={mode !== "public" || sending} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Ask a question…" className="min-w-0 flex-1 rounded-full bg-gray-100 px-4 py-2 text-sm outline-none" />
-        <button type="button" disabled={mode !== "public" || sending || !input.trim()} onClick={() => send()} className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-950 text-white disabled:opacity-40"><Send size={15} /></button>
+        <input disabled={!interactive || sending} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder={interactive ? "Ask a question…" : "Save Chat to test real responses"} className="min-w-0 flex-1 rounded-full bg-gray-100 px-4 py-2 text-sm outline-none" />
+        <button type="button" disabled={!interactive || sending || !input.trim()} onClick={() => send()} className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-950 text-white disabled:opacity-40"><Send size={15} /></button>
       </div>
     </div>
   );
