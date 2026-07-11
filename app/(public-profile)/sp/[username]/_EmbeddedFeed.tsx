@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useModalStore } from "@/zustandStore/modalstore";
-import InfiniteScroll from "react-infinite-scroll-component";
 // import { FeedMainComponentLoading } from "@/components/loading/TabSwitcherLoading";
 import FeedLoading from "@/components/loading/FeedLoading";
 import FeedItem from "@/components/feed/FeedItem";
@@ -136,9 +135,9 @@ export default function EmbeddedFeed({
     fetchFeedData(true);
   }, [feedRefetchTrigger, fetchFeedData]);
 
-  // Plain mode paginates on a viewport-intersection sentinel instead of
-  // InfiniteScroll: the feed lives in the page's own scroll (no inner
-  // fixed-height box), and the sentinel fires no matter which ancestor
+  // SmartSites always scroll like a webpage: the feed has NO inner scroll
+  // box in any mode — it lives in the page's own scroll and paginates on a
+  // viewport-intersection sentinel, which fires no matter which ancestor
   // element does the scrolling. Re-observing on every page keeps loading
   // when the sentinel never LEAVES the viewport (a stationary observer
   // only fires on enter/leave transitions).
@@ -150,7 +149,7 @@ export default function EmbeddedFeed({
   const autoFillsRef = useRef(0);
   const feedLength = feedData.length;
   useEffect(() => {
-    if (!plain || isOrderPreview) return;
+    if (isOrderPreview) return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
@@ -207,7 +206,7 @@ export default function EmbeddedFeed({
       window.removeEventListener("scroll", handleScroll, true);
       observer?.disconnect();
     };
-  }, [plain, isOrderPreview, fetchFeedData, hasMore, feedLength]);
+  }, [isOrderPreview, fetchFeedData, hasMore, feedLength]);
 
   const feedItems = isOrderPreview ? feedData.slice(0, 3) : feedData;
   const feedContent = feedItems.map((feed: any, index: number) => (
@@ -234,19 +233,13 @@ export default function EmbeddedFeed({
     <div
       className={`w-full flex flex-col gap-4 ${
         plain ? "" : "bg-white rounded-lg p-4"
-      } ${
-        isOrderPreview
-          ? "max-h-[34rem] overflow-hidden"
-          : plain
-            ? "grow"
-            : "h-[40rem] overflow-auto hide-scrollbar"
-      }`}
+      } ${isOrderPreview ? "max-h-[34rem] overflow-hidden" : "grow"}`}
     >
       {isOrderPreview ? (
         <div className="flex flex-col gap-4">
           {feedItems.length > 0 ? feedContent : <FeedLoading />}
         </div>
-      ) : plain ? (
+      ) : (
         <>
           {feedContent}
           {hasMore ? (
@@ -257,19 +250,6 @@ export default function EmbeddedFeed({
             <p className="text-center text-sm text-gray-500">No more posts</p>
           )}
         </>
-      ) : (
-        <InfiniteScroll
-          dataLength={feedData.length}
-          next={() => fetchFeedData(false)}
-          hasMore={hasMore}
-          loader={<FeedLoading />}
-          endMessage={
-            <p className="text-center text-sm text-gray-500">No more posts</p>
-          }
-          className=""
-        >
-          {feedContent}
-        </InfiniteScroll>
       )}
     </div>
   );
