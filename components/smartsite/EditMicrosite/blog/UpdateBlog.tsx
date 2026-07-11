@@ -32,6 +32,9 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
   const [imageFile, setImageFile] = useState<any>(null);
   const [fileError, setFileError] = useState<string>("");
   const [isDeleteLoading, setIsDeleteLoading] = useState<boolean>(false);
+  const [category, setCategory] = useState(iconDataObj.data.category || "General");
+  const [status, setStatus] = useState<"published" | "draft" | "scheduled">(iconDataObj.data.status || "published");
+  const [scheduledAt, setScheduledAt] = useState(iconDataObj.data.scheduledAt ? new Date(iconDataObj.data.scheduledAt).toISOString().slice(0, 16) : "");
 
   const Editor = dynamic<any>(
     () =>
@@ -96,6 +99,9 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
       headline: formData.get("headline"),
       description: value,
       image: imageUrl || iconDataObj.data.image,
+      category: category.trim() || "General",
+      status,
+      scheduledAt: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
     };
 
     // console.log("info", info);
@@ -293,6 +299,11 @@ const UpdateBlog = ({ iconDataObj, isOn, setOff }: any) => {
                         </p>
                       )}
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1 text-sm font-medium">Category<input value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-xl border border-[#ede8e8] bg-gray-100 px-3 py-2 outline-none" /></label>
+                      <label className="flex flex-col gap-1 text-sm font-medium">Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="rounded-xl border border-[#ede8e8] bg-gray-100 px-3 py-2 outline-none"><option value="published">Published</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option></select></label>
+                    </div>
+                    {status === "scheduled" && <label className="flex flex-col gap-1 text-sm font-medium">Publish date<input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-xl border border-[#ede8e8] bg-gray-100 px-3 py-2 outline-none" /></label>}
                   </div>
                 </div>
                 <div className="blog-update flex flex-col gap-1">

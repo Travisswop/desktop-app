@@ -392,30 +392,21 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
             )}
 
             {/* Blog */}
-            {info?.blog && info.blog.length > 0 && (
-              <>
-                {info.blog.map((social: any, index: number) => (
-                  <div
-                    key={social._id}
-                    className="w-full"
-                    style={{
-                      ...getTemplateBlockStyle(
-                        getSmartsiteTemplateItemKey("blog", social, index),
-                      ),
-                    }}
-                  >
-                    <Blog
-                      number={index}
-                      data={social}
-                      socialType="blog"
-                      parentId={parentId}
-                      fontColor={fontColor}
-                      secondaryFontColor={secondaryFontColor}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
+            {info?.blog && info.blog.length > 0 && (() => {
+              const visiblePosts = info.blog.filter((social: any, index: number) => {
+                if (!isTabbed) return true;
+                const key = getSmartsiteTemplateItemKey("blog", social, index);
+                if (pinnedOrder.includes(key)) return true;
+                if (isActiveTabLocked) return false;
+                return activeTabKeySet?.has(key);
+              });
+              if (visiblePosts.length === 0) return null;
+              return (
+                <div className="w-full" style={{ order: 1200 }}>
+                  <Blog posts={visiblePosts} parentId={String(parentId || "")} micrositeId={String(_id || "")} authorName={name || userName} authorHandle={ens || userName} authorImage={typeof profilePic === "string" && profilePic.startsWith("http") ? profilePic : undefined} />
+                </div>
+              );
+            })()}
             {/* Social Media Big */}
             {info?.socialLarge && info.socialLarge.length > 0 && (
               <div

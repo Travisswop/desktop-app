@@ -1,327 +1,174 @@
 "use client";
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
-import { LiaFileMedicalSolid } from "react-icons/lia";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import CustomFileInput from "@/components/CustomFileInput";
-import { postBlog } from "@/actions/blog";
-import { FaTimes } from "react-icons/fa";
-import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
-import AnimateButton from "@/components/ui/Button/AnimateButton";
+
 import dynamic from "next/dynamic";
-import toast from "react-hot-toast";
-import { Tooltip } from "@nextui-org/react";
-import { MdInfoOutline } from "react-icons/md";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import Cookies from "js-cookie";
-import placeholder from "@/public/images/image-placeholder.webp";
+import { Edit3, Eye, Loader, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
+import { deleteBlog, postBlog, updateBlog } from "@/actions/blog";
+import CustomFileInput from "@/components/CustomFileInput";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
-import { Loader } from "lucide-react";
+import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
+import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 
-const AddBlog = ({ onCloseModal }: any) => {
-  const state: any = useSmartSiteApiDataStore((state) => state);
-  //const sesstionState = useLoggedInUserStore((state) => state.state.user); //get session value
-  const [accessToken, setAccessToken] = useState("");
+type PostStatus = "published" | "draft" | "scheduled";
+type BlogPost = {
+  _id?: string;
+  micrositeId?: string;
+  title?: string;
+  headline?: string;
+  description?: string;
+  image?: string;
+  category?: string;
+  status?: PostStatus;
+  scheduledAt?: string | null;
+  totalTap?: number;
+};
 
-  useEffect(() => {
-    const getAccessToken = async () => {
-      const token = Cookies.get("access-token");
-      if (token) {
-        setAccessToken(token);
-      }
-    };
-    getAccessToken();
-  }, []);
-  const [value, setValue] = useState("");
-  // const [editorState, setEditorState] = React.useState(() =>
-  //   EditorState.createEmpty()
-  // );
-  const Editor = dynamic<any>(
-    () =>
-      import("@tinymce/tinymce-react").then(
-        (mod) => mod.Editor as unknown as React.ComponentType<any>,
-      ),
-    {
-      ssr: false,
-    },
-  );
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [inputError, setInputError] = useState<any>({});
-  const [imageFile, setImageFile] = useState<any>(null);
-  const [fileError, setFileError] = useState<string>("");
+const Editor = dynamic<any>(
+  () => import("@tinymce/tinymce-react").then((mod) => mod.Editor as unknown as React.ComponentType<any>),
+  { ssr: false },
+);
 
-  const handleFileChange = (event: any) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        // Check if file size is greater than 10 MB
-        setFileError("File size should be less than 10 MB");
-        setImageFile(null);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImageFile(reader.result as any);
-          setFileError("");
-        };
-        reader.readAsDataURL(file);
-      }
+const inputClass = "w-full rounded-xl border border-black/[0.08] bg-white px-3 py-2.5 text-sm text-gray-950 outline-none focus:border-black/30";
+
+const AddBlog = ({ onCloseModal }: { onCloseModal: () => void }) => {
+  const smartsite: any = useSmartSiteApiDataStore((state) => state);
+  const [token, setToken] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [body, setBody] = useState("");
+  const [category, setCategory] = useState("General");
+  const [status, setStatus] = useState<PostStatus>("published");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [image, setImage] = useState("");
+  const [imageFile, setImageFile] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const posts = useMemo<BlogPost[]>(() => smartsite.info?.blog || [], [smartsite.info?.blog]);
+
+  useEffect(() => setToken(Cookies.get("access-token") || ""), []);
+
+  const resetComposer = () => {
+    setEditingId(null);
+    setTitle("");
+    setHeadline("");
+    setBody("");
+    setCategory("General");
+    setStatus("published");
+    setScheduledAt("");
+    setImage("");
+    setImageFile(null);
+  };
+
+  const newPost = () => {
+    resetComposer();
+    setComposerOpen(true);
+  };
+
+  const editPost = (post: BlogPost) => {
+    setEditingId(post._id || null);
+    setTitle(post.title || "");
+    setHeadline(post.headline || "");
+    setBody(post.description || "");
+    setCategory(post.category || "General");
+    setStatus(post.status || "published");
+    setScheduledAt(post.scheduledAt ? new Date(post.scheduledAt).toISOString().slice(0, 16) : "");
+    setImage(post.image || "");
+    setImageFile(null);
+    setComposerOpen(true);
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) return toast.error("Cover must be under 10 MB");
+    const reader = new FileReader();
+    reader.onloadend = () => setImageFile(String(reader.result || ""));
+    reader.readAsDataURL(file);
+  };
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!title.trim() || !headline.trim() || !body.trim()) return toast.error("Add a title, excerpt, and body");
+    if (!image && !imageFile) return toast.error("Add a cover image");
+    if (status === "scheduled" && !scheduledAt) return toast.error("Choose a publish date");
+    setSaving(true);
+    try {
+      const imageUrl = imageFile ? await sendCloudinaryImage(imageFile) : image;
+      const payload = {
+        micrositeId: smartsite._id,
+        title: title.trim(),
+        headline: headline.trim(),
+        description: body,
+        image: imageUrl,
+        category: category.trim() || "General",
+        status,
+        scheduledAt: status === "scheduled" ? new Date(scheduledAt).toISOString() : null,
+      };
+      const result = editingId
+        ? await updateBlog({ ...payload, _id: editingId }, token)
+        : await postBlog(payload, token);
+      if (result?.state !== "success") throw new Error(result?.message || "Save failed");
+      toast.success(editingId ? "Post updated" : "Post created");
+      onCloseModal();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save post");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // console.log("imagefile", imageFile);
-
-  const handleFormSubmit = async (e: any) => {
-    setIsLoading(true);
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    if (!imageFile) {
-      setIsLoading(false);
-      return setInputError({ ...inputError, image: "image is required" });
-    }
-
-    const imageUrl = await sendCloudinaryImage(imageFile);
-
-    // console.log("image url submit", imageUrl);
-
-    const info = {
-      micrositeId: state._id,
-      title: formData.get("title"),
-      headline: formData.get("headline"),
-      description: value,
-      image: imageUrl,
-    };
-
-    // console.log("info", info);
-
-    let errors = {};
-
-    if (!info.title) {
-      errors = { ...errors, title: "title is required" };
-    }
-    if (!info.headline) {
-      errors = { ...errors, headline: "headline is required" };
-    }
-    if (!info.description) {
-      errors = { ...errors, description: "description is required" };
-    }
-    if (!info.image) {
-      errors = { ...errors, image: "image is required" };
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setInputError(errors);
-      setIsLoading(false);
-    } else {
-      setInputError("");
-      //   console.log("contactCardInfo", contactCardInfo);
-
-      try {
-        const data = await postBlog(info, accessToken);
-        if (data?.state === "success") {
-          toast.success("Blog created successfully");
-          onCloseModal();
-        } else {
-          toast.error("Something went wrong");
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+  const remove = async (post: BlogPost) => {
+    if (!post._id || !window.confirm(`Delete “${post.title || "post"}”?`)) return;
+    const result = await deleteBlog({ _id: post._id, micrositeId: smartsite._id }, token);
+    if (result?.state === "success") {
+      toast.success("Post deleted");
+      onCloseModal();
+    } else toast.error("Could not delete post");
   };
+
+  if (!composerOpen) {
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div><h2 className="text-xl font-bold text-gray-950">Blog posts</h2><p className="text-sm text-gray-500">Draft, schedule, publish, and review performance.</p></div>
+          <button type="button" onClick={newPost} className="flex items-center gap-1.5 rounded-full bg-gray-950 px-4 py-2 text-sm font-bold text-white"><Plus size={16} /> New post</button>
+        </div>
+        {posts.length === 0 ? (
+          <button type="button" onClick={newPost} className="rounded-2xl border border-dashed border-gray-300 px-6 py-14 text-sm font-semibold text-gray-500">Create your first post</button>
+        ) : posts.map((post) => (
+          <div key={post._id} className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white p-3">
+            <div className="relative h-16 w-20 flex-none overflow-hidden rounded-xl bg-gray-100">{post.image && <Image src={post.image} alt="" fill className="object-cover" />}</div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-gray-950">{post.title || "Untitled"}</p><div className="mt-1 flex items-center gap-2"><StatusBadge post={post} /><span className="flex items-center gap-1 text-xs text-gray-500"><Eye size={12} /> {post.totalTap || 0}</span></div></div>
+            <button type="button" onClick={() => editPost(post)} aria-label="Edit post" className="rounded-full p-2 hover:bg-gray-100"><Edit3 size={17} /></button>
+            <div className="group relative"><button type="button" aria-label="More post actions" className="rounded-full p-2 hover:bg-gray-100"><MoreHorizontal size={18} /></button><div className="invisible absolute right-0 top-full z-20 w-36 rounded-xl border bg-white p-1 opacity-0 shadow-lg group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"><button type="button" onClick={() => remove(post)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button></div></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={handleFormSubmit} className="relative flex flex-col gap-4">
-      <div className="flex items-end gap-1 justify-center">
-        <div className="flex items-end gap-1 justify-center">
-          <h2 className="font-semibold text-gray-700 text-xl text-center">
-            Blog
-          </h2>
-          <div className="translate-y-0.5">
-            <Tooltip
-              size="sm"
-              content={
-                <span className="font-medium">
-                  Write a blog and host it right on your swop smart site.
-                </span>
-              }
-              className={`max-w-40 h-auto`}
-            >
-              <button>
-                <MdInfoOutline />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-between gap-10">
-        <div className="flex flex-col gap-3 flex-1">
-          <div className="flex flex-col gap-2">
-            {/* <div className="flex flex-col 2xl:flex-row 2xl:items-center gap-2">
-              <p className="font-semibold text-gray-700 text-sm">
-                Select Photo
-                <span className="text-red-600 font-medium text-sm mt-1">*</span>
-              </p>
-              <CustomFileInput handleFileChange={handleFileChange} />
-            </div> */}
-            <div className="">
-              <div className="relative border-2 border-[#d8acff] w-full max-h-96 min-h-[22rem] p-1 bg-slate-100 rounded-lg">
-                {imageFile ? (
-                  <Image
-                    src={imageFile}
-                    alt="blog photo"
-                    fill
-                    className="w-full h-auto rounded-md object-cover"
-                  />
-                ) : (
-                  <Image
-                    src={placeholder}
-                    alt="blog photo"
-                    fill
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    className="rounded-md object-cover"
-                    quality={100}
-                  />
-                )}
-                <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2">
-                  <CustomFileInput handleFileChange={handleFileChange} />
-                </div>
-              </div>
-              {inputError.image && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  Image is required
-                </p>
-              )}
-
-              {fileError && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  {fileError}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="font-medium text-sm">
-              Blog Name
-              <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p>
-            <div>
-              <input
-                type="text"
-                name="title"
-                className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-                placeholder={"Enter Headline"}
-                // required
-              />
-              {inputError.title && (
-                <p className="text-red-600 font-medium text-sm mt-1">
-                  blog name is required
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="font-medium text-sm">
-              Headline Text
-              <span className="text-red-600 font-medium text-sm mt-1">*</span>
-            </p>
-            <input
-              type="text"
-              name="headline"
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-3 py-2 text-gray-700 bg-gray-100"
-              placeholder={"Enter Subtext"}
-              //   required
-            />
-            {inputError.headline && (
-              <p className="text-red-600 font-medium text-sm">
-                Headline text is required
-              </p>
-            )}
-          </div>
-        </div>
-        {/* <div className="gap-2 hidden 2xl:flex justify-end">
-          <p className="font-semibold text-gray-700 text-sm">Photo </p>
-          <div className="border-2 border-[#d8acff] min-w-56 max-w-64 min-h-32 max-h-36 p-1 bg-slate-100 rounded-lg">
-            {imageFile ? (
-              <div className="relative h-full">
-                <Image
-                  src={imageFile}
-                  alt="blog photo"
-                  width={200}
-                  height={200}
-                  className="w-full max-h-full rounded-md object-cover"
-                />
-              </div>
-            ) : (
-              <Image
-                src={imagePlaceholder}
-                alt="blog photo"
-                width={200}
-                height={200}
-                className="w-full h-full rounded-md"
-              />
-            )}
-            {inputError.image && (
-              <p className="text-red-600 font-medium text-sm mt-2">
-                Image is required
-              </p>
-            )}
-            {fileError && (
-              <p className="text-red-600 font-medium text-sm mt-2">
-                {fileError}
-              </p>
-            )}
-          </div>
-        </div> */}
-      </div>
-      <div className="blog flex flex-col gap-1">
-        <p className="font-medium text-sm">
-          Description
-          <span className="text-red-600 font-medium text-sm mt-1">*</span>
-        </p>
-        <Editor
-          apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh"
-          value={value} // Bind the state to the editor
-          onEditorChange={(content: string) => setValue(content)} // Update state on change
-          init={{
-            height: 300,
-            plugins: [
-              "autolink",
-              "lists",
-              "link",
-              // "image",
-              "charmap",
-              "preview",
-              "anchor",
-              "searchreplace",
-              "visualblocks",
-              "code",
-              "fullscreen",
-              "insertdatetime",
-              // "media",
-              "table",
-              "help",
-            ],
-            toolbar:
-              "undo redo | bold italic underline | link image | alignleft aligncenter alignright alignjustify | bullist numlist | code",
-          }}
-        />
-        {inputError.description && (
-          <p className="text-red-600 font-medium text-sm">
-            description is required
-          </p>
-        )}
-      </div>
-      <PrimaryButton className="w-full py-3">
-        {isLoading ? (
-          <Loader className="w-8 h-8 animate-spin mx-auto" />
-        ) : (
-          "Save"
-        )}
-      </PrimaryButton>
+    <form onSubmit={save} className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <div className="flex items-center justify-between"><div><h2 className="text-xl font-bold">{editingId ? "Edit post" : "New post"}</h2><p className="text-sm text-gray-500">Compose and publish to your SmartSite.</p></div><button type="button" onClick={() => setComposerOpen(false)} className="text-sm font-semibold text-gray-500">Back to posts</button></div>
+      <label className="relative flex min-h-52 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-300 bg-gray-50">{imageFile || image ? <Image src={imageFile || image} alt="Cover" fill className="object-cover" /> : <span className="text-sm font-semibold text-gray-500">Add cover image</span>}<span className="absolute rounded-full bg-white/90 px-4 py-2 text-xs font-bold shadow"><CustomFileInput handleFileChange={handleFileChange} /></span></label>
+      <label><span className="mb-1 block text-xs font-bold text-gray-500">Title</span><input className={inputClass} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Post title" /></label>
+      <div className="grid grid-cols-2 gap-3"><label><span className="mb-1 block text-xs font-bold text-gray-500">Category</span><input className={inputClass} value={category} onChange={(event) => setCategory(event.target.value)} /></label><label><span className="mb-1 block text-xs font-bold text-gray-500">Status</span><select className={inputClass} value={status} onChange={(event) => setStatus(event.target.value as PostStatus)}><option value="published">Published</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option></select></label></div>
+      {status === "scheduled" && <label><span className="mb-1 block text-xs font-bold text-gray-500">Publish date</span><input type="datetime-local" className={inputClass} value={scheduledAt} min={new Date().toISOString().slice(0, 16)} onChange={(event) => setScheduledAt(event.target.value)} /></label>}
+      <label><span className="mb-1 block text-xs font-bold text-gray-500">Excerpt</span><textarea className={`${inputClass} min-h-20 resize-none`} value={headline} onChange={(event) => setHeadline(event.target.value)} placeholder="Short summary shown on the card" /></label>
+      <div><span className="mb-1 block text-xs font-bold text-gray-500">Body</span><Editor apiKey="njethe5lk1z21je67jjdi9v3wimfducwhl6jnnuip46yxwxh" value={body} onEditorChange={setBody} init={{ height: 320, menubar: false, plugins: ["autolink", "lists", "link", "blockquote", "code"], toolbar: "undo redo | bold italic underline | link | alignleft aligncenter alignright | bullist numlist | blockquote | code" }} /></div>
+      <PrimaryButton className="w-full py-3" disabled={saving}>{saving ? <Loader className="mx-auto h-5 w-5 animate-spin" /> : editingId ? "Save changes" : "Save post"}</PrimaryButton>
     </form>
   );
 };
+
+function StatusBadge({ post }: { post: BlogPost }) {
+  const status = post.status || "published";
+  const tone = status === "published" ? "bg-emerald-50 text-emerald-700" : status === "scheduled" ? "bg-violet-50 text-violet-700" : "bg-gray-100 text-gray-600";
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${tone}`}>{status}</span>;
+}
 
 export default AddBlog;
