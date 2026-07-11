@@ -1804,6 +1804,16 @@ const SmartsiteIconLivePreview = ({
                     </div>
                   )}
 
+                {isTabbed && isTabEditable && activeTab && (
+                  <div
+                    style={{ order: 550 }}
+                    className="mt-2 w-full border-y border-black/[0.07] px-6 py-3 text-[13px] text-gray-500"
+                  >
+                    Editing <span className="font-bold text-gray-950">{activeTab.name}</span>
+                    {" · "}drag cards to reorder
+                  </div>
+                )}
+
                 {/* empty tab placeholder */}
                 {isTabbed && activeTab && activeTab.order.length === 0 && (
                   <div
