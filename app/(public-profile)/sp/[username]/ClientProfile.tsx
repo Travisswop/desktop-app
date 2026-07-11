@@ -55,6 +55,7 @@ import LeadFormCard from "@/components/publicProfile/widgets/LeadFormCard";
 import AiChatCard from "@/components/publicProfile/widgets/AiChatCard";
 import TraderStatsCard from "@/components/publicProfile/widgets/TraderStatsCard";
 import ChartPostCard from "@/components/publicProfile/widgets/ChartPostCard";
+import FilesCard from "@/components/publicProfile/widgets/FilesCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -707,6 +708,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       <TraderStatsCard widgetId={item._id} />
                     ) : item.widgetType === "chartPost" ? (
                       <ChartPostCard widgetId={item._id} config={item.config || {}} />
+                    ) : item.widgetType === "files" ? (
+                      <FilesCard config={item.config || {}} />
                     ) : null}
                   </div>
                 ))}

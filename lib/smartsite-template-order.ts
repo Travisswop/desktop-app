@@ -131,6 +131,12 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
     description: "Publish a live market chart and trade thesis",
   },
   {
+    id: "files",
+    sectionKey: "widget",
+    title: "Files",
+    description: "Share public or token-gated downloads",
+  },
+  {
     id: "trader-stats", sectionKey: "widget", title: "Trader Stats", description: "Show live portfolio and trading performance",
   },
   {

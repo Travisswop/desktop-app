@@ -7,7 +7,8 @@ export type SmartsiteWidgetType =
   | "leadForm"
   | "aiChat"
   | "traderStats"
-  | "chartPost";
+  | "chartPost"
+  | "files";
 
 const revalidateMicrosite = (micrositeId: string) => {
   revalidatePath(`/smartsite/icons/${micrositeId}`);

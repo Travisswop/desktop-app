@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import { Loader } from "lucide-react";
+import { FileText, Loader, Lock, Trash2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ import {
   LeadFormField,
   normalizeLeadFormFields,
 } from "@/components/publicProfile/widgets/LeadFormCard";
+import { sendCloudinaryFile } from "@/lib/SendCloudinaryAnyFile";
 
 const MAX_PRESETS = 3;
 const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
@@ -21,6 +22,7 @@ const WIDGET_TITLES: Record<string, string> = {
   tipJar: "Tip Jar",
   leadForm: "Leads Form",
   chartPost: "Chart Post",
+  files: "Files",
 };
 
 const inputClass =
@@ -63,6 +65,8 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [hypothesis, setHypothesis] = useState("");
+  const [storedFiles, setStoredFiles] = useState<any[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
@@ -87,6 +91,7 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     setTakeProfit(String(config.takeProfit || ""));
     setStopLoss(String(config.stopLoss || ""));
     setHypothesis(config.hypothesis || "");
+    setStoredFiles(Array.isArray(config.files) ? config.files : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widget._id]);
 
@@ -153,6 +158,14 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
       };
     }
 
+    if (widgetType === "files") {
+      if (!title.trim() || !storedFiles.length) {
+        toast.error("Enter a title and upload at least one file");
+        return null;
+      }
+      return { title: title.trim(), files: storedFiles };
+    }
+
     return null;
   };
 
@@ -184,6 +197,28 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
       toast.error("Something went wrong");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const uploadFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []);
+    if (!selected.length) return;
+    setUploadingFiles(true);
+    try {
+      const added = await Promise.all(selected.map(async (file, index) => ({
+        id: `file-${Date.now()}-${index}`,
+        name: file.name,
+        url: await sendCloudinaryFile(await readDataUrl(file), file.type || "application/octet-stream", file.name),
+        mimeType: file.type || undefined,
+        size: file.size,
+        gated: false,
+      })));
+      setStoredFiles((current) => [...current, ...added]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploadingFiles(false);
+      event.target.value = "";
     }
   };
 
@@ -375,6 +410,25 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
               </>
             )}
 
+            {widgetType === "files" && (
+              <>
+                <label className="text-sm font-medium">Section title<input value={title} onChange={(event) => setTitle(event.target.value)} className={`${inputClass} mt-1`} /></label>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-bold text-white">
+                  {uploadingFiles ? <Loader className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Add files
+                  <input type="file" multiple className="hidden" onChange={(event) => void uploadFiles(event)} />
+                </label>
+                {storedFiles.map((file) => (
+                  <div key={file.id} className="flex items-center gap-2 rounded-xl bg-gray-100 p-3">
+                    <FileText size={16} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold">{file.name}</span>
+                    <label className="flex items-center gap-1 text-[11px] font-bold text-gray-500"><Lock size={12} />Gated<input type="checkbox" checked={Boolean(file.gated)} onChange={() => setStoredFiles((current) => current.map((item) => item.id === file.id ? { ...item, gated: !item.gated } : item))} /></label>
+                    <button type="button" onClick={() => setStoredFiles((current) => current.filter((item) => item.id !== file.id))}><Trash2 size={15} className="text-red-500" /></button>
+                  </div>
+                ))}
+              </>
+            )}
+
             <PrimaryButton className="w-full py-3">
               {isLoading ? (
                 <Loader className="w-8 h-8 animate-spin mx-auto" />
@@ -403,3 +457,12 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
 };
 
 export default UpdateWidget;
+
+function readDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
