@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-export type SmartsiteWidgetType = "tipJar" | "leadForm" | "aiChat";
+export type SmartsiteWidgetType = "tipJar" | "leadForm" | "aiChat" | "traderStats";
 
 const revalidateMicrosite = (micrositeId: string) => {
   revalidatePath(`/smartsite/icons/${micrositeId}`);

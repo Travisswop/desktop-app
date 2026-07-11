@@ -53,6 +53,7 @@ import { Lock } from "lucide-react";
 import TipJarCard from "@/components/publicProfile/widgets/TipJarCard";
 import LeadFormCard from "@/components/publicProfile/widgets/LeadFormCard";
 import AiChatCard from "@/components/publicProfile/widgets/AiChatCard";
+import TraderStatsCard from "@/components/publicProfile/widgets/TraderStatsCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -701,6 +702,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       />
                     ) : item.widgetType === "aiChat" ? (
                       <AiChatCard widgetId={item._id} config={item.config || {}} mode="public" />
+                    ) : item.widgetType === "traderStats" ? (
+                      <TraderStatsCard widgetId={item._id} />
                     ) : null}
                   </div>
                 ))}
