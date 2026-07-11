@@ -14,6 +14,7 @@ import {
   normalizeLeadFormFields,
 } from "@/components/publicProfile/widgets/LeadFormCard";
 import { sendCloudinaryFile } from "@/lib/SendCloudinaryAnyFile";
+import LeadFormBuilder, { type LeadFormBuilderConfig } from "@/components/smartsite/EditMicrosite/widget/LeadFormBuilder";
 
 const MAX_PRESETS = 3;
 const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
@@ -293,8 +294,49 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
+  const handleLeadFormBuilderSave = async (nextConfig: LeadFormBuilderConfig) => {
+    setIsLoading(true);
+    try {
+      const data = await handleUpdateWidget(
+        {
+          _id: widget._id,
+          micrositeId: widget.micrositeId || iconDataObj?.micrositeId,
+          config: nextConfig,
+        },
+        token,
+      );
+      if (data?.state !== "success") throw new Error("Form update failed");
+      toast.success("Form updated");
+      closeModal();
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update form");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOn) {
     return null;
+  }
+
+  if (widgetType === "leadForm") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/55 p-4" onMouseDown={handleBackdropClick}>
+        <div ref={modalRef} className="w-full max-w-[400px]">
+          <LeadFormBuilder
+            initialConfig={{
+              title: config.title || "Work with us",
+              description: config.description || "Tell us a bit and we’ll reach out.",
+              successMessage: config.successMessage || "Thanks — we got it!",
+              fields: normalizeLeadFormFields(config.fields),
+            }}
+            saving={isLoading}
+            onSave={handleLeadFormBuilderSave}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
