@@ -53,7 +53,7 @@ import AddEmbed from "../smartsite/EditMicrosite/embed/AddEmbed";
 import AddAppIcon from "../smartsite/EditMicrosite/appIcon/AddAppIcon";
 import AddRedeemLink from "../smartsite/EditMicrosite/redeemLink/AddRedeemLink";
 import AddBlog from "../smartsite/EditMicrosite/blog/AddBlog";
-import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
+import ManageMarketplace from "../smartsite/EditMicrosite/marketplace/ManageMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
 import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
@@ -524,7 +524,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddMarketplace onCloseModal={handleTemplateSaved} />
+            <ManageMarketplace onCloseModal={handleTemplateSaved} />
           </div>
         );
 

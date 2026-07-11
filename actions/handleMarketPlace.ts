@@ -54,3 +54,39 @@ export async function handleDeleteMarketPlace(payload: any, token: string) {
     console.error("Error from action:", error);
   }
 }
+
+export async function renameMarketplaceCategory(
+  payload: { micrositeId: string; currentTitle: string; nextTitle: string },
+  token: string,
+) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/marketplace-category/${payload.micrositeId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ currentTitle: payload.currentTitle, nextTitle: payload.nextTitle }),
+    },
+  );
+  const data = await response.json().catch(() => null);
+  if (!response.ok) return null;
+  revalidatePath(`/smartsite/icons/${payload.micrositeId}`);
+  return data;
+}
+
+export async function deleteMarketplaceCategory(
+  payload: { micrositeId: string; title: string },
+  token: string,
+) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/marketplace-category/${payload.micrositeId}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ title: payload.title }),
+    },
+  );
+  const data = await response.json().catch(() => null);
+  if (!response.ok) return null;
+  revalidatePath(`/smartsite/icons/${payload.micrositeId}`);
+  return data;
+}
