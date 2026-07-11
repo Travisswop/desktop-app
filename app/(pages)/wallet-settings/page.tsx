@@ -130,7 +130,7 @@ export default function WalletSetting() {
 
         {/* Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {/* 2FA */}
+          {/* Transaction MFA — sign-in passkeys are managed separately. */}
           <button
             onClick={showMfaEnrollmentModal}
             className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center hover:shadow-md transition-shadow"
@@ -138,7 +138,10 @@ export default function WalletSetting() {
             <div className="mb-3">
               <RiShieldKeyholeLine size={48} />
             </div>
-            <span className="text-sm font-medium">2FA</span>
+            <span className="text-sm font-medium">Transaction Security</span>
+            <span className="mt-1 text-center text-xs text-gray-500">
+              Does not create sign-in passkeys
+            </span>
           </button>
 
           {/* Keys */}

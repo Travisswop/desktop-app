@@ -71,6 +71,7 @@ const navItems = [
     icon: UserRoundCog,
     match: (pathname: string) =>
       pathname.startsWith("/account-settings") ||
+      pathname.startsWith("/account-security") ||
       pathname.startsWith("/wallet-settings"),
   },
 ];

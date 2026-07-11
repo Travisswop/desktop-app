@@ -32,7 +32,7 @@ import { FaUserEdit } from 'react-icons/fa';
 import { HiBellAlert } from 'react-icons/hi2';
 import { PiMedalFill } from 'react-icons/pi';
 import { TiInfoLarge } from 'react-icons/ti';
-import { RiCustomerService2Line } from 'react-icons/ri';
+import { RiCustomerService2Line, RiShieldKeyholeLine } from 'react-icons/ri';
 import { LuWallet } from 'react-icons/lu';
 import { IoLogOutOutline } from 'react-icons/io5';
 
@@ -312,6 +312,15 @@ export default function Header() {
                   </div>
                 </div>
                 <DropdownMenuSeparator className="mx-1 my-2 bg-slate-200" />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push('/account-security');
+                  }}
+                  className={profileMenuItemClass}
+                >
+                  <RiShieldKeyholeLine />
+                  <p>Account Security</p>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
                     router.push('/edit-profile');

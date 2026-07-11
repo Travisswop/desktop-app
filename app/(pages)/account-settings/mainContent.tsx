@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import uploadImgIcon from "@/public/images/upload_image_icon.svg";
 import { FiUser } from "react-icons/fi";
 import { FaRegUserCircle } from "react-icons/fa";
@@ -23,7 +24,6 @@ import UploadImageButton from "@/components/Button/UploadImageButton";
 import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api/apiFetch";
-import { useLinkWithPasskey, usePrivy } from "@privy-io/react-auth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,44 +35,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-function getPasskeyErrorCode(error: unknown): string {
-  if (!error || typeof error !== "object") return "";
-
-  const maybeError = error as {
-    code?: unknown;
-    data?: { code?: unknown };
-    privyErrorCode?: unknown;
-  };
-
-  const code =
-    maybeError.privyErrorCode ?? maybeError.code ?? maybeError.data?.code;
-  return typeof code === "string" ? code : "";
-}
-
-function formatPasskeyLinkError(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
-  const code = getPasskeyErrorCode(error);
-
-  if (code === "disallowed_login_method" || code === "passkey_not_allowed") {
-    return "Passkeys are not enabled for this app yet.";
-  }
-
-  if (/cancel|abort/i.test(message)) {
-    return "Passkey setup was cancelled.";
-  }
-
-  if (/not supported|unsupported|not allowed/i.test(message)) {
-    return "This browser or device does not support passkeys here.";
-  }
-
-  return message || "Could not link passkey. Try again or use email login.";
-}
 
 const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -89,38 +51,12 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
   const [dobDate, setDobDate] = useState<any>(new Date().getTime());
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const { user: privyUser } = usePrivy();
-  const { linkWithPasskey, state: passkeyLinkState } = useLinkWithPasskey();
-
   const router = useRouter();
-
-  const passkeyAccounts =
-    privyUser?.linkedAccounts?.filter(
-      (account: any) => account?.type === "passkey"
-    ) || [];
-  const hasPasskey = passkeyAccounts.length > 0;
-  const passkeyLinkBusy =
-    passkeyLinkState.status === "generating-challenge" ||
-    passkeyLinkState.status === "awaiting-passkey" ||
-    passkeyLinkState.status === "submitting-response";
   const googlePlacesApiKey =
     process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY || "";
 
   const handleGoToSubscriptions = () => {
     switchToTab("subscriptions");
-  };
-
-  const handleLinkPasskey = async () => {
-    if (passkeyLinkBusy) return;
-
-    try {
-      await linkWithPasskey();
-      toast.success(
-        "Passkey linked. Use the same synced password manager to sign in across devices."
-      );
-    } catch (error) {
-      toast.error(formatPasskeyLinkError(error));
-    }
   };
 
   const handleDeleteAccount = async () => {
@@ -534,80 +470,23 @@ const UpdateProfile = ({ data, token, switchToTab }: any) => {
           </form>
           <hr />
           <div className="border-none mt-6">
-            <div className="rounded-xl border border-[#ede8e8] bg-gray-50 p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex w-full items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-gray-900 ring-1 ring-[#ede8e8]">
-                    <RiFingerprintLine size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-lg font-semibold">
-                        Passkey sign-in
-                      </h3>
-                      {hasPasskey ? (
-                        <span className="rounded-full bg-black px-2 py-0.5 text-xs font-semibold uppercase tracking-normal text-white">
-                          Linked
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Use Face ID, Touch ID, Windows Hello, or a hardware key to
-                      sign in without an email code.
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      Save passkeys to a synced password manager like Apple
-                      Passwords, iCloud Keychain, or Google Password Manager.
-                    </p>
-                  </div>
+            <Link
+              href="/account-security"
+              className="flex items-center justify-between gap-4 rounded-xl border border-[#ede8e8] bg-gray-50 p-4 transition-colors hover:bg-gray-100"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-gray-900 ring-1 ring-[#ede8e8]">
+                  <RiFingerprintLine size={20} />
                 </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant={hasPasskey ? "outline" : "black"}
-                      disabled={passkeyLinkBusy}
-                      className="w-full sm:w-auto"
-                    >
-                      {passkeyLinkBusy ? (
-                        <>
-                          <Spinner
-                            size="sm"
-                            color={hasPasskey ? "default" : "white"}
-                          />
-                          Check your passkey prompt
-                        </>
-                      ) : (
-                        <>
-                          <RiFingerprintLine size={16} />
-                          {hasPasskey ? "Add another passkey" : "Link a passkey"}
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Before the passkey prompt opens
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Swop will open the browser passkey setup next. The
-                        browser decides which save options are available. For
-                        Apple sync, use Safari or choose Apple Passwords/iCloud
-                        Keychain if your browser offers it; otherwise choose
-                        the password manager you use across devices.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleLinkPasskey}>
-                        Continue
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <div>
+                  <h3 className="text-lg font-semibold">Account Security</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Create and manage passkeys used only for signing in.
+                  </p>
+                </div>
               </div>
-            </div>
+              <span aria-hidden className="text-xl text-gray-400">›</span>
+            </Link>
           </div>
           <hr className="mt-6" />
           <div className="border-none mt-6">
