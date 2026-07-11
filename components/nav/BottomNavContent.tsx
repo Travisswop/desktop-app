@@ -61,6 +61,7 @@ import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
 import AddLeadForm from "../smartsite/EditMicrosite/widget/AddLeadForm";
 import AddAiChat from "../smartsite/EditMicrosite/widget/AddAiChat";
 import AddTraderStats from "../smartsite/EditMicrosite/widget/AddTraderStats";
+import AddChartPost from "../smartsite/EditMicrosite/widget/AddChartPost";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
@@ -90,6 +91,7 @@ const TEMPLATE_VISUALS: Record<
   "leads-form": { icon: ClipboardList },
   "ai-chat": { icon: Bot },
   "trader-stats": { icon: BarChart3 },
+  "chart-post": { icon: BarChart3 },
 };
 
 const SMARTSITE_TEMPLATES = SMARTSITE_TEMPLATE_CATALOG.map((entry) => ({
@@ -605,6 +607,8 @@ const BottomNavContent = () => {
         return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddAiChat onCloseModal={handleTemplateSaved} /></div>;
       case "trader-stats":
         return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddTraderStats onCloseModal={handleTemplateSaved} /></div>;
+      case "chart-post":
+        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddChartPost onCloseModal={handleTemplateSaved} /></div>;
       default:
         return null;
     }

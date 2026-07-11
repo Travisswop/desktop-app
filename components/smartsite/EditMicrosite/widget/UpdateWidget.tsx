@@ -20,6 +20,7 @@ const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
 const WIDGET_TITLES: Record<string, string> = {
   tipJar: "Tip Jar",
   leadForm: "Leads Form",
+  chartPost: "Chart Post",
 };
 
 const inputClass =
@@ -56,6 +57,13 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [successMessage, setSuccessMessage] = useState("");
   const [leadFields, setLeadFields] = useState<LeadFormField[]>([]);
 
+  // chartPost fields
+  const [chartBias, setChartBias] = useState<"long" | "short">("long");
+  const [entry, setEntry] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
+  const [stopLoss, setStopLoss] = useState("");
+  const [hypothesis, setHypothesis] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 
@@ -74,6 +82,11 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     setDescription(config.description || "");
     setSuccessMessage(config.successMessage || "");
     setLeadFields(normalizeLeadFormFields(config.fields));
+    setChartBias(config.bias === "short" ? "short" : "long");
+    setEntry(String(config.entry || ""));
+    setTakeProfit(String(config.takeProfit || ""));
+    setStopLoss(String(config.stopLoss || ""));
+    setHypothesis(config.hypothesis || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widget._id]);
 
@@ -121,6 +134,22 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
         buttonText: buttonText.trim() || undefined,
         successMessage: successMessage.trim() || undefined,
         fields: leadFields,
+      };
+    }
+
+    if (widgetType === "chartPost") {
+      if (!config.market || !Number(entry) || !Number(takeProfit) || !Number(stopLoss) || !hypothesis.trim()) {
+        toast.error("Complete Entry, TP, SL, and hypothesis");
+        return null;
+      }
+      return {
+        market: config.market,
+        bias: chartBias,
+        entry: Number(entry),
+        takeProfit: Number(takeProfit),
+        stopLoss: Number(stopLoss),
+        hypothesis: hypothesis.trim(),
+        postedAt: config.postedAt || new Date().toISOString(),
       };
     }
 
@@ -317,6 +346,32 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
                     ))}
                   </div>
                 </div>
+              </>
+            )}
+
+            {widgetType === "chartPost" && (
+              <>
+                <div className="rounded-xl bg-gray-100 p-3 text-sm font-semibold text-gray-700">
+                  {config.market?.name || "Market"}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["long", "short"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setChartBias(value)}
+                      className={`rounded-full py-2 text-xs font-black ${chartBias === value ? "bg-black text-white" : "bg-gray-100 text-gray-500"}`}
+                    >
+                      {value.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="text-xs font-medium">Entry<input type="number" inputMode="decimal" value={entry} onChange={(event) => setEntry(event.target.value)} className={`${inputClass} mt-1`} /></label>
+                  <label className="text-xs font-medium">TP<input type="number" inputMode="decimal" value={takeProfit} onChange={(event) => setTakeProfit(event.target.value)} className={`${inputClass} mt-1`} /></label>
+                  <label className="text-xs font-medium">SL<input type="number" inputMode="decimal" value={stopLoss} onChange={(event) => setStopLoss(event.target.value)} className={`${inputClass} mt-1`} /></label>
+                </div>
+                <label className="text-sm font-medium">Hypothesis<textarea value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} className={`${inputClass} mt-1 min-h-28`} /></label>
               </>
             )}
 

@@ -125,6 +125,12 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
     description: "Accept preset or custom USDC tips",
   },
   {
+    id: "chart-post",
+    sectionKey: "widget",
+    title: "Chart Post",
+    description: "Publish a live market chart and trade thesis",
+  },
+  {
     id: "trader-stats", sectionKey: "widget", title: "Trader Stats", description: "Show live portfolio and trading performance",
   },
   {

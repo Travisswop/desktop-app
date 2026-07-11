@@ -100,6 +100,7 @@ import TipJarCard from "../publicProfile/widgets/TipJarCard";
 import LeadFormCard from "../publicProfile/widgets/LeadFormCard";
 import AiChatCard from "../publicProfile/widgets/AiChatCard";
 import TraderStatsCard from "../publicProfile/widgets/TraderStatsCard";
+import ChartPostCard from "../publicProfile/widgets/ChartPostCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2508,6 +2509,8 @@ const SmartsiteIconLivePreview = ({
                               <AiChatCard widgetId={item._id} config={item.config || {}} mode="builder" />
                             ) : item.widgetType === "traderStats" ? (
                               <TraderStatsCard widgetId={item._id} />
+                            ) : item.widgetType === "chartPost" ? (
+                              <ChartPostCard widgetId={item._id} config={item.config || {}} mode="builder" />
                             ) : null}
                           </div>
                         </SortablePreviewSection>
