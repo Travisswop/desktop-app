@@ -56,6 +56,8 @@ import AiChatCard from "@/components/publicProfile/widgets/AiChatCard";
 import TraderStatsCard from "@/components/publicProfile/widgets/TraderStatsCard";
 import ChartPostCard from "@/components/publicProfile/widgets/ChartPostCard";
 import FilesCard from "@/components/publicProfile/widgets/FilesCard";
+import MusicCard from "@/components/publicProfile/widgets/MusicCard";
+import MediaCarouselCard from "@/components/publicProfile/widgets/MediaCarouselCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -710,6 +712,10 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       <ChartPostCard widgetId={item._id} config={item.config || {}} />
                     ) : item.widgetType === "files" ? (
                       <FilesCard config={item.config || {}} />
+                    ) : item.widgetType === "music" ? (
+                      <MusicCard config={item.config || {}} />
+                    ) : item.widgetType === "mediaCarousel" ? (
+                      <MediaCarouselCard config={item.config || {}} />
                     ) : null}
                   </div>
                 ))}

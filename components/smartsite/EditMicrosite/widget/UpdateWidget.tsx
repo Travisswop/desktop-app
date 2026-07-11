@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import { FileText, Loader, Lock, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, Loader, Lock, Plus, Trash2, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,8 @@ const WIDGET_TITLES: Record<string, string> = {
   leadForm: "Leads Form",
   chartPost: "Chart Post",
   files: "Files",
+  music: "Music / MP3",
+  mediaCarousel: "Photo / Video Carousel",
 };
 
 const inputClass =
@@ -67,6 +69,10 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [hypothesis, setHypothesis] = useState("");
   const [storedFiles, setStoredFiles] = useState<any[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [albumName, setAlbumName] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
+  const [tracks, setTracks] = useState<any[]>([]);
+  const [mediaCarousels, setMediaCarousels] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
@@ -92,6 +98,10 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     setStopLoss(String(config.stopLoss || ""));
     setHypothesis(config.hypothesis || "");
     setStoredFiles(Array.isArray(config.files) ? config.files : []);
+    setAlbumName(config.albumName || "");
+    setCoverUrl(config.coverUrl || "");
+    setTracks(Array.isArray(config.tracks) ? config.tracks : []);
+    setMediaCarousels(Array.isArray(config.carousels) ? config.carousels : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widget._id]);
 
@@ -166,6 +176,22 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
       return { title: title.trim(), files: storedFiles };
     }
 
+    if (widgetType === "music") {
+      if (!albumName.trim() || !coverUrl || !tracks.length || tracks.some((track) => !track.url)) {
+        toast.error("Add an album name, cover, and ready tracks");
+        return null;
+      }
+      return { albumName: albumName.trim(), coverUrl, tracks };
+    }
+
+    if (widgetType === "mediaCarousel") {
+      if (!mediaCarousels.length || mediaCarousels.some((carousel) => !carousel.name?.trim() || !carousel.items?.length)) {
+        toast.error("Every named carousel needs media");
+        return null;
+      }
+      return { carousels: mediaCarousels.map((carousel) => ({ ...carousel, name: carousel.name.trim() })) };
+    }
+
     return null;
   };
 
@@ -220,6 +246,24 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
       setUploadingFiles(false);
       event.target.value = "";
     }
+  };
+
+  const uploadMusicCover = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return; setUploadingFiles(true);
+    try { setCoverUrl(await sendCloudinaryFile(await readDataUrl(file), file.type, file.name)); }
+    catch { toast.error("Cover upload failed"); } finally { setUploadingFiles(false); event.target.value = ""; }
+  };
+
+  const uploadTracks = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []); if (!selected.length) return; setUploadingFiles(true);
+    try { const added = await Promise.all(selected.map(async (file, index) => ({ id: `track-${Date.now()}-${index}`, name: file.name, url: await sendCloudinaryFile(await readDataUrl(file), file.type || "audio/mpeg", file.name), status: "ready" }))); setTracks((current) => [...current, ...added]); }
+    catch { toast.error("Track upload failed"); } finally { setUploadingFiles(false); event.target.value = ""; }
+  };
+
+  const uploadCarouselMedia = async (carouselId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []); if (!selected.length) return; setUploadingFiles(true);
+    try { const added = await Promise.all(selected.map(async (file, index) => ({ id: `media-${Date.now()}-${index}`, url: await sendCloudinaryFile(await readDataUrl(file), file.type, file.name), type: file.type.startsWith("video/") ? "video" : "photo" }))); setMediaCarousels((current) => current.map((carousel) => carousel.id === carouselId ? { ...carousel, items: [...(carousel.items || []), ...added] } : carousel)); }
+    catch { toast.error("Media upload failed"); } finally { setUploadingFiles(false); event.target.value = ""; }
   };
 
   const handleDelete = async () => {
@@ -429,6 +473,21 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
               </>
             )}
 
+            {widgetType === "music" && (
+              <>
+                <label className="text-sm font-medium">Album name<input value={albumName} onChange={(event) => setAlbumName(event.target.value)} className={`${inputClass} mt-1`} /></label>
+                <div className="grid grid-cols-2 gap-2"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-black/10 px-3 py-2 text-xs font-bold"><Upload size={14} />Change cover<input type="file" accept="image/*" className="hidden" onChange={(event) => void uploadMusicCover(event)} /></label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-black px-3 py-2 text-xs font-bold text-white"><Upload size={14} />Add tracks<input type="file" accept="audio/*,.mp3" multiple className="hidden" onChange={(event) => void uploadTracks(event)} /></label></div>
+                {tracks.map((track, index) => <div key={track.id} className="flex items-center gap-2 rounded-xl bg-gray-100 p-3"><span className="min-w-0 flex-1 truncate text-sm font-bold">{track.name}</span><button type="button" onClick={() => setTracks((current) => moveItem(current, index, -1))}><ArrowUp size={14} /></button><button type="button" onClick={() => setTracks((current) => moveItem(current, index, 1))}><ArrowDown size={14} /></button><button type="button" onClick={() => setTracks((current) => current.filter((item) => item.id !== track.id))}><Trash2 size={14} className="text-red-500" /></button></div>)}
+              </>
+            )}
+
+            {widgetType === "mediaCarousel" && (
+              <>
+                {mediaCarousels.map((carousel) => <div key={carousel.id} className="rounded-xl border border-black/10 p-3"><div className="flex gap-2"><input value={carousel.name} onChange={(event) => setMediaCarousels((current) => current.map((item) => item.id === carousel.id ? { ...item, name: event.target.value } : item))} className={inputClass} /><button type="button" onClick={() => setMediaCarousels((current) => current.filter((item) => item.id !== carousel.id))}><Trash2 size={15} className="text-red-500" /></button></div><div className="mt-2 flex flex-wrap gap-2">{(carousel.items || []).map((item: any) => <span key={item.id} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-[10px] font-bold">{item.type}<button type="button" onClick={() => setMediaCarousels((current) => current.map((entry) => entry.id === carousel.id ? { ...entry, items: entry.items.filter((media: any) => media.id !== item.id) } : entry))}><X size={11} /></button></span>)}</div><label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold"><Upload size={14} />Add media<input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(event) => void uploadCarouselMedia(carousel.id, event)} /></label></div>)}
+                <button type="button" onClick={() => setMediaCarousels((current) => [...current, { id: `carousel-${Date.now()}`, name: `Carousel ${current.length + 1}`, items: [] }])} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-black/20 px-3 py-2 text-xs font-bold"><Plus size={14} />Add carousel</button>
+              </>
+            )}
+
             <PrimaryButton className="w-full py-3">
               {isLoading ? (
                 <Loader className="w-8 h-8 animate-spin mx-auto" />
@@ -465,4 +524,8 @@ function readDataUrl(file: File) {
     reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
     reader.readAsDataURL(file);
   });
+}
+
+function moveItem<T>(items: T[], index: number, delta: number) {
+  const next = [...items]; const target = index + delta; if (target < 0 || target >= next.length) return items; [next[index], next[target]] = [next[target], next[index]]; return next;
 }

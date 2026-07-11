@@ -53,8 +53,6 @@ import AddEmbed from "../smartsite/EditMicrosite/embed/AddEmbed";
 import AddAppIcon from "../smartsite/EditMicrosite/appIcon/AddAppIcon";
 import AddRedeemLink from "../smartsite/EditMicrosite/redeemLink/AddRedeemLink";
 import AddBlog from "../smartsite/EditMicrosite/blog/AddBlog";
-import AddVideo from "../smartsite/EditMicrosite/Video/AddVideo";
-import AddAudio from "../smartsite/EditMicrosite/audio/AddAudio";
 import AddMarketplace from "../smartsite/EditMicrosite/marketplace/AddMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
 import AddTipJar from "../smartsite/EditMicrosite/widget/AddTipJar";
@@ -63,6 +61,8 @@ import AddAiChat from "../smartsite/EditMicrosite/widget/AddAiChat";
 import AddTraderStats from "../smartsite/EditMicrosite/widget/AddTraderStats";
 import AddChartPost from "../smartsite/EditMicrosite/widget/AddChartPost";
 import AddFiles from "../smartsite/EditMicrosite/widget/AddFiles";
+import AddMusic from "../smartsite/EditMicrosite/widget/AddMusic";
+import AddMediaCarousel from "../smartsite/EditMicrosite/widget/AddMediaCarousel";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
 import { FiEdit } from "react-icons/fi";
 import { AiOutlineFileAdd } from "react-icons/ai";
@@ -472,7 +472,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddVideo handleRemoveIcon={handleTemplateSaved} />
+            <AddMediaCarousel onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -498,7 +498,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddAudio handleRemoveIcon={handleTemplateSaved} />
+            <AddMusic onCloseModal={handleTemplateSaved} />
           </div>
         );
 

@@ -96,13 +96,13 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
   },
   {
     id: "photo-video",
-    sectionKey: "video",
+    sectionKey: "widget",
     title: SMARTSITE_TEMPLATE_SECTION_META.video.label,
     description: "Upload videos or photos to display",
   },
   {
     id: "mp3",
-    sectionKey: "audio",
+    sectionKey: "widget",
     title: SMARTSITE_TEMPLATE_SECTION_META.audio.label,
     description: "Upload MP3 files and host your album",
   },

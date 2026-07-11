@@ -102,6 +102,8 @@ import AiChatCard from "../publicProfile/widgets/AiChatCard";
 import TraderStatsCard from "../publicProfile/widgets/TraderStatsCard";
 import ChartPostCard from "../publicProfile/widgets/ChartPostCard";
 import FilesCard from "../publicProfile/widgets/FilesCard";
+import MusicCard from "../publicProfile/widgets/MusicCard";
+import MediaCarouselCard from "../publicProfile/widgets/MediaCarouselCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2514,6 +2516,10 @@ const SmartsiteIconLivePreview = ({
                               <ChartPostCard widgetId={item._id} config={item.config || {}} mode="builder" />
                             ) : item.widgetType === "files" ? (
                               <FilesCard config={item.config || {}} mode="builder" />
+                            ) : item.widgetType === "music" ? (
+                              <MusicCard config={item.config || {}} mode="builder" />
+                            ) : item.widgetType === "mediaCarousel" ? (
+                              <MediaCarouselCard config={item.config || {}} mode="builder" />
                             ) : null}
                           </div>
                         </SortablePreviewSection>

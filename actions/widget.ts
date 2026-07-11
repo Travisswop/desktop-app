@@ -8,7 +8,9 @@ export type SmartsiteWidgetType =
   | "aiChat"
   | "traderStats"
   | "chartPost"
-  | "files";
+  | "files"
+  | "music"
+  | "mediaCarousel";
 
 const revalidateMicrosite = (micrositeId: string) => {
   revalidatePath(`/smartsite/icons/${micrositeId}`);
