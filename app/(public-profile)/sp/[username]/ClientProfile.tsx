@@ -728,7 +728,12 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               //   isFromPublicProfile={true}
               // />
               <div
-                className="w-full"
+                className={
+                  // Feed-only tab: the panel stretches to fill everything
+                  // below the tab bar (main is a min-h-screen flex column),
+                  // and the feed inside paginates with the page scroll.
+                  isFeedPlain ? "w-full grow flex flex-col" : "w-full"
+                }
                 style={{ ...getTemplateBlockStyle("feed") }}
               >
                 <EmbeddedFeed

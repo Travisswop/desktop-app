@@ -2527,11 +2527,15 @@ const SmartsiteIconLivePreview = ({
                     {...getSortablePreviewProps("feed")}
                     className="mt-1"
                   >
+                    {/* Feed-only tab: the canvas mirrors the public page —
+                        full plain feed paginating with the canvas scroll.
+                        Mixed tabs / legacy sites keep the 3-post card
+                        preview. */}
                     <EmbeddedFeed
                       accessToken={accessToken || ""}
                       userId={user?._id || ""}
                       micrositeId={user?.primaryMicrosite || ""}
-                      isOrderPreview
+                      isOrderPreview={!isFeedPlain}
                       plain={isFeedPlain}
                     />
                   </SortablePreviewSection>
