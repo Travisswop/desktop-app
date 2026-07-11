@@ -449,7 +449,7 @@ export default function AnalyticsContent({
     },
     {
       value: toCount(analyticsData?.last30DaysLeads),
-      label: "Leads",
+      label: "Form submissions",
       period: "30 days",
     },
   ];

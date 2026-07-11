@@ -100,7 +100,7 @@ const Insights: React.FC<InsightsProps> = ({
           icon={MoreHorizontal}
         />
         <MetricCard
-          title="Leads"
+          title="Form submissions"
           value={leads.value}
           period={leads.period}
           trend={leads.trend}

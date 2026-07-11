@@ -1,7 +1,5 @@
-'use client';
-
-import LeadsContent from '@/components/dashboard/LeadsContent';
+import { redirect } from "next/navigation";
 
 export default function DashboardLeadsPage() {
-  return <LeadsContent />;
+  redirect("/dashboard/forms");
 }
