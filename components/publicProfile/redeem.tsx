@@ -1,21 +1,21 @@
 "use client";
 
-import { FC, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import InfoCardContent from "./InfoCardContent";
+import { useCallback, useEffect, useState } from "react";
+import { Check, Gift, Loader, LockKeyhole } from "lucide-react";
 import toast from "react-hot-toast";
-// import { addSwopPoint } from '@/app/actions/addPoint';
+import { useUser } from "@/lib/UserContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 interface Props {
   data: {
     _id: string;
-    micrositeId: string;
-    network: string;
+    tokenType?: string;
+    network?: string;
     imageUrl: string;
-    tokenUrl: string;
-    link: string;
+    tokenUrl?: string;
+    link?: string;
     mintName: string;
     mintLimit: number;
     amount: number;
@@ -32,125 +32,93 @@ interface Props {
   onClick?: () => void;
 }
 
-const variants = {
-  hidden: { opacity: 0, x: 0, y: 25 },
-  enter: { opacity: 1, x: 0, y: 0 },
-  exit: { opacity: 0, x: -0, y: 25 },
-};
+export default function Redeem({ data, socialType, parentId, accessToken, fontColor, secondaryFontColor, onClick }: Props) {
+  const { user } = useUser();
+  const [status, setStatus] = useState({ claimed: 0, left: Number(data.mintLimit || 0), limit: Number(data.mintLimit || 0) });
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(false);
+  const isNft = String(data.tokenType || "").toLowerCase() === "nft";
 
-const Redeem: FC<Props> = ({
-  data,
-  socialType,
-  parentId,
-  number,
-  accessToken,
-  fontColor,
-  secondaryFontColor,
-  onClick,
-}) => {
-  const {
-    _id,
-    network,
-    link,
-    description,
-    imageUrl,
-    tokenUrl,
-    mintName,
-    poolId,
-  } = data;
-
-  const [available, setAvailable] = useState(0);
-
-  const updateCount = useCallback(async () => {
-    if (onClick) return;
+  const refresh = useCallback(async () => {
+    if (onClick || !data.poolId || !API_URL) return;
     try {
-      fetch(`${API_URL}/api/v1/web/updateCount`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ socialType, socialId: _id, parentId }),
-      });
-    } catch (err) {
-      console.error("Error updating count:", err);
+      if (isNft) {
+        const response = await fetch(API_URL + "/api/v5/microsite/blink/nft/" + encodeURIComponent(data.poolId) + "/status");
+        const body = await response.json();
+        if (response.ok && body.data) setStatus(body.data);
+      } else {
+        const response = await fetch(API_URL + "/api/v2/desktop/wallet/getRedeemTokenFromPool/" + encodeURIComponent(data.poolId));
+        const body = await response.json();
+        const claimedCount = Array.isArray(body?.data?.redeemed) ? body.data.redeemed.length : Number(body?.data?.pool?.total_redemptions || 0);
+        const limit = Number(body?.data?.pool?.max_wallets || data.mintLimit || 0);
+        setStatus({ claimed: claimedCount, left: Math.max(0, limit - claimedCount), limit });
+      }
+    } catch {
+      // The stored mint limit remains a stable fallback while status refreshes.
     }
-  }, [onClick, socialType, _id, parentId]);
-
-  const handleClick = useCallback(() => {
-    if (onClick) {
-      onClick?.();
-      return;
-    }
-
-    if (available > 0) {
-      updateCount();
-      window.open(`https://redeem.swopme.app/${poolId}`, "_blank");
-    } else {
-      toast.error("0 available amount to claim");
-    }
-  }, [onClick, available, updateCount, poolId]);
+  }, [data.mintLimit, data.poolId, isNft, onClick]);
 
   useEffect(() => {
+    void refresh();
     if (onClick) return;
-    const fetchValidLinks = async () => {
-      const response = await fetch(
-        `${API_URL}/api/v2/desktop/wallet/getRedeemTokenFromPool/${poolId}`,
-      );
-      const { data } = await response.json();
-      if (data.pool && data.redeemed) {
-        setAvailable(data.pool.max_wallets - data.redeemed.length);
+    const timer = window.setInterval(() => void refresh(), 20_000);
+    return () => window.clearInterval(timer);
+  }, [onClick, refresh]);
+
+  const updateCount = async () => {
+    if (!API_URL || !parentId) return;
+    await fetch(API_URL + "/api/v1/web/updateCount", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ socialType, socialId: data._id, parentId }),
+    }).catch(() => undefined);
+  };
+
+  const claim = async () => {
+    if (onClick) return onClick();
+    if (claimed || claiming || status.left <= 0) return;
+    setClaiming(true);
+    try {
+      if (isNft) {
+        const walletUser = user as unknown as { solanaWallet?: string; solanaAddress?: string } | null;
+        const walletAddress = String(walletUser?.solanaWallet || walletUser?.solanaAddress || "");
+        if (!walletAddress) throw new Error("Connect a Solana wallet to claim.");
+        const response = await fetch(API_URL + "/api/v5/microsite/blink/nft/" + encodeURIComponent(data.poolId) + "/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", authorization: "Bearer " + accessToken },
+          body: JSON.stringify({ walletAddress }),
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.message || "NFT claim failed");
+      } else {
+        window.open(data.link || "https://redeem.swopme.app/" + data.poolId, "_blank");
       }
-      return data;
-    };
-    fetchValidLinks();
-  }, [onClick, poolId]);
+      setClaimed(true);
+      await updateCount();
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Claim failed");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
-  const delay = number + 0.1;
-
+  const percent = status.limit > 0 ? Math.min(100, (status.claimed / status.limit) * 100) : 0;
   return (
-    <motion.div
-      initial="hidden"
-      animate="enter"
-      exit="exit"
-      variants={variants}
-      transition={{
-        duration: 0.4,
-        delay,
-        type: "easeInOut",
-      }}
-      className="w-full"
-    >
-      <motion.div
-        transition={{
-          type: "spring",
-          stiffness: 400,
-          damping: 10,
-        }}
-        onClick={handleClick}
-        className="max-w-full my-2 mx-1 flex flex-row items-center cursor-pointer bg-white shadow-small p-3 rounded-[12px] relative"
-      >
-        <div>
-          <Image
-            className="object-fill w-12 h-12 rounded-full"
-            src={imageUrl}
-            alt={mintName}
-            width={320}
-            height={280}
-            priority
-          />
-        </div>
-
-        <InfoCardContent
-          title={mintName}
-          description={description}
-          fontColor={fontColor}
-          secondaryFontColor={secondaryFontColor}
-        >
-          <span className="text-xs font-bold">{available} Available</span>
-        </InfoCardContent>
-      </motion.div>
-    </motion.div>
+    <article className="overflow-hidden rounded-[24px] border border-black/10 bg-white p-5 shadow-sm">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-[18px] bg-gray-100">
+        {data.imageUrl ? <Image src={data.imageUrl} alt={data.mintName} fill className="object-cover" /> : <div className="grid h-full place-items-center"><Gift className="text-gray-400" /></div>}
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-black text-gray-900 shadow-sm backdrop-blur">
+          Free · Claimable {isNft ? "NFT" : "Token"}
+        </span>
+      </div>
+      <h3 className="mt-4 text-lg font-black" style={{ color: fontColor }}>{data.mintName || "Claim reward"}</h3>
+      {data.description ? <p className="mt-1 text-sm leading-5" style={{ color: secondaryFontColor || "#6b7280" }}>{data.description}</p> : null}
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-gray-950 transition-all" style={{ width: String(percent) + "%" }} /></div>
+      <div className="mt-2 flex justify-between text-[11px] font-bold text-gray-500"><span>{status.claimed} claimed</span><span>{status.left} left</span></div>
+      <button type="button" onClick={() => void claim()} disabled={claiming || claimed || status.left <= 0} className={"mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black text-white transition disabled:cursor-default " + (claimed ? "bg-emerald-600" : status.left <= 0 ? "bg-gray-400" : "bg-gray-950 hover:bg-black")}>
+        {claiming ? <Loader className="h-4 w-4 animate-spin" /> : claimed ? <><Check size={16} />Claimed</> : status.left <= 0 ? <><LockKeyhole size={15} />Fully claimed</> : "Claim"}
+      </button>
+    </article>
   );
-};
-
-export default Redeem;
+}

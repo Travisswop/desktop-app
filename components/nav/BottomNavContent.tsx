@@ -51,7 +51,7 @@ import AddSmallIcon from "../smartsite/EditMicrosite/AddSmallIcon";
 import AddInfoBar from "../smartsite/EditMicrosite/infoBar/AddInfoBar";
 import AddEmbed from "../smartsite/EditMicrosite/embed/AddEmbed";
 import AddAppIcon from "../smartsite/EditMicrosite/appIcon/AddAppIcon";
-import AddRedeemLink from "../smartsite/EditMicrosite/redeemLink/AddRedeemLink";
+import ManageBlink from "../smartsite/EditMicrosite/redeemLink/ManageBlink";
 import AddBlog from "../smartsite/EditMicrosite/blog/AddBlog";
 import ManageMarketplace from "../smartsite/EditMicrosite/marketplace/ManageMarketplace";
 import AddFeed from "../smartsite/EditMicrosite/feed/AddFeed";
@@ -417,10 +417,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddRedeemLink
-              handleRemoveIcon={handleTemplateSaved}
-              handleToggleIcon={handleTemplateSaved}
-            />
+            <ManageBlink onCloseModal={handleTemplateSaved} />
           </div>
         );
 
