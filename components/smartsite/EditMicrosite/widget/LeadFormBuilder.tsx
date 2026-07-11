@@ -138,7 +138,7 @@ export default function LeadFormBuilder({
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f3f3f3]"><FieldIcon size={15} /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{field.label}{field.required ? <span className="text-red-500"> *</span> : null}</span>
-                    <span className="block text-[11px] text-[#8a8a8f]">{LEAD_FORM_FIELD_TYPE_META[field.type].label}</span>
+                    <span className="block text-[11px] text-[#8a8a8f]">{field.systemKey === "email" ? "Email" : field.type === "choice" ? "Multiple choice" : LEAD_FORM_FIELD_TYPE_META[field.type].label}</span>
                   </span>
                   {open ? <ChevronDown size={16} className="rotate-180 text-[#8a8a8f]" /> : <Pencil size={15} className="text-[#8a8a8f]" />}
                 </button>
