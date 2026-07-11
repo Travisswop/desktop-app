@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FaTimes } from "react-icons/fa";
 import { MdDelete } from "react-icons/md";
-import { ArrowDown, ArrowUp, FileText, Loader, Lock, Plus, Trash2, Upload, X } from "lucide-react";
+import { FileText, GripVertical, Loader, Lock, Plus, Trash2, Upload, X } from "lucide-react";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
@@ -72,6 +72,7 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [albumName, setAlbumName] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [tracks, setTracks] = useState<any[]>([]);
+  const [draggedTrackId, setDraggedTrackId] = useState<string | null>(null);
   const [mediaCarousels, setMediaCarousels] = useState<any[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -477,7 +478,7 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
               <>
                 <label className="text-sm font-medium">Album name<input value={albumName} onChange={(event) => setAlbumName(event.target.value)} className={`${inputClass} mt-1`} /></label>
                 <div className="grid grid-cols-2 gap-2"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-black/10 px-3 py-2 text-xs font-bold"><Upload size={14} />Change cover<input type="file" accept="image/*" className="hidden" onChange={(event) => void uploadMusicCover(event)} /></label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-black px-3 py-2 text-xs font-bold text-white"><Upload size={14} />Add tracks<input type="file" accept="audio/*,.mp3" multiple className="hidden" onChange={(event) => void uploadTracks(event)} /></label></div>
-                {tracks.map((track, index) => <div key={track.id} className="flex items-center gap-2 rounded-xl bg-gray-100 p-3"><span className="min-w-0 flex-1 truncate text-sm font-bold">{track.name}</span><button type="button" onClick={() => setTracks((current) => moveItem(current, index, -1))}><ArrowUp size={14} /></button><button type="button" onClick={() => setTracks((current) => moveItem(current, index, 1))}><ArrowDown size={14} /></button><button type="button" onClick={() => setTracks((current) => current.filter((item) => item.id !== track.id))}><Trash2 size={14} className="text-red-500" /></button></div>)}
+                {tracks.map((track) => <div key={track.id} draggable onDragStart={() => setDraggedTrackId(track.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => setTracks((current) => moveItemToId(current, draggedTrackId, track.id))} onDragEnd={() => setDraggedTrackId(null)} className={"flex cursor-grab items-center gap-2 rounded-xl bg-gray-100 p-3 active:cursor-grabbing " + (draggedTrackId === track.id ? "opacity-50" : "")}><GripVertical size={14} className="text-gray-400" /><span className="min-w-0 flex-1 truncate text-sm font-bold">{track.name}</span><button type="button" onClick={() => setTracks((current) => current.filter((item) => item.id !== track.id))}><Trash2 size={14} className="text-red-500" /></button></div>)}
               </>
             )}
 
@@ -526,6 +527,12 @@ function readDataUrl(file: File) {
   });
 }
 
-function moveItem<T>(items: T[], index: number, delta: number) {
-  const next = [...items]; const target = index + delta; if (target < 0 || target >= next.length) return items; [next[index], next[target]] = [next[target], next[index]]; return next;
+function moveItemToId<T extends { id: string }>(items: T[], draggedId: string | null, targetId: string) {
+  const index = items.findIndex((item) => item.id === draggedId);
+  const target = items.findIndex((item) => item.id === targetId);
+  if (index < 0 || target < 0 || index === target) return items;
+  const next = [...items];
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item);
+  return next;
 }
