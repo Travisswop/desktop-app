@@ -1,9 +1,13 @@
 "use client";
 
 import { FC, useMemo, useState } from "react";
-import { HandCoins } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { HandCoins, Loader2 } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
+import toast from "react-hot-toast";
+import CheckoutPaymentClient from "@/app/(public-profile)/checkout/[intentId]/CheckoutPaymentClient";
+import QueryProvider from "@/components/provider/QueryProvider";
+import { createTipCheckoutIntent } from "@/lib/checkout-api";
+import { useUser } from "@/lib/UserContext";
 
 export interface TipJarConfig {
   title?: string;
@@ -12,6 +16,7 @@ export interface TipJarConfig {
   presets?: number[];
   allowCustom?: boolean;
   currency?: "USDC" | "SOL" | "pUSD";
+  primaryColor?: string;
 }
 
 interface Props {
@@ -22,13 +27,6 @@ interface Props {
    * public: pills + Tip button are live.
    */
   mode: "builder" | "public";
-  /**
-   * The site's Swop Pay payment URL (first `info.product` item). The public
-   * Tip CTA deep-links here with the chosen amount — there is no
-   * visitor-initiated checkout-intent endpoint, so we reuse the same
-   * mechanism PaymentBar uses (open paymentUrl) with an `amount` param.
-   */
-  fallbackPaymentUrl?: string | null;
   micrositeId?: string;
   parentId?: string;
   fontColor?: string;
@@ -41,22 +39,28 @@ const TipJarCard: FC<Props> = ({
   widgetId,
   config,
   mode,
-  fallbackPaymentUrl,
-  parentId,
+  micrositeId,
 }) => {
+  const { login } = usePrivy();
+  const { accessToken } = useUser();
   const presets = useMemo(() => {
     const list = Array.isArray(config?.presets)
       ? config.presets
           .map((value) => Number(value))
           .filter((value) => Number.isFinite(value) && value > 0)
-          .slice(0, 6)
+          .slice(0, 3)
       : [];
     return list.length > 0 ? list : DEFAULT_PRESETS;
   }, [config?.presets]);
 
-  const [selectedAmount, setSelectedAmount] = useState<number>(presets[0]);
+  const [selectedAmount, setSelectedAmount] = useState<number>(
+    presets[Math.min(1, presets.length - 1)],
+  );
   const [customAmount, setCustomAmount] = useState("");
-  const currency = config?.currency || "USDC";
+  const [checkoutIntentId, setCheckoutIntentId] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const currency = "USDC";
+  const primaryColor = config?.primaryColor || "#e8734a";
   const isPublic = mode === "public";
 
   const effectiveAmount = (() => {
@@ -67,61 +71,58 @@ const TipJarCard: FC<Props> = ({
     return selectedAmount;
   })();
 
-  const payHref = useMemo(() => {
-    if (!fallbackPaymentUrl) return null;
-    try {
-      const raw = fallbackPaymentUrl.startsWith("http")
-        ? fallbackPaymentUrl
-        : `https://${fallbackPaymentUrl}`;
-      const url = new URL(raw);
-      url.searchParams.set("amount", String(effectiveAmount));
-      url.searchParams.set("currency", currency);
-      return url.toString();
-    } catch {
-      return null;
+  const handleTip = async () => {
+    if (!isPublic || checkoutLoading) return;
+    if (!accessToken) {
+      login();
+      return;
     }
-  }, [fallbackPaymentUrl, effectiveAmount, currency]);
+    if (!widgetId || !micrositeId || effectiveAmount <= 0) {
+      toast.error("This Tip Jar isn't ready yet.");
+      return;
+    }
 
-  const handleTip = () => {
-    if (!isPublic || !payHref) return;
-    if (widgetId) {
-      try {
-        fetch(`${API_URL}/api/v1/web/updateCount`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            socialType: "widget",
-            socialId: widgetId,
-            parentId,
-          }),
-        });
-      } catch (err) {
-        console.log(err);
-      }
+    setCheckoutLoading(true);
+    try {
+      const intent = await createTipCheckoutIntent(
+        {
+          widgetId,
+          micrositeId,
+          amount: effectiveAmount,
+          checkoutBaseUrl:
+            typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+        accessToken,
+      );
+      setCheckoutIntentId(intent.intentId);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Tip checkout could not be opened.",
+      );
+    } finally {
+      setCheckoutLoading(false);
     }
-    window.open(payHref, "_self");
   };
 
   return (
-    <div className="w-full my-2 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-          <HandCoins className="h-4.5 w-4.5" size={18} />
+    <>
+    <div className="my-2 w-full rounded-[22px] border border-black/[0.06] bg-white p-5 shadow-[0_1px_2px_rgba(10,10,12,0.04),0_8px_28px_-12px_rgba(10,10,12,0.10)]">
+      <div className="flex flex-col items-center text-center">
+        <div
+          className="flex h-[68px] w-[68px] items-center justify-center rounded-full"
+          style={{ backgroundColor: `${primaryColor}1a`, color: primaryColor }}
+        >
+          <HandCoins size={32} strokeWidth={1.7} />
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight text-gray-950">
-            {config?.title || "Tip Jar"}
-          </p>
-          {config?.note && (
-            <p className="truncate text-[13px] text-gray-500">{config.note}</p>
-          )}
-        </div>
+        <p className="mt-3 text-[21px] font-extrabold tracking-tight text-gray-950">
+          {config?.title || "Drop a tip 🙌"}
+        </p>
+        <p className="mt-1 text-[13px] text-gray-500">
+          {config?.note || "Pick an amount and send instantly."}
+        </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2.5">
         {presets.map((amount) => {
           const isActive = !customAmount && selectedAmount === amount;
           return (
@@ -135,17 +136,26 @@ const TipJarCard: FC<Props> = ({
                 setSelectedAmount(amount);
                 setCustomAmount("");
               }}
-              className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
+              className="rounded-[16px] border bg-white py-4 text-[20px] font-extrabold transition"
+              style={
                 isActive
-                  ? "border-gray-950 bg-gray-950 text-white"
-                  : "border-black/[0.06] bg-white text-gray-950 hover:border-black/[0.15]"
-              }`}
+                  ? { borderColor: primaryColor, backgroundColor: `${primaryColor}12`, color: primaryColor }
+                  : { borderColor: "rgba(10,10,12,.08)", color: "#0a0a0c" }
+              }
             >
               ${amount}
             </button>
           );
         })}
-        {config?.allowCustom !== false && (
+        <label
+          className="flex min-w-0 items-center rounded-[16px] border bg-white px-4"
+          style={
+            customAmount
+              ? { borderColor: primaryColor, backgroundColor: `${primaryColor}12`, color: primaryColor }
+              : { borderColor: "rgba(10,10,12,.08)", color: "#8a8a8f" }
+          }
+        >
+          <span className="text-[20px] font-extrabold">$</span>
           <input
             type="number"
             inputMode="decimal"
@@ -153,42 +163,54 @@ const TipJarCard: FC<Props> = ({
             value={customAmount}
             disabled={!isPublic}
             onClick={(event) => event.stopPropagation()}
+            onFocus={() => setCustomAmount((value) => value || "")}
             onChange={(event) => setCustomAmount(event.target.value)}
             placeholder="Custom"
-            className="h-8 w-20 rounded-full border border-black/[0.06] bg-gray-50 px-3 text-[13px] font-medium text-gray-950 outline-none focus:border-black/[0.2]"
+            className="min-w-0 flex-1 bg-transparent pl-1 text-[16px] font-extrabold outline-none placeholder:text-gray-400"
           />
-        )}
+        </label>
       </div>
 
       {isPublic ? (
         <>
           <button
             type="button"
-            disabled={!payHref}
+            disabled={checkoutLoading}
             onClick={(event) => {
               event.stopPropagation();
               handleTip();
             }}
-            className={`mt-3 w-full rounded-full py-2.5 text-[13px] font-semibold transition ${
-              payHref
-                ? "bg-gray-950 text-white hover:bg-gray-800"
-                : "cursor-not-allowed bg-black/[0.04] text-gray-400"
-            }`}
+            className="mt-4 w-full rounded-[15px] py-3.5 text-[14px] font-bold text-white transition disabled:cursor-wait disabled:opacity-60"
+            style={{ backgroundColor: primaryColor }}
           >
-            {config?.buttonText || "Send a tip"} · ${effectiveAmount} {currency}
+            {checkoutLoading ? (
+              <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+            ) : (
+              <>{config?.buttonText || "Tip"} ${effectiveAmount} in {currency}</>
+            )}
           </button>
-          {!payHref && (
-            <p className="mt-1.5 text-center text-[11px] text-gray-400">
-              Tips aren&apos;t set up yet
-            </p>
-          )}
         </>
       ) : (
-        <div className="mt-3 w-full rounded-full bg-gray-950 py-2.5 text-center text-[13px] font-semibold text-white">
-          {config?.buttonText || "Send a tip"} · ${effectiveAmount} {currency}
+        <div
+          className="mt-4 w-full rounded-[15px] py-3 text-center text-[13px] font-bold text-white"
+          style={{ backgroundColor: primaryColor }}
+        >
+          {config?.buttonText || "Tip"} ${effectiveAmount} in {currency}
         </div>
       )}
     </div>
+    {checkoutIntentId && (
+      <div className="fixed inset-0 z-[1000]" onClick={(event) => event.stopPropagation()}>
+        <QueryProvider>
+          <CheckoutPaymentClient
+            intentId={checkoutIntentId}
+            initialScanMethod="swop"
+            onClose={() => setCheckoutIntentId("")}
+          />
+        </QueryProvider>
+      </div>
+    )}
+    </>
   );
 };
 

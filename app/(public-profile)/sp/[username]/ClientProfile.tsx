@@ -698,9 +698,6 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         mode="public"
                         parentId={parentId}
                         micrositeId={_id}
-                        fallbackPaymentUrl={
-                          info?.product?.[0]?.paymentUrl || null
-                        }
                       />
                     ) : item.widgetType === "leadForm" ? (
                       <LeadFormCard

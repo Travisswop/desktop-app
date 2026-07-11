@@ -15,6 +15,12 @@ export async function handleLeadFormSubmit(info: {
   jobTitle?: string;
   website?: string;
   source?: string;
+  formName?: string;
+  answers?: Array<{
+    fieldId: string;
+    label: string;
+    value: string | string[];
+  }>;
 }) {
   try {
     const response = await fetch(

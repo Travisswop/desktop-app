@@ -10,13 +10,12 @@ import AnimateButton from "@/components/ui/Button/AnimateButton";
 import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { handleDeleteWidget, handleUpdateWidget } from "@/actions/widget";
 import {
-  LEAD_FORM_FIELD_ORDER,
-  LEAD_FORM_FIELD_META,
-  LeadFormFieldKey,
+  LeadFormField,
+  normalizeLeadFormFields,
 } from "@/components/publicProfile/widgets/LeadFormCard";
 
-const CURRENCIES = ["USDC", "SOL", "pUSD"] as const;
-const MAX_PRESETS = 6;
+const MAX_PRESETS = 3;
+const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
 
 const WIDGET_TITLES: Record<string, string> = {
   tipJar: "Tip Jar",
@@ -50,18 +49,12 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
   const [presetsInput, setPresetsInput] = useState("");
   const [allowCustom, setAllowCustom] = useState(true);
   const [currency, setCurrency] = useState<string>("USDC");
+  const [primaryColor, setPrimaryColor] = useState("#e8734a");
 
   // leadForm fields
   const [description, setDescription] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [leadFields, setLeadFields] = useState<
-    Record<LeadFormFieldKey, boolean>
-  >({
-    email: false,
-    mobileNo: false,
-    jobTitle: false,
-    website: false,
-  });
+  const [leadFields, setLeadFields] = useState<LeadFormField[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
@@ -77,17 +70,10 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     );
     setAllowCustom(config.allowCustom !== false);
     setCurrency(config.currency || "USDC");
+    setPrimaryColor(config.primaryColor || "#e8734a");
     setDescription(config.description || "");
     setSuccessMessage(config.successMessage || "");
-    setLeadFields({
-      email: Array.isArray(config.fields) && config.fields.includes("email"),
-      mobileNo:
-        Array.isArray(config.fields) && config.fields.includes("mobileNo"),
-      jobTitle:
-        Array.isArray(config.fields) && config.fields.includes("jobTitle"),
-      website:
-        Array.isArray(config.fields) && config.fields.includes("website"),
-    });
+    setLeadFields(normalizeLeadFormFields(config.fields));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widget._id]);
 
@@ -124,6 +110,7 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
         presets,
         allowCustom,
         currency,
+        primaryColor,
       };
     }
 
@@ -133,7 +120,7 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
         description: description.trim() || undefined,
         buttonText: buttonText.trim() || undefined,
         successMessage: successMessage.trim() || undefined,
-        fields: LEAD_FORM_FIELD_ORDER.filter((key) => leadFields[key]),
+        fields: leadFields,
       };
     }
 
@@ -265,27 +252,14 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
                     required
                   />
                 </div>
-                <div className="flex items-center justify-between gap-4">
-                  <label className="flex items-center gap-2 font-medium">
-                    <input
-                      type="checkbox"
-                      checked={allowCustom}
-                      onChange={(e) => setAllowCustom(e.target.checked)}
-                      className="h-4 w-4 accent-black"
-                    />
-                    Allow custom amount
-                  </label>
-                  <select
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="border border-[#ede8e8] rounded-xl px-3 py-2 text-sm text-gray-700 bg-gray-100 focus:outline-none"
-                  >
-                    {CURRENCIES.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
+                <div>
+                  <p className="font-medium mb-2">Primary Color</p>
+                  <div className="flex gap-3">
+                    {SWATCHES.map((color) => (
+                      <button key={color} type="button" aria-label={`Use ${color}`} onClick={() => setPrimaryColor(color)} className="h-9 w-9 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,.15)]" style={{ backgroundColor: color, outline: primaryColor === color ? "2px solid #0a0a0c" : "none", outlineOffset: 2 }} />
                     ))}
-                  </select>
+                    <input type="color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} className="h-9 w-9 overflow-hidden rounded-full" />
+                  </div>
                 </div>
               </>
             )}
@@ -333,31 +307,13 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
                   />
                 </div>
                 <div>
-                  <p className="font-medium mb-1">
-                    Ask For{" "}
-                    <span className="text-xs font-normal text-gray-400">
-                      (name is always collected)
-                    </span>
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LEAD_FORM_FIELD_ORDER.map((key) => (
-                      <label
-                        key={key}
-                        className="flex items-center gap-2 font-medium"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={leadFields[key]}
-                          onChange={() =>
-                            setLeadFields((prev) => ({
-                              ...prev,
-                              [key]: !prev[key],
-                            }))
-                          }
-                          className="h-4 w-4 accent-black"
-                        />
-                        {LEAD_FORM_FIELD_META[key].label}
-                      </label>
+                  <p className="font-medium mb-2">Fields</p>
+                  <div className="flex flex-col gap-2">
+                    {leadFields.map((field) => (
+                      <div key={field.id} className="rounded-xl border border-black/10 p-3">
+                        <input value={field.label} onChange={(event) => setLeadFields((current) => current.map((item) => item.id === field.id ? { ...item, label: event.target.value } : item))} className={inputClass} />
+                        <label className="mt-2 flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={Boolean(field.required)} onChange={() => setLeadFields((current) => current.map((item) => item.id === field.id ? { ...item, required: !item.required } : item))} className="h-4 w-4 accent-black" />Required</label>
+                      </div>
                     ))}
                   </div>
                 </div>

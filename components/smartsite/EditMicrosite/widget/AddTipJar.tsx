@@ -1,210 +1,125 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { Tooltip } from "@nextui-org/react";
-import { MdInfoOutline } from "react-icons/md";
+
+import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
 import { Loader } from "lucide-react";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie";
-import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
-import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
 import { handleCreateWidget } from "@/actions/widget";
 import TipJarCard from "@/components/publicProfile/widgets/TipJarCard";
+import { PrimaryButton } from "@/components/ui/Button/PrimaryButton";
+import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 
-const CURRENCIES = ["USDC", "SOL", "pUSD"] as const;
-const MAX_PRESETS = 6;
+const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
 
-const parsePresets = (raw: string): number[] =>
-  raw
-    .split(/[,\s]+/)
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .slice(0, MAX_PRESETS);
-
-const AddTipJar = ({ onCloseModal }: any) => {
-  const [accessToken, setAccessToken] = useState("");
-
-  useEffect(() => {
-    const token = Cookies.get("access-token");
-    if (token) {
-      setAccessToken(token);
-    }
-  }, []);
-
-  const state: any = useSmartSiteApiDataStore((state) => state);
-
-  const [title, setTitle] = useState("Tip Jar");
-  const [note, setNote] = useState("");
-  const [buttonText, setButtonText] = useState("Send a tip");
-  const [presetsInput, setPresetsInput] = useState("1, 5, 10");
-  const [allowCustom, setAllowCustom] = useState(true);
-  const [currency, setCurrency] =
-    useState<(typeof CURRENCIES)[number]>("USDC");
+const AddTipJar = ({ onCloseModal }: { onCloseModal: () => void }) => {
+  const smartsite: any = useSmartSiteApiDataStore((state) => state);
+  const [token, setToken] = useState("");
+  const [amounts, setAmounts] = useState([3, 5, 10]);
+  const [primaryColor, setPrimaryColor] = useState(SWATCHES[0]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const presets = parsePresets(presetsInput);
+  useEffect(() => setToken(Cookies.get("access-token") || ""), []);
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (presets.length === 0) {
-      toast.error("Add at least one preset amount");
-      return;
-    }
+  const setAmount = (index: number, raw: string) => {
+    const amount = Math.min(10000, Math.max(1, Number(raw.replace(/[^0-9.]/g, "")) || 1));
+    setAmounts((current) => current.map((value, i) => (i === index ? amount : value)));
+  };
 
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     try {
-      const data = await handleCreateWidget(
+      const result = await handleCreateWidget(
         {
-          micrositeId: state._id,
+          micrositeId: smartsite._id,
           widgetType: "tipJar",
           config: {
-            title: title.trim() || undefined,
-            note: note.trim() || undefined,
-            buttonText: buttonText.trim() || undefined,
-            presets,
-            allowCustom,
-            currency,
+            title: "Drop a tip 🙌",
+            note: "Pick an amount and send instantly.",
+            buttonText: "Tip",
+            presets: amounts,
+            allowCustom: true,
+            currency: "USDC",
+            primaryColor,
           },
         },
-        accessToken,
+        token,
       );
-
-      if (data?.state === "success") {
-        toast.success("Tip Jar added");
-        onCloseModal();
-      } else {
-        toast.error("Something went wrong");
-      }
+      if (result?.state !== "success") throw new Error(result?.message);
+      toast.success("Tip Jar added");
+      onCloseModal();
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong");
+      toast.error("Could not add Tip Jar");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="relative flex flex-col gap-4">
-      <div className="flex items-end gap-1 justify-center">
-        <h2 className="font-semibold text-gray-700 text-xl text-center">
-          Tip Jar
-        </h2>
-        <div className="translate-y-0.5">
-          <Tooltip
-            size="sm"
-            content={
-              <span className="font-medium">
-                Visitors pick a preset amount (or type their own) and tip you
-                through your Swop Pay flow.
-              </span>
-            }
-            className="max-w-40 h-auto"
-          >
-            <button>
-              <MdInfoOutline />
-            </button>
-          </Tooltip>
-        </div>
+    <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-xl flex-col gap-5">
+      <div>
+        <h2 className="text-lg font-bold text-[#0a0a0c]">Template tip jar</h2>
+        <p className="mt-0.5 text-xs text-[#8a8a8f]">Set three amounts and a primary color</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:px-10 2xl:px-[10%]">
-        <div className="w-full rounded-xl bg-gray-200 p-3">
-          <TipJarCard
-            mode="builder"
-            config={{
-              title,
-              note,
-              buttonText,
-              presets: presets.length > 0 ? presets : [1],
-              allowCustom,
-              currency,
-            }}
-          />
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div>
-            <p className="font-medium mb-1">Title</p>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-              placeholder="Tip Jar"
-            />
-          </div>
-          <div>
-            <p className="font-medium mb-1">Note</p>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-              placeholder="Support my work"
-            />
-          </div>
-          <div>
-            <p className="font-medium mb-1">Button Text</p>
-            <input
-              type="text"
-              value={buttonText}
-              onChange={(e) => setButtonText(e.target.value)}
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-              placeholder="Send a tip"
-            />
-          </div>
-          <div>
-            <p className="font-medium mb-1">
-              Preset Amounts{" "}
-              <span className="text-xs font-normal text-gray-400">
-                (up to {MAX_PRESETS}, comma separated)
-              </span>
-            </p>
-            <input
-              type="text"
-              value={presetsInput}
-              onChange={(e) => setPresetsInput(e.target.value)}
-              className="w-full border border-[#ede8e8] focus:border-[#e5e0e0] rounded-xl focus:outline-none px-4 py-2 text-gray-700 bg-gray-100"
-              placeholder="1, 5, 10"
-              required
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <label className="flex items-center gap-2 font-medium">
+      <div>
+        <p className="mb-2 text-xs font-semibold text-[#8a8a8f]">Amount presets</p>
+        <div className="grid grid-cols-2 gap-2">
+          {amounts.map((amount, index) => (
+            <label key={index} className="flex items-center rounded-xl border border-black/[0.08] px-3">
+              <span className="font-extrabold text-[#8a8a8f]">$</span>
               <input
-                type="checkbox"
-                checked={allowCustom}
-                onChange={(e) => setAllowCustom(e.target.checked)}
-                className="h-4 w-4 accent-black"
+                aria-label={`Preset amount ${index + 1}`}
+                value={amount}
+                inputMode="decimal"
+                onChange={(event) => setAmount(index, event.target.value)}
+                className="min-w-0 flex-1 bg-transparent p-2 text-sm font-bold outline-none"
               />
-              Allow custom amount
             </label>
-            <div className="flex items-center gap-2">
-              <p className="font-medium">Currency</p>
-              <select
-                value={currency}
-                onChange={(e) =>
-                  setCurrency(e.target.value as (typeof CURRENCIES)[number])
-                }
-                className="border border-[#ede8e8] rounded-xl px-3 py-2 text-sm text-gray-700 bg-gray-100 focus:outline-none"
-              >
-                {CURRENCIES.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
+          ))}
+          <div className="flex items-center justify-center rounded-xl border border-dashed border-black/10 px-3 py-3 text-xs font-bold text-[#8a8a8f]">
+            Custom (fixed)
           </div>
-          <PrimaryButton className="w-full py-3">
-            {isLoading ? (
-              <Loader className="w-8 h-8 animate-spin mx-auto" />
-            ) : (
-              "Save"
-            )}
-          </PrimaryButton>
-        </form>
+        </div>
       </div>
-    </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-[#8a8a8f]">Primary color</p>
+        <div className="flex flex-wrap gap-3">
+          {SWATCHES.map((color) => (
+            <button
+              key={color}
+              type="button"
+              aria-label={`Use ${color}`}
+              onClick={() => setPrimaryColor(color)}
+              className="h-9 w-9 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(10,10,12,.12)]"
+              style={{ backgroundColor: color, outline: primaryColor === color ? "2px solid #0a0a0c" : "none", outlineOffset: 2 }}
+            />
+          ))}
+          <label className="relative h-9 w-9 overflow-hidden rounded-full border border-black/10 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]">
+            <span className="sr-only">Custom color</span>
+            <input
+              type="color"
+              value={primaryColor}
+              onChange={(event) => setPrimaryColor(event.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold text-[#8a8a8f]">Compact live preview</p>
+        <div className="rounded-2xl bg-[#f4f4f5] p-3">
+          <TipJarCard mode="builder" config={{ presets: amounts, primaryColor, currency: "USDC", allowCustom: true }} />
+        </div>
+      </div>
+
+      <PrimaryButton className="w-full py-3" disabled={isLoading}>
+        {isLoading ? <Loader className="mx-auto h-5 w-5 animate-spin" /> : "Save Tip Jar"}
+      </PrimaryButton>
+    </form>
   );
 };
 

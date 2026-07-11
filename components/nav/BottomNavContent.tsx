@@ -250,6 +250,17 @@ const BottomNavContent = () => {
     setSelectedTemplate(null);
   };
 
+  // Every template create flow must land back on the Smartsite canvas after
+  // a successful save. Older template forms use `handleRemoveIcon` while
+  // newer forms use `onCloseModal`; keep one completion handler and pass it
+  // under the callback name each form expects.
+  const handleTemplateSaved = () => {
+    setSelectedTemplate(null);
+    setSearchQuery("");
+    setIsIconsModalOpen(false);
+    router.refresh();
+  };
+
   const handleOpenActiveChip = () => {
     setIsActivateChipModalOpen(true);
     setIsMenuOpen(false);
@@ -292,7 +303,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddSmallIcon onCloseModal={handleCloseIconsModal} />
+            <AddSmallIcon onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -318,7 +329,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddInfoBar onCloseModal={handleCloseIconsModal} />
+            <AddInfoBar onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -344,7 +355,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddEmbed onCloseModal={handleCloseIconsModal} />
+            <AddEmbed handleRemoveIcon={handleTemplateSaved} />
           </div>
         );
 
@@ -370,7 +381,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddAppIcon onCloseModal={handleCloseIconsModal} />
+            <AddAppIcon onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -396,7 +407,10 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddRedeemLink onCloseModal={handleCloseIconsModal} />
+            <AddRedeemLink
+              handleRemoveIcon={handleTemplateSaved}
+              handleToggleIcon={handleTemplateSaved}
+            />
           </div>
         );
 
@@ -422,7 +436,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddBlog onCloseModal={handleCloseIconsModal} />
+            <AddBlog onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -448,7 +462,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddVideo onCloseModal={handleCloseIconsModal} />
+            <AddVideo handleRemoveIcon={handleTemplateSaved} />
           </div>
         );
 
@@ -474,7 +488,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddAudio onCloseModal={handleCloseIconsModal} />
+            <AddAudio handleRemoveIcon={handleTemplateSaved} />
           </div>
         );
 
@@ -500,7 +514,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddMarketplace onCloseModal={handleCloseIconsModal} />
+            <AddMarketplace onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -526,7 +540,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddFeed onCloseModal={handleCloseIconsModal} />
+            <AddFeed onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -552,7 +566,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddTipJar onCloseModal={handleCloseIconsModal} />
+            <AddTipJar onCloseModal={handleTemplateSaved} />
           </div>
         );
 
@@ -578,7 +592,7 @@ const BottomNavContent = () => {
               </svg>
               Back to Templates
             </button>
-            <AddLeadForm onCloseModal={handleCloseIconsModal} />
+            <AddLeadForm onCloseModal={handleTemplateSaved} />
           </div>
         );
       default:

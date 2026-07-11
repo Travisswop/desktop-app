@@ -568,6 +568,25 @@ export async function createMarketplaceCheckoutIntent(
   return data.data;
 }
 
+export async function createTipCheckoutIntent(
+  params: {
+    widgetId: string;
+    micrositeId: string;
+    amount: number;
+    checkoutBaseUrl?: string;
+  },
+  accessToken: string
+) {
+  const response = await apiFetch(`${API_URL}/api/v5/checkout-intents/tip`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params),
+  });
+  const data = await parseResponse<CheckoutIntent>(response);
+  if (!data.data) throw new Error('Tip checkout was not created');
+  return data.data;
+}
+
 export async function prepareCheckoutTransaction(
   intentId: string,
   params: {

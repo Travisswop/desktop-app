@@ -122,13 +122,13 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
     id: "tip-jar",
     sectionKey: "widget",
     title: "Tip Jar",
-    description: "Accept quick tips",
+    description: "Accept preset or custom USDC tips",
   },
   {
     id: "leads-form",
     sectionKey: "widget",
-    title: "Leads Form",
-    description: "Collect leads right on your page",
+    title: "Form",
+    description: "Build a custom form and collect responses",
   },
 ];
 

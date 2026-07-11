@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Parser } from "json2csv";
-import { ArrowLeft, Download, Mail, Phone, Search, Users } from "lucide-react";
+import { ArrowLeft, ClipboardList, Download, Mail, Phone, Search, Users } from "lucide-react";
 import { useUser } from "@/lib/UserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,9 @@ interface Lead {
   walletAddress?: string;
   website?: string;
   createdAt?: string;
+  source?: string;
+  formName?: string;
+  answers?: Array<{ fieldId: string; label: string; value: string | string[] }>;
 }
 
 const getRecordId = (value: unknown): string => {
@@ -55,6 +58,7 @@ export default function LeadsContent() {
   const { user, loading } = useUser();
   const [query, setQuery] = useState("");
   const [micrositeFilter, setMicrositeFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
 
   const micrositeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -81,12 +85,33 @@ export default function LeadsContent() {
         micrositeFilter === "all" ||
         getRecordId(lead.micrositeId) === micrositeFilter;
       if (!matchesMicrosite) return false;
+      if (formFilter !== "all" && lead.source !== formFilter) return false;
       if (!normalizedQuery) return true;
-      return [lead.name, lead.email, lead.mobileNo, lead.jobTitle, lead.website]
+      return [
+        lead.name,
+        lead.email,
+        lead.mobileNo,
+        lead.jobTitle,
+        lead.website,
+        lead.formName,
+        ...(lead.answers || []).flatMap((answer) => [answer.label, ...(Array.isArray(answer.value) ? answer.value : [answer.value])]),
+      ]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(normalizedQuery));
     });
-  }, [leads, query, micrositeFilter]);
+  }, [leads, query, micrositeFilter, formFilter]);
+
+  const formGroups = useMemo(() => {
+    const groups = new Map<string, { source: string; name: string; count: number; lastSubmission?: string }>();
+    leads.forEach((lead) => {
+      if (!lead.source?.startsWith("form:")) return;
+      const current = groups.get(lead.source) || { source: lead.source, name: lead.formName || "Smartsite form", count: 0, lastSubmission: lead.createdAt };
+      current.count += 1;
+      if (!current.lastSubmission || (lead.createdAt && lead.createdAt > current.lastSubmission)) current.lastSubmission = lead.createdAt;
+      groups.set(lead.source, current);
+    });
+    return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+  }, [leads]);
 
   const handleExportCsv = () => {
     const fields = [
@@ -98,6 +123,8 @@ export default function LeadsContent() {
       "website",
       "smartsite",
       "createdAt",
+      "form",
+      "answers",
     ];
     const rows = filteredLeads.map((lead) => ({
       name: lead.name || "",
@@ -108,6 +135,8 @@ export default function LeadsContent() {
       website: lead.website || "",
       smartsite: micrositeNameById.get(getRecordId(lead.micrositeId)) || "",
       createdAt: lead.createdAt || "",
+      form: lead.formName || "",
+      answers: (lead.answers || []).map((answer) => `${answer.label}: ${Array.isArray(answer.value) ? answer.value.join(", ") : answer.value}`).join(" | "),
     }));
 
     const csv = new Parser({ fields }).parse(rows);
@@ -188,7 +217,31 @@ export default function LeadsContent() {
             ))}
           </select>
         )}
+        {formGroups.length > 0 && (
+          <select value={formFilter} onChange={(event) => setFormFilter(event.target.value)} className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-400">
+            <option value="all">All forms</option>
+            {formGroups.map((form) => <option key={form.source} value={form.source}>{form.name}</option>)}
+          </select>
+        )}
       </div>
+
+      {formGroups.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <div><h2 className="text-lg font-semibold text-gray-950">Forms</h2><p className="text-sm text-gray-500">Subscribers organized by the form they completed.</p></div>
+            {formFilter !== "all" && <button type="button" onClick={() => setFormFilter("all")} className="text-sm font-semibold text-gray-600 hover:text-gray-950">Clear filter</button>}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {formGroups.map((form) => (
+              <button key={form.source} type="button" onClick={() => setFormFilter(form.source === formFilter ? "all" : form.source)} className={`rounded-2xl border p-4 text-left transition ${formFilter === form.source ? "border-gray-950 bg-gray-950 text-white" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+                <div className="flex items-center justify-between"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${formFilter === form.source ? "bg-white/10" : "bg-gray-100"}`}><ClipboardList className="h-4 w-4" /></span><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${formFilter === form.source ? "bg-white/10" : "bg-gray-100"}`}>{form.count} subscriber{form.count === 1 ? "" : "s"}</span></div>
+                <p className="mt-3 truncate font-semibold">{form.name}</p>
+                <p className={`mt-1 text-xs ${formFilter === form.source ? "text-white/60" : "text-gray-500"}`}>Last response {formatDate(form.lastSubmission)}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {filteredLeads.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-16 text-center">
@@ -210,7 +263,7 @@ export default function LeadsContent() {
                 <TableHead>Name</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>SmartSite</TableHead>
-                <TableHead>Website</TableHead>
+                <TableHead>Form / Responses</TableHead>
                 <TableHead className="text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
@@ -255,23 +308,9 @@ export default function LeadsContent() {
                   <TableCell className="text-sm text-gray-700">
                     {micrositeNameById.get(getRecordId(lead.micrositeId)) || "—"}
                   </TableCell>
-                  <TableCell className="text-sm">
-                    {lead.website ? (
-                      <a
-                        href={
-                          lead.website.startsWith("http")
-                            ? lead.website
-                            : `https://${lead.website}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        {lead.website}
-                      </a>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                  <TableCell className="max-w-[280px] text-sm">
+                    <div className="font-medium text-gray-800">{lead.formName || (lead.source?.startsWith("form:") ? "Smartsite form" : "Subscribe")}</div>
+                    {(lead.answers || []).filter((answer) => !["name", "email"].includes(answer.fieldId)).slice(0, 2).map((answer) => <div key={answer.fieldId} className="mt-0.5 truncate text-xs text-gray-500"><span className="font-medium">{answer.label}:</span> {Array.isArray(answer.value) ? answer.value.join(", ") : answer.value || "—"}</div>)}
                   </TableCell>
                   <TableCell className="text-right text-sm text-gray-500">
                     {formatDate(lead.createdAt)}
