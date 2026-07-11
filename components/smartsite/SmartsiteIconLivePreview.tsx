@@ -88,11 +88,13 @@ import {
   handleV5SmartSiteTabRestore,
 } from "@/actions/update";
 import {
+  ChevronRight,
   FolderInput,
   GripVertical,
+  Layers,
   Loader2,
   Lock,
-  LockOpen,
+  MoreHorizontal,
   Pencil,
   Pin,
   Plus,
@@ -478,6 +480,9 @@ const SmartsiteIconLivePreview = ({
     null,
   );
   const [isTabDeleting, setIsTabDeleting] = useState(false);
+  // Tab settings sheet ("Tab Menu Redesign" handoff) — always targets the
+  // ACTIVE tab; opened by tapping the active pill's ⋯.
+  const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
   const knownContentKeysRef = useRef<Set<string> | null>(null);
   // Last tabs state derived FROM data. Optimistic tab updates round-trip
   // through the parent (onTemplateOrderChange → new `data` identity) and
@@ -1734,7 +1739,9 @@ const SmartsiteIconLivePreview = ({
                             type="button"
                             onClick={() => {
                               if (isActive && isTabEditable) {
-                                setRenamingTabId(tab.id);
+                                // Active-tab tap opens the tab settings sheet
+                                // (rename / token gate / delete) — mobile parity.
+                                setIsTabMenuOpen(true);
                                 return;
                               }
                               setActiveTabId(tab.id);
@@ -1751,7 +1758,7 @@ const SmartsiteIconLivePreview = ({
                             )}
                             {tab.name || `Tab ${index + 1}`}
                             {isActive && isTabEditable && (
-                              <Pencil className="h-3 w-3 opacity-70" />
+                              <MoreHorizontal className="h-3.5 w-3.5 opacity-70" />
                             )}
                           </button>
                         );
@@ -1764,45 +1771,6 @@ const SmartsiteIconLivePreview = ({
                           className="flex flex-shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-gray-400 px-3.5 py-1.5 text-[13px] font-semibold text-gray-500 transition hover:border-gray-950 hover:text-gray-950"
                         >
                           <Plus className="h-3.5 w-3.5" /> Tab
-                        </button>
-                      )}
-
-                      {isTabEditable && activeTab && (
-                        <button
-                          type="button"
-                          aria-label={
-                            activeTab.gated
-                              ? `Remove token gate from ${activeTab.name} tab`
-                              : `Token-gate ${activeTab.name} tab`
-                          }
-                          title={
-                            activeTab.gated
-                              ? "Tab is token-gated — click to unlock"
-                              : "Token-gate this tab"
-                          }
-                          onClick={handleToggleTabGate}
-                          className={`ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition ${
-                            activeTab.gated
-                              ? "bg-gray-950 text-white hover:bg-gray-800"
-                              : "bg-black/[0.04] text-gray-400 hover:bg-black/[0.08] hover:text-gray-950"
-                          }`}
-                        >
-                          {activeTab.gated ? (
-                            <Lock className="h-3.5 w-3.5" />
-                          ) : (
-                            <LockOpen className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      )}
-
-                      {isTabEditable && activeTab && (
-                        <button
-                          type="button"
-                          aria-label={`Delete ${activeTab.name} tab`}
-                          onClick={() => setTabDeleteTarget(activeTab)}
-                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-gray-400 transition hover:bg-red-50 hover:text-red-500"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
@@ -2557,6 +2525,123 @@ const SmartsiteIconLivePreview = ({
       </div>
 
       <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
+
+      {/* tab settings sheet — "Tab Menu Redesign" handoff (desktop version
+          of the mobile bottom sheet): scrim, white card with badge head and
+          icon-tile rows, live token-gate toggle, red delete, Cancel pill. */}
+      {isTabMenuOpen && activeTab && isTabEditable && (
+        <div className="fixed inset-0 z-[60]">
+          <button
+            type="button"
+            aria-label="Close tab settings"
+            className="absolute inset-0 bg-[rgba(20,20,22,0.34)] backdrop-blur-[2px]"
+            onClick={() => setIsTabMenuOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-4 mx-auto w-full max-w-md px-3">
+            <div className="mx-auto mb-3 h-[5px] w-[38px] rounded-full bg-white/70" />
+            <div className="overflow-hidden rounded-[26px] bg-white shadow-[0_24px_60px_-12px_rgba(0,0,0,0.4)]">
+              <div className="flex items-center gap-3.5 px-5 pb-4 pt-5">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[15px] bg-gray-950 text-white">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.9px] text-[#8a8a8f]">
+                    Tab settings
+                  </p>
+                  <p className="truncate text-[20px] font-bold text-gray-950">
+                    {activeTab.name}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-[#8a8a8f]">
+                    {activeTab.order.length}{" "}
+                    {activeTab.order.length === 1 ? "block" : "blocks"}
+                    <span className="h-[3px] w-[3px] rounded-full bg-[#c9c9cd]" />
+                    {activeTab.gated ? "Token gated" : "Visible to everyone"}
+                  </p>
+                </div>
+              </div>
+              <div className="mx-5 h-px bg-[#ececec]" />
+              <button
+                type="button"
+                className="flex w-full items-center gap-3.5 px-5 py-[15px] text-left transition hover:bg-[#fafafa]"
+                onClick={() => {
+                  setIsTabMenuOpen(false);
+                  setRenamingTabId(activeTab.id);
+                }}
+              >
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#fef1ea] text-[#e8734a]">
+                  <Pencil className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold text-gray-950">
+                    Edit name
+                  </span>
+                  <span className="block text-[12.5px] text-[#8a8a8f]">
+                    Rename this tab
+                  </span>
+                </span>
+                <ChevronRight className="h-5 w-5 text-[#c4c4c8]" />
+              </button>
+              <div className="mx-5 h-px bg-[#ececec]" />
+              <div className="flex w-full items-center gap-3.5 px-5 py-[15px]">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#f1ecfe] text-[#8b5cf6]">
+                  <Lock className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold text-gray-950">
+                    Token gate
+                  </span>
+                  <span className="block text-[12.5px] text-[#8a8a8f]">
+                    Require a token to unlock
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(activeTab.gated)}
+                  onClick={handleToggleTabGate}
+                  className={`relative h-[29px] w-12 flex-shrink-0 rounded-full transition ${
+                    activeTab.gated ? "bg-[#8b5cf6]" : "bg-[#e2e2e5]"
+                  }`}
+                >
+                  <span
+                    className={`absolute left-[2.5px] top-[2.5px] h-6 w-6 rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-transform ${
+                      activeTab.gated ? "translate-x-[19px]" : ""
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="mx-5 h-px bg-[#ececec]" />
+              <button
+                type="button"
+                className="flex w-full items-center gap-3.5 px-5 py-[15px] text-left transition hover:bg-[#fdeceb]/60"
+                onClick={() => {
+                  setIsTabMenuOpen(false);
+                  setTabDeleteTarget(activeTab);
+                }}
+              >
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#fdeceb] text-[#e5484d]">
+                  <Trash2 className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold text-[#e5484d]">
+                    Delete tab
+                  </span>
+                  <span className="block text-[12.5px] text-[#8a8a8f]">
+                    Removes this tab and its blocks
+                  </span>
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTabMenuOpen(false)}
+              className="mt-2.5 w-full rounded-[22px] bg-white py-[17px] text-[17px] font-bold text-gray-950 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.3)]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* delete tab confirmation — destructive, enumerates what's removed */}
       <Modal
