@@ -47,7 +47,7 @@ const navigationItems: NavItem[] = [
   },
   { id: "blink", label: "Blink", icon: blink },
   { id: "points", label: "Points", icon: points },
-  { id: "leads", label: "Leads", icon: leads },
+  { id: "forms", label: "Forms", icon: leads },
   { id: "nfc", label: "NFC", icon: nfc },
   { id: "pos", label: "POS", icon: pos },
 ];

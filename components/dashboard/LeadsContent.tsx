@@ -3,7 +3,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Parser } from "json2csv";
-import { ArrowLeft, Download, Mail, Phone, Search, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ClipboardList,
+  Download,
+  Mail,
+  Phone,
+  Search,
+} from "lucide-react";
 import { useUser } from "@/lib/UserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface Lead {
+interface FormSubmission {
   _id: string;
   name: string;
   micrositeId: string;
@@ -27,6 +34,12 @@ interface Lead {
   walletAddress?: string;
   website?: string;
   createdAt?: string;
+  source?: string;
+}
+
+interface FormOption {
+  id: string;
+  label: string;
 }
 
 const getRecordId = (value: unknown): string => {
@@ -51,10 +64,14 @@ const formatDate = (value?: string) => {
   });
 };
 
-export default function LeadsContent() {
+const getFormId = (source?: string) =>
+  source?.startsWith("form:") ? source.slice("form:".length) : "subscribe";
+
+export default function FormsContent() {
   const { user, loading } = useUser();
   const [query, setQuery] = useState("");
   const [micrositeFilter, setMicrositeFilter] = useState<string>("all");
+  const [formFilter, setFormFilter] = useState<string>("all");
 
   const micrositeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -65,8 +82,20 @@ export default function LeadsContent() {
     return map;
   }, [user?.microsites]);
 
-  const leads = useMemo<Lead[]>(() => {
-    const list = (user?.subscribers || []) as Lead[];
+  const formNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (user?.microsites || []).forEach((microsite: any) => {
+      (microsite?.info?.widget || []).forEach((widget: any) => {
+        if (widget?.widgetType !== "leadForm") return;
+        const id = getRecordId(widget?._id);
+        if (id) map.set(id, widget?.config?.title || "SmartSite form");
+      });
+    });
+    return map;
+  }, [user?.microsites]);
+
+  const submissions = useMemo<FormSubmission[]>(() => {
+    const list = (user?.subscribers || []) as FormSubmission[];
     return [...list].sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -74,19 +103,43 @@ export default function LeadsContent() {
     });
   }, [user?.subscribers]);
 
-  const filteredLeads = useMemo(() => {
+  const formOptions = useMemo<FormOption[]>(() => {
+    const options = new Map<string, string>();
+    submissions.forEach((submission) => {
+      const formId = getFormId(submission.source);
+      options.set(
+        formId,
+        formId === "subscribe"
+          ? "Subscribers"
+          : formNameById.get(formId) || "SmartSite form",
+      );
+    });
+    return Array.from(options, ([id, label]) => ({ id, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [formNameById, submissions]);
+
+  const filteredSubmissions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return leads.filter((lead) => {
+    return submissions.filter((submission) => {
       const matchesMicrosite =
         micrositeFilter === "all" ||
-        getRecordId(lead.micrositeId) === micrositeFilter;
-      if (!matchesMicrosite) return false;
+        getRecordId(submission.micrositeId) === micrositeFilter;
+      const matchesForm =
+        formFilter === "all" || getFormId(submission.source) === formFilter;
+      if (!matchesMicrosite || !matchesForm) return false;
       if (!normalizedQuery) return true;
-      return [lead.name, lead.email, lead.mobileNo, lead.jobTitle, lead.website]
+      return [
+        submission.name,
+        submission.email,
+        submission.mobileNo,
+        submission.jobTitle,
+        submission.website,
+      ]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(normalizedQuery));
     });
-  }, [leads, query, micrositeFilter]);
+  }, [submissions, query, micrositeFilter, formFilter]);
 
   const handleExportCsv = () => {
     const fields = [
@@ -96,18 +149,24 @@ export default function LeadsContent() {
       "mobileNo",
       "walletAddress",
       "website",
+      "form",
       "smartsite",
       "createdAt",
     ];
-    const rows = filteredLeads.map((lead) => ({
-      name: lead.name || "",
-      jobTitle: lead.jobTitle || "",
-      email: lead.email || "",
-      mobileNo: lead.mobileNo || "",
-      walletAddress: lead.walletAddress || "",
-      website: lead.website || "",
-      smartsite: micrositeNameById.get(getRecordId(lead.micrositeId)) || "",
-      createdAt: lead.createdAt || "",
+    const rows = filteredSubmissions.map((submission) => ({
+      name: submission.name || "",
+      jobTitle: submission.jobTitle || "",
+      email: submission.email || "",
+      mobileNo: submission.mobileNo || "",
+      walletAddress: submission.walletAddress || "",
+      website: submission.website || "",
+      form:
+        getFormId(submission.source) === "subscribe"
+          ? "Subscribers"
+          : formNameById.get(getFormId(submission.source)) || "SmartSite form",
+      smartsite:
+        micrositeNameById.get(getRecordId(submission.micrositeId)) || "",
+      createdAt: submission.createdAt || "",
     }));
 
     const csv = new Parser({ fields }).parse(rows);
@@ -115,7 +174,7 @@ export default function LeadsContent() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "Swop-Leads.csv");
+    link.setAttribute("download", "Swop-Form-Submissions.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -144,20 +203,20 @@ export default function LeadsContent() {
             Dashboard
           </Link>
           <div className="flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            <h1 className="text-2xl font-semibold text-gray-900">Leads</h1>
+            <ClipboardList className="h-6 w-6" />
+            <h1 className="text-2xl font-semibold text-gray-900">Forms</h1>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-medium text-gray-600">
-              {leads.length}
+              {submissions.length}
             </span>
           </div>
           <p className="text-sm text-gray-500">
-            People who subscribed through the form on your SmartSites.
+            All form submissions and subscribers from your SmartSites.
           </p>
         </div>
         <Button
           variant="outline"
           onClick={handleExportCsv}
-          disabled={filteredLeads.length === 0}
+          disabled={filteredSubmissions.length === 0}
         >
           <Download className="mr-2 h-4 w-4" />
           Export to CSV
@@ -179,6 +238,7 @@ export default function LeadsContent() {
             value={micrositeFilter}
             onChange={(event) => setMicrositeFilter(event.target.value)}
             className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-400"
+            aria-label="Filter by SmartSite"
           >
             <option value="all">All SmartSites</option>
             {Array.from(micrositeNameById.entries()).map(([id, name]) => (
@@ -188,18 +248,35 @@ export default function LeadsContent() {
             ))}
           </select>
         )}
+        {formOptions.length > 1 && (
+          <select
+            value={formFilter}
+            onChange={(event) => setFormFilter(event.target.value)}
+            className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-400"
+            aria-label="Filter by form"
+          >
+            <option value="all">All forms</option>
+            {formOptions.map((form) => (
+              <option key={form.id} value={form.id}>
+                {form.label}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
-      {filteredLeads.length === 0 ? (
+      {filteredSubmissions.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-16 text-center">
-          <Users className="mb-3 h-10 w-10 text-gray-300" />
+          <ClipboardList className="mb-3 h-10 w-10 text-gray-300" />
           <p className="font-medium text-gray-700">
-            {leads.length === 0 ? "No leads yet" : "No matching leads"}
+            {submissions.length === 0
+              ? "No form submissions yet"
+              : "No matching submissions"}
           </p>
           <p className="mt-1 max-w-sm text-sm text-gray-500">
-            {leads.length === 0
-              ? "When someone fills out the subscribe form on your SmartSite, they'll show up here."
-              : "Try a different search or SmartSite filter."}
+            {submissions.length === 0
+              ? "SmartSite form responses and new subscribers will show up here."
+              : "Try a different search, SmartSite, or form filter."}
           </p>
         </div>
       ) : (
@@ -209,72 +286,81 @@ export default function LeadsContent() {
               <TableRow className="bg-gray-50">
                 <TableHead>Name</TableHead>
                 <TableHead>Contact</TableHead>
+                <TableHead>Form</TableHead>
                 <TableHead>SmartSite</TableHead>
                 <TableHead>Website</TableHead>
                 <TableHead className="text-right">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLeads.map((lead) => (
-                <TableRow key={lead._id}>
+              {filteredSubmissions.map((submission) => (
+                <TableRow key={submission._id}>
                   <TableCell>
                     <div className="font-medium text-gray-900">
-                      {lead.name || "—"}
+                      {submission.name || "—"}
                     </div>
-                    {lead.jobTitle && (
+                    {submission.jobTitle && (
                       <div className="text-sm text-gray-500">
-                        {lead.jobTitle}
+                        {submission.jobTitle}
                       </div>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1 text-sm">
-                      {lead.email && (
+                      {submission.email && (
                         <a
-                          href={`mailto:${lead.email}`}
+                          href={`mailto:${submission.email}`}
                           className="flex items-center gap-1.5 text-gray-700 hover:text-gray-900"
                         >
                           <Mail className="h-3.5 w-3.5 text-gray-400" />
-                          {lead.email}
+                          {submission.email}
                         </a>
                       )}
-                      {lead.mobileNo && (
+                      {submission.mobileNo && (
                         <a
-                          href={`tel:${lead.mobileNo}`}
+                          href={`tel:${submission.mobileNo}`}
                           className="flex items-center gap-1.5 text-gray-700 hover:text-gray-900"
                         >
                           <Phone className="h-3.5 w-3.5 text-gray-400" />
-                          {lead.mobileNo}
+                          {submission.mobileNo}
                         </a>
                       )}
-                      {!lead.email && !lead.mobileNo && (
+                      {!submission.email && !submission.mobileNo && (
                         <span className="text-gray-400">—</span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-700">
-                    {micrositeNameById.get(getRecordId(lead.micrositeId)) || "—"}
+                    {getFormId(submission.source) === "subscribe"
+                      ? "Subscribers"
+                      : formNameById.get(getFormId(submission.source)) ||
+                        "SmartSite form"}
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-700">
+                    {micrositeNameById.get(
+                      getRecordId(submission.micrositeId),
+                    ) || "—"}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {lead.website ? (
+                    {submission.website ? (
                       <a
                         href={
-                          lead.website.startsWith("http")
-                            ? lead.website
-                            : `https://${lead.website}`
+                          submission.website.startsWith("http")
+                            ? submission.website
+                            : `https://${submission.website}`
                         }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline"
                       >
-                        {lead.website}
+                        {submission.website}
                       </a>
                     ) : (
                       <span className="text-gray-400">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right text-sm text-gray-500">
-                    {formatDate(lead.createdAt)}
+                    {formatDate(submission.createdAt)}
                   </TableCell>
                 </TableRow>
               ))}

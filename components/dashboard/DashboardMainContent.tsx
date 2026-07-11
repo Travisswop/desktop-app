@@ -2120,10 +2120,10 @@ function buildModuleTiles({
       accent: positive,
     },
     {
-      label: "Leads",
+      label: "Forms",
       value: formatCount(leadsCount),
-      sub: leadsCount === 1 ? "subscriber" : "subscribers",
-      href: "/dashboard/leads",
+      sub: leadsCount === 1 ? "submission" : "submissions",
+      href: "/dashboard/forms",
       swatch: "#F4E1E1",
       icon: Users,
     },

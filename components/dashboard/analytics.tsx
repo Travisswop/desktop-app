@@ -29,7 +29,7 @@ export default function DashboardAnalytics({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "Swop-Leads.csv");
+    link.setAttribute("download", "Swop-Form-Submissions.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -50,9 +50,11 @@ export default function DashboardAnalytics({
             leads={data?.subscribers?.length || 0}
           />
 
-          {/* Recent Leads */}
+          {/* Recent form submissions */}
           <div className="w-full">
-            <h2 className="text-lg font-semibold mb-4">Recent Leads</h2>
+            <h2 className="text-lg font-semibold mb-4">
+              Recent form submissions
+            </h2>
             <RecentLeadsSlider
               leads={data?.subscribers || []}
               microsites={data?.microsites || []}
@@ -64,7 +66,7 @@ export default function DashboardAnalytics({
                 onClick={handleExportLeads}
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export Leads to CSV
+                Export forms to CSV
               </Button>
             </div>
           </div>
