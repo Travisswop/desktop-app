@@ -92,11 +92,9 @@ import {
   GripVertical,
   Loader2,
   Lock,
-  LockOpen,
-  Pencil,
+  MoreHorizontal,
   Pin,
   Plus,
-  Trash2,
 } from "lucide-react";
 import TipJarCard from "../publicProfile/widgets/TipJarCard";
 import LeadFormCard from "../publicProfile/widgets/LeadFormCard";
@@ -1217,8 +1215,8 @@ const SmartsiteIconLivePreview = ({
 
   // Toggle the active tab's token gate. Allowed even when the site has no
   // token gate configured (the flag is inert then) — but warn the user.
-  const handleToggleTabGate = () => {
-    const currentActiveTabId = activeTabIdRef.current;
+  const handleToggleTabGate = (tabId?: string) => {
+    const currentActiveTabId = tabId || activeTabIdRef.current;
     if (!currentActiveTabId || !isTabEditable) {
       return;
     }
@@ -1729,31 +1727,61 @@ const SmartsiteIconLivePreview = ({
                         }
 
                         return (
-                          <button
+                          <div
                             key={tab.id}
-                            type="button"
-                            onClick={() => {
-                              if (isActive && isTabEditable) {
-                                setRenamingTabId(tab.id);
-                                return;
-                              }
-                              setActiveTabId(tab.id);
-                              setRenamingTabId(null);
-                            }}
-                            className={`flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition ${
+                            className={`flex flex-shrink-0 items-center overflow-hidden rounded-full text-[13px] font-semibold transition ${
                               isActive
                                 ? "bg-gray-950 text-white"
                                 : "bg-black/[0.04] text-gray-500 hover:text-gray-950"
                             }`}
                           >
-                            {tab.gated && (
-                              <Lock className="h-3 w-3 opacity-70" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTabId(tab.id);
+                                setRenamingTabId(null);
+                              }}
+                              className="flex items-center gap-1.5 py-1.5 pl-4 pr-2"
+                            >
+                              {tab.gated && <Lock className="h-3 w-3 opacity-70" />}
+                              {tab.name || `Tab ${index + 1}`}
+                            </button>
+                            {isTabEditable && (
+                              <Dropdown placement="bottom-end">
+                                <DropdownTrigger>
+                                  <button
+                                    type="button"
+                                    aria-label={`Open ${tab.name} tab menu`}
+                                    className="flex h-8 w-8 items-center justify-center pr-1 opacity-70 transition hover:opacity-100"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                  aria-label={`${tab.name} tab actions`}
+                                  onAction={(key) => {
+                                    setActiveTabId(tab.id);
+                                    setRenamingTabId(null);
+                                    if (key === "rename") {
+                                      setRenamingTabId(tab.id);
+                                    } else if (key === "gate") {
+                                      handleToggleTabGate(tab.id);
+                                    } else if (key === "delete") {
+                                      setTabDeleteTarget(tab);
+                                    }
+                                  }}
+                                >
+                                  <DropdownItem key="rename">Edit name</DropdownItem>
+                                  <DropdownItem key="gate">
+                                    {tab.gated ? "Turn token gate off" : "Turn token gate on"}
+                                  </DropdownItem>
+                                  <DropdownItem key="delete" className="text-danger" color="danger">
+                                    Delete tab
+                                  </DropdownItem>
+                                </DropdownMenu>
+                              </Dropdown>
                             )}
-                            {tab.name || `Tab ${index + 1}`}
-                            {isActive && isTabEditable && (
-                              <Pencil className="h-3 w-3 opacity-70" />
-                            )}
-                          </button>
+                          </div>
                         );
                       })}
 
@@ -1767,44 +1795,6 @@ const SmartsiteIconLivePreview = ({
                         </button>
                       )}
 
-                      {isTabEditable && activeTab && (
-                        <button
-                          type="button"
-                          aria-label={
-                            activeTab.gated
-                              ? `Remove token gate from ${activeTab.name} tab`
-                              : `Token-gate ${activeTab.name} tab`
-                          }
-                          title={
-                            activeTab.gated
-                              ? "Tab is token-gated — click to unlock"
-                              : "Token-gate this tab"
-                          }
-                          onClick={handleToggleTabGate}
-                          className={`ml-auto flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition ${
-                            activeTab.gated
-                              ? "bg-gray-950 text-white hover:bg-gray-800"
-                              : "bg-black/[0.04] text-gray-400 hover:bg-black/[0.08] hover:text-gray-950"
-                          }`}
-                        >
-                          {activeTab.gated ? (
-                            <Lock className="h-3.5 w-3.5" />
-                          ) : (
-                            <LockOpen className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      )}
-
-                      {isTabEditable && activeTab && (
-                        <button
-                          type="button"
-                          aria-label={`Delete ${activeTab.name} tab`}
-                          onClick={() => setTabDeleteTarget(activeTab)}
-                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-gray-400 transition hover:bg-red-50 hover:text-red-500"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
                     </div>
                   )}
 
