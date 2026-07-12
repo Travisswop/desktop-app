@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Bot,
   BarChart3,
+  ChevronRight,
   HandCoins,
   Layers,
   LayoutGrid,
@@ -23,18 +24,13 @@ import {
   useState,
   type ComponentType,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useModalStore } from "@/zustandStore/modalstore";
 import { IoAdd, IoClose } from "react-icons/io5";
 import { TbLockDollar } from "react-icons/tb";
 import { MdPhoneIphone, MdQrCodeScanner } from "react-icons/md";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import CustomModal from "../modal/CustomModal";
 //import image
 import appIconImg from "@/public/assets/smartsiteIconsPreview/app-icon.png";
@@ -124,6 +120,58 @@ const FeedRouteLoadingOverlay = () => (
   </div>
 );
 
+type BuildMenuTileProps = {
+  title: string;
+  subtitle: string;
+  icon: ReactNode;
+  href?: string;
+  trailing?: ReactNode;
+  wide?: boolean;
+  onSelect: () => void;
+};
+
+const BuildMenuTile = ({
+  title,
+  subtitle,
+  icon,
+  href,
+  trailing,
+  wide = false,
+  onSelect,
+}: BuildMenuTileProps) => {
+  const className = `${wide ? "col-span-2 min-h-0 flex-row items-center gap-3.5" : "min-h-[118px] flex-col gap-3"} flex rounded-[20px] border border-[#efeff0] bg-[#f7f7f8] p-3.5 text-left transition-colors hover:bg-[#f1f1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2`;
+  const content = (
+    <>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-white text-[21px] text-[#0a0a0c] shadow-[0_2px_8px_rgba(0,0,0,0.05)] [&>svg]:h-[21px] [&>svg]:w-[21px]">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-bold leading-tight text-[#0a0a0c]">
+          {title}
+        </span>
+        <span className="mt-0.5 block text-xs leading-[1.3] text-[#8a8a8f]">
+          {subtitle}
+        </span>
+      </span>
+      {trailing ? (
+        <span className="text-[#c8c8cc] [&>svg]:h-[18px] [&>svg]:w-[18px]">
+          {trailing}
+        </span>
+      ) : null}
+    </>
+  );
+
+  return href ? (
+    <Link href={href} onClick={onSelect} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" onClick={onSelect} className={className}>
+      {content}
+    </button>
+  );
+};
+
 const BottomNavContent = () => {
   const params = useParams();
   const pathname = usePathname();
@@ -183,9 +231,8 @@ const BottomNavContent = () => {
         return;
       }
 
-      const view = event.state?.[
-        SMARTSITE_TEMPLATE_HISTORY_KEY
-      ] as SmartsiteTemplateHistoryView | undefined;
+      const view = event.state?.[SMARTSITE_TEMPLATE_HISTORY_KEY] as
+        SmartsiteTemplateHistoryView | undefined;
 
       if (view?.screen === "editor") {
         setIsIconsModalOpen(true);
@@ -290,6 +337,16 @@ const BottomNavContent = () => {
     // "/smartsite/profile/",
   ]; // Add routes here which we want to hide the bottom nav on
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isMenuOpen]);
+
   // Hide bottom nav on specific routes
   if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {
     return null;
@@ -305,9 +362,8 @@ const BottomNavContent = () => {
     setSearchQuery("");
     setSelectedTemplate(null);
 
-    const view = window.history.state?.[
-      SMARTSITE_TEMPLATE_HISTORY_KEY
-    ] as SmartsiteTemplateHistoryView | undefined;
+    const view = window.history.state?.[SMARTSITE_TEMPLATE_HISTORY_KEY] as
+      SmartsiteTemplateHistoryView | undefined;
 
     if (view?.screen === "editor") {
       closeTemplateModalOnPopRef.current = true;
@@ -666,13 +722,53 @@ const BottomNavContent = () => {
           </div>
         );
       case "ai-chat":
-        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddAiChat onCloseModal={handleTemplateSaved} /></div>;
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm font-semibold text-gray-500"
+            >
+              ← Back to Templates
+            </button>
+            <AddAiChat onCloseModal={handleTemplateSaved} />
+          </div>
+        );
       case "trader-stats":
-        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddTraderStats onCloseModal={handleTemplateSaved} /></div>;
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm font-semibold text-gray-500"
+            >
+              ← Back to Templates
+            </button>
+            <AddTraderStats onCloseModal={handleTemplateSaved} />
+          </div>
+        );
       case "chart-post":
-        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddChartPost onCloseModal={handleTemplateSaved} /></div>;
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm font-semibold text-gray-500"
+            >
+              ← Back to Templates
+            </button>
+            <AddChartPost onCloseModal={handleTemplateSaved} />
+          </div>
+        );
       case "files":
-        return <div className="p-6"><button onClick={handleBackToTemplates} className="mb-4 text-sm font-semibold text-gray-500">← Back to Templates</button><AddFiles onCloseModal={handleTemplateSaved} /></div>;
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm font-semibold text-gray-500"
+            >
+              ← Back to Templates
+            </button>
+            <AddFiles onCloseModal={handleTemplateSaved} />
+          </div>
+        );
       default:
         return null;
     }
@@ -766,127 +862,111 @@ const BottomNavContent = () => {
             </button>
           ) : null}
           {isSmartsite && (
-            <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={`${baseNavItemClass} bg-black text-white hover:bg-gray-900`}
-                >
-                  <div className="flex h-4 w-4 items-center justify-center">
-                    {isMenuOpen ? (
-                      <IoClose size={16} color="white" />
-                    ) : (
-                      <IoAdd size={16} color="white" />
-                    )}
-                  </div>
-                  <span className="whitespace-nowrap">Add</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="bg-white rounded-2xl p-2 w-56 shadow-xl border-none mb-1"
-                side="top"
-                align="start"
-                sideOffset={8}
-              >
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <Link
-                    href={`/smartsite/edit/${pageId}`}
-                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
-                  >
-                    <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">Edit Page</p>
-                      <p className="text-xs text-gray-500">
-                        Change Backgrounds
-                      </p>
-                    </div>
-                    <FiEdit className="min-w-5 min-h-5" />
-                  </Link>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <button
-                    onClick={handleIconslistOpen}
-                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
-                  >
-                    <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">Add Template</p>
-                      <p className="text-xs text-gray-500">
-                        Design Your Smartsite
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <AiOutlineFileAdd className="min-w-[22px] min-h-[22px]" />
-                    </div>
-                  </button>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <Link
-                    href={`/smartsite/qr-code/${pageId}`}
-                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
-                  >
-                    <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">Edit QR</p>
-                      <p className="text-xs text-gray-500">Customize QR</p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <MdQrCodeScanner className="min-w-[22px] min-h-[22px]" />
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <button
-                    onClick={handleOpenActiveChip}
-                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
-                  >
-                    <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">Activate</p>
-                      <p className="text-xs text-gray-500">Program Your Chip</p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <VscChip className="min-w-[22px] min-h-[22px]" />
-                    </div>
-                  </button>
-                </DropdownMenuItem>
-
-                <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <Link
-                    href={`/smartsite/token-gated/${pageId}`}
-                    className="flex items-center gap-3 py-1.5 px-3 rounded-xl w-full"
-                  >
-                    <div className="flex-1 text-start">
-                      <p className="font-semibold text-base">Token Gate</p>
-                      <p className="text-xs text-gray-500">
-                        Monetize Your Content
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <TbLockDollar className="min-w-[22px] min-h-[22px]" />
-                    </div>
-                  </Link>
-                </DropdownMenuItem>
-
-                {/* <DropdownMenuItem asChild className="cursor-pointer p-0">
-                  <Link
-                    href="/smartsite/toggle"
-                    className="flex items-center gap-3 p-1 hover:bg-gray-50 rounded-lg transition-colors w-full"
-                  >
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <RiExchangeBoxLine />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Toggle</p>
-                      <p className="text-xs text-gray-500">
-                        Switch Smart Sites
-                      </p>
-                    </div>
-                  </Link>
-                </DropdownMenuItem> */}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              type="button"
+              aria-label={isMenuOpen ? "Close build menu" : "Open build menu"}
+              aria-expanded={isMenuOpen}
+              onClick={() => setIsMenuOpen((open) => !open)}
+              className={`${baseNavItemClass} bg-black text-white hover:bg-gray-900`}
+            >
+              <div className="flex h-4 w-4 items-center justify-center">
+                {isMenuOpen ? <IoClose size={16} /> : <IoAdd size={16} />}
+              </div>
+              <span className="whitespace-nowrap">Add</span>
+            </button>
           )}
         </nav>
       </div>
+
+      {isSmartsite && isMenuOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-5 pb-24 backdrop-blur-[11px]">
+          <button
+            type="button"
+            aria-label="Close build menu"
+            className="absolute inset-0 cursor-default"
+            onClick={() => setIsMenuOpen(false)}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="build-menu-title"
+            className="relative z-10 w-full max-w-[344px] rounded-[30px] bg-white shadow-[0_30px_70px_rgba(0,0,0,0.4)]"
+          >
+            <div className="flex items-center px-5 pb-1.5 pt-[22px]">
+              <div className="min-w-0 flex-1">
+                <h2
+                  id="build-menu-title"
+                  className="text-[21px] font-extrabold leading-tight tracking-[-0.02em] text-[#0a0a0c]"
+                >
+                  Build
+                </h2>
+                <p className="mt-0.5 text-[13px] text-[#8a8a8f]">
+                  Add to your Smartsite
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close build menu"
+                onClick={() => setIsMenuOpen(false)}
+                className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#f4f4f5] text-[#8a8a8f] transition-colors hover:bg-[#e9e9eb]"
+              >
+                <IoClose size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-[11px] px-4 pb-[18px] pt-1.5">
+              <BuildMenuTile
+                href={`/smartsite/edit/${pageId}`}
+                title="Edit Page"
+                subtitle="Change backgrounds"
+                icon={<FiEdit />}
+                onSelect={() => setIsMenuOpen(false)}
+              />
+              <BuildMenuTile
+                title="Add Templates"
+                subtitle="Design your Smartsite"
+                icon={<AiOutlineFileAdd />}
+                onSelect={handleIconslistOpen}
+              />
+              <BuildMenuTile
+                href={`/smartsite/qr-code/${pageId}`}
+                title="Edit QR"
+                subtitle="Customize QR"
+                icon={<MdQrCodeScanner />}
+                onSelect={() => setIsMenuOpen(false)}
+              />
+              <BuildMenuTile
+                title="Activate"
+                subtitle="Program your chip"
+                icon={<VscChip />}
+                onSelect={handleOpenActiveChip}
+              />
+              <BuildMenuTile
+                href={`/smartsite/token-gated/${pageId}`}
+                title="Token Gate"
+                subtitle="Monetize content"
+                icon={<TbLockDollar />}
+                onSelect={() => setIsMenuOpen(false)}
+              />
+              <BuildMenuTile
+                href="/smartsite"
+                title="Switch Pages"
+                subtitle="View another site"
+                icon={<LayoutGrid />}
+                onSelect={() => setIsMenuOpen(false)}
+              />
+              <BuildMenuTile
+                href="/smartsite/create-smartsite"
+                title="Add Page"
+                subtitle="Create another SmartSite"
+                icon={<IoAdd />}
+                trailing={<ChevronRight />}
+                wide
+                onSelect={() => setIsMenuOpen(false)}
+              />
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {/* Icons Modal */}
       <CustomModal
