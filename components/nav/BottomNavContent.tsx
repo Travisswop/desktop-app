@@ -71,6 +71,13 @@ import { SMARTSITE_TEMPLATE_CATALOG } from "@/lib/smartsite-template-order";
 const baseNavItemClass =
   "flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[14px] px-1 text-[10px] font-semibold leading-none tracking-[0] transition-colors duration-150 sm:max-w-16";
 
+const SMARTSITE_TEMPLATE_HISTORY_KEY = "swopSmartsiteTemplateView";
+
+type SmartsiteTemplateHistoryView = {
+  screen: "editor";
+  templateId: string;
+};
+
 // Titles/descriptions come from the shared catalog in
 // lib/smartsite-template-order.ts (single source of truth — see
 // SMARTSITE_TEMPLATE_CATALOG). Only the visual assets live here.
@@ -131,6 +138,7 @@ const BottomNavContent = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
   const navigationFallbackTimerRef = useRef<number | null>(null);
+  const closeTemplateModalOnPopRef = useRef(false);
 
   const tab = useMemo(
     () => searchParams && searchParams.get("tab"),
@@ -164,6 +172,44 @@ const BottomNavContent = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handleTemplateHistoryChange = (event: PopStateEvent) => {
+      if (closeTemplateModalOnPopRef.current) {
+        closeTemplateModalOnPopRef.current = false;
+        setIsIconsModalOpen(false);
+        setSelectedTemplate(null);
+        setSearchQuery("");
+        return;
+      }
+
+      const view = event.state?.[
+        SMARTSITE_TEMPLATE_HISTORY_KEY
+      ] as SmartsiteTemplateHistoryView | undefined;
+
+      if (view?.screen === "editor") {
+        setIsIconsModalOpen(true);
+        setSelectedTemplate(view.templateId);
+        return;
+      }
+
+      // Selecting a template adds a same-URL history entry. Returning from
+      // that entry should reveal the list, not leave the SmartSite page.
+      if (selectedTemplate) {
+        setIsIconsModalOpen(true);
+        setSelectedTemplate(null);
+        return;
+      }
+
+      setIsIconsModalOpen(false);
+      setSelectedTemplate(null);
+      setSearchQuery("");
+    };
+
+    window.addEventListener("popstate", handleTemplateHistoryChange);
+    return () =>
+      window.removeEventListener("popstate", handleTemplateHistoryChange);
+  }, [selectedTemplate]);
 
   const scheduleNavigationFallback = (href: string) => {
     if (navigationFallbackTimerRef.current) {
@@ -258,6 +304,15 @@ const BottomNavContent = () => {
     setIsIconsModalOpen(false);
     setSearchQuery("");
     setSelectedTemplate(null);
+
+    const view = window.history.state?.[
+      SMARTSITE_TEMPLATE_HISTORY_KEY
+    ] as SmartsiteTemplateHistoryView | undefined;
+
+    if (view?.screen === "editor") {
+      closeTemplateModalOnPopRef.current = true;
+      window.history.back();
+    }
   };
 
   // Every template create flow must land back on the Smartsite canvas after
@@ -265,9 +320,7 @@ const BottomNavContent = () => {
   // newer forms use `onCloseModal`; keep one completion handler and pass it
   // under the callback name each form expects.
   const handleTemplateSaved = () => {
-    setSelectedTemplate(null);
-    setSearchQuery("");
-    setIsIconsModalOpen(false);
+    handleCloseIconsModal();
     router.refresh();
   };
 
@@ -282,10 +335,20 @@ const BottomNavContent = () => {
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
+    window.history.pushState(
+      {
+        ...window.history.state,
+        [SMARTSITE_TEMPLATE_HISTORY_KEY]: {
+          screen: "editor",
+          templateId,
+        },
+      },
+      "",
+    );
   };
 
   const handleBackToTemplates = () => {
-    setSelectedTemplate(null);
+    window.history.back();
   };
 
   // Render template content based on selection
