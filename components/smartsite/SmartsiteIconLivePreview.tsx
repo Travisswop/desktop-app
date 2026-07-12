@@ -2553,6 +2553,7 @@ const SmartsiteIconLivePreview = ({
                       accessToken={accessToken || ""}
                       userId={user?._id || ""}
                       micrositeId={user?.primaryMicrosite || ""}
+                      profilePic={data?.profilePic}
                       isOrderPreview={!isFeedPlain}
                       plain={isFeedPlain}
                     />

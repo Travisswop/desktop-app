@@ -746,6 +746,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                   accessToken={accessToken || ""}
                   userId={user?._id || accessUserIdFromCookie || ""}
                   micrositeId={micrositeData._id}
+                  profilePic={micrositeData.profilePic}
                   plain={isFeedPlain}
                 />
               </div>

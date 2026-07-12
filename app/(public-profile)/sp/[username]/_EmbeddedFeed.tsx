@@ -24,6 +24,7 @@ export default function EmbeddedFeed({
   accessToken,
   userId,
   micrositeId,
+  profilePic,
   isOrderPreview = false,
   plain = false,
 }: {
@@ -31,6 +32,7 @@ export default function EmbeddedFeed({
   userId: string;
   initialFeedData?: any;
   micrositeId: string;
+  profilePic?: string;
   isOrderPreview?: boolean;
   /**
    * Feed-only tab rendering: suppresses the card chrome (white background,
@@ -215,6 +217,7 @@ export default function EmbeddedFeed({
     >
       <FeedItem
         feed={feed}
+        profilePicOverride={profilePic}
         userId={userId}
         accessToken={accessToken}
         onRepostSuccess={() => {}}

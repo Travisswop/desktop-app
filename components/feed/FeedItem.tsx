@@ -39,6 +39,7 @@ interface FeedItemProps {
   feed: any;
   userId: string;
   accessToken: string;
+  profilePicOverride?: string;
   onRedeemModalOpen?: (data: any) => void;
   renderTransactionContent?: (feed: any) => React.ReactNode;
   onRepostSuccess: () => void;
@@ -64,6 +65,7 @@ const FeedItem = memo(
     onDeleteSuccess,
     onPostInteraction,
     isFromFeedDetailsPage = false,
+    profilePicOverride,
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
     const router = useRouter();
@@ -105,6 +107,7 @@ const FeedItem = memo(
     // );
 
     const profilePic =
+      profilePicOverride ||
       feed?.smartsiteDetails?.profilePic ||
       feed?.smartsiteId?.profilePic ||
       feed?.smartsiteProfilePic;
