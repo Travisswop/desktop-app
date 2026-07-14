@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { filterVideoFilesByPlan } from '@/lib/videoLimits';
 import { LiaFileMedicalSolid } from 'react-icons/lia';
 import { FaTimes } from 'react-icons/fa';
 import { MdDelete, MdInfoOutline } from 'react-icons/md';
@@ -39,7 +40,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     getAccessToken();
   }, []);
 
-  const handleFileChange = (event: any) => {
+  const handleFileChange = async (event: any) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -62,6 +63,16 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
       setVideoFile(null);
       setVideoFileType(null);
       return;
+    }
+
+    if (nextFileType === 'video') {
+      // Plan-based video length cap (2 min free / 30 min premium).
+      const [allowed] = await filterVideoFilesByPlan([file]);
+      if (!allowed) {
+        setVideoFile(null);
+        setVideoFileType(null);
+        return;
+      }
     }
 
     const reader = new FileReader();

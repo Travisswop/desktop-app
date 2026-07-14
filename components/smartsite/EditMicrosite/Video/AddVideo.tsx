@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { filterVideoFilesByPlan } from "@/lib/videoLimits";
 import React, { useRef, useState } from "react";
 import useSmartSiteApiDataStore from "@/zustandStore/UpdateSmartsiteInfo";
 // import useLoggedInUserStore from "@/zustandStore/SetLogedInUserSession";
@@ -45,7 +46,7 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
 
   const [attachLink, setAttachLink] = useState<string>("");
 
-  const handleFileChange = (event: any) => {
+  const handleFileChange = async (event: any) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -68,6 +69,16 @@ const AddVideo = ({ handleRemoveIcon }: any) => {
       setVideoFile(null);
       setVideoFileType(null);
       return;
+    }
+
+    if (nextFileType === "video") {
+      // Plan-based video length cap (2 min free / 30 min premium).
+      const [allowed] = await filterVideoFilesByPlan([file]);
+      if (!allowed) {
+        setVideoFile(null);
+        setVideoFileType(null);
+        return;
+      }
     }
 
     const reader = new FileReader();

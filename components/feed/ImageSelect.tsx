@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import toast from "react-hot-toast";
+import { filterVideoFilesByPlan } from "@/lib/videoLimits";
 import { FaRegImage } from "react-icons/fa";
 
 interface ImageContentProps {
@@ -32,20 +33,24 @@ const ImageContent = ({
   ];
   const validVideoTypes = ["video/mp4", "video/webm"];
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = event.target.files;
+    if (!picked || picked.length === 0) return;
 
-    if (files.length > 4) {
+    if (picked.length > 4) {
       setFileError("You can select a maximum of 4 files.");
       return;
     }
+
+    // Plan-based video length cap (2 min free / 30 min premium).
+    const files = await filterVideoFilesByPlan(Array.from(picked));
+    if (files.length === 0) return;
 
     const selectedFiles: { type: "image" | "video"; src: string }[] = [];
     let completedReads = 0; // track how many readers have finished
     const totalFiles = files.length;
 
-    Array.from(files).forEach((file) => {
+    files.forEach((file) => {
       if (file.size > 10 * 1024 * 1024) {
         setFileError("Each file size must be less than 10 MB");
         completedReads++;
