@@ -17,12 +17,15 @@ import YoullReceiveDisplay from './YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
-import OrderSuccessNotification, {
+import {
   buildOrderSuccessInfo,
   getOutcomeAbbr,
-  showOrderSuccessToast,
-  type OrderSuccessInfo,
 } from '../shared/OrderSuccessNotification';
+import {
+  TradeCelebration,
+  betPlacedSpecFromOrderInfo,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
 import { MIN_ORDER_SIZE } from '@/constants/polymarket';
 import {
   getSafePolymarketMaxBuyAmount,
@@ -101,9 +104,9 @@ export default function OrderPlacementModal({
   >(noTokenId && tokenId === noTokenId ? 'no' : 'yes');
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successInfo, setSuccessInfo] =
-    useState<OrderSuccessInfo | null>(null);
+  // Dopamine celebration popup — replaces the generic success card + toast.
+  const [celebration, setCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [pendingOrder, setPendingOrder] =
     useState<PendingOrderData | null>(null);
 
@@ -140,8 +143,7 @@ export default function OrderPlacementModal({
       );
       setLimitPrice('');
       setLocalError(null);
-      setShowSuccess(false);
-      setSuccessInfo(null);
+      setCelebration(null);
       setPendingOrder(null);
     }
   }, [isOpen, outcome]);
@@ -153,15 +155,12 @@ export default function OrderPlacementModal({
   }, [side]);
 
   useEffect(() => {
+    // The celebration popup owns the post-success dismissal (Done/backdrop),
+    // so just retire the confirm sheet here.
     if (orderId && isOpen) {
       setPendingOrder(null);
-      setShowSuccess(true);
-      const timer = setTimeout(() => {
-        onClose();
-      }, 2000);
-      return () => clearTimeout(timer);
     }
-  }, [orderId, isOpen, onClose]);
+  }, [orderId, isOpen]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -346,8 +345,7 @@ export default function OrderPlacementModal({
           usd: feedExecution.cost,
           isLimit: !pendingOrder.isMarketOrder,
         });
-        setSuccessInfo(orderSuccessInfo);
-        showOrderSuccessToast(orderSuccessInfo);
+        setCelebration(betPlacedSpecFromOrderInfo(orderSuccessInfo, marketTitle));
 
         // ── POST PREDICTION TO FEED (fire-and-forget) ────────────────────────
         if (user?.primaryMicrosite && user?._id) {
@@ -416,6 +414,13 @@ export default function OrderPlacementModal({
 
   return (
     <Portal>
+      <TradeCelebration
+        spec={celebration}
+        onDone={() => {
+          setCelebration(null);
+          onClose();
+        }}
+      />
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         onClick={handleBackdropClick}
@@ -453,18 +458,6 @@ export default function OrderPlacementModal({
 
           {/* Main Content */}
           <div className="px-4 pb-4">
-            {/* Success Message */}
-            {showSuccess && successInfo && (
-              <OrderSuccessNotification
-                className="mb-4"
-                info={successInfo}
-                onDismiss={() => {
-                  setShowSuccess(false);
-                  setSuccessInfo(null);
-                }}
-              />
-            )}
-
             {/* Error Message */}
             {(localError || orderError) && (
               <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3">

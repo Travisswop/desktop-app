@@ -41,11 +41,12 @@ import {
   type PriceMap,
 } from '@/lib/polymarket/clob-prices';
 import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
-import OrderSuccessNotification, {
-  buildOrderSuccessInfo,
-  showOrderSuccessToast,
-  type OrderSuccessInfo,
-} from '../shared/OrderSuccessNotification';
+import { buildOrderSuccessInfo } from '../shared/OrderSuccessNotification';
+import {
+  TradeCelebration,
+  betPlacedSpecFromOrderInfo,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
 
 import { InfoIcon, Clock, AlertCircle, X } from 'lucide-react';
 
@@ -4790,10 +4791,9 @@ export default function MarketDetailView({
   >('yes');
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<OrderSuccessInfo | null>(
-    null,
-  );
+  // Dopamine celebration popup — replaces the generic success banner + toast.
+  const [celebration, setCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [showFullDescription, setShowFullDescription] =
     useState(false);
 
@@ -4888,7 +4888,6 @@ export default function MarketDetailView({
     isSubmitting,
     orderStage,
     error: orderError,
-    orderId,
   } = useClobOrder(clobClient, eoaAddress);
 
   // Pre-fill from any deep-link / hand-off props on first mount and whenever
@@ -4900,8 +4899,7 @@ export default function MarketDetailView({
     setSelectedOutcome(initialOutcome ?? 'yes');
     setLimitPrice(initialLimitPrice ?? '');
     setLocalError(null);
-    setShowSuccess(false);
-    setSuccessInfo(null);
+    setCelebration(null);
     setShowFullDescription(false);
   }, [initialOutcome, initialAmount, initialSide, initialOrderType, initialLimitPrice]);
 
@@ -4910,14 +4908,8 @@ export default function MarketDetailView({
     setLocalError(null);
   }, [side]);
 
-  // After a successful order, show the success banner briefly then go back.
-  useEffect(() => {
-    if (!orderId) return;
-    if (agentCompletionPendingRef.current) return;
-    setShowSuccess(true);
-    const t = setTimeout(() => onClose(), 2000);
-    return () => clearTimeout(t);
-  }, [orderId, onClose]);
+  // After a successful order the celebration popup owns the dismissal
+  // (Done/backdrop → back), so no timed banner-and-close is needed here.
 
   // Esc still navigates back — feels natural on desktop.
   useEffect(() => {
@@ -5088,8 +5080,9 @@ export default function MarketDetailView({
           isLimit: isLimitVariant,
         });
         const displayShares = orderSuccessInfo.shares;
-        setSuccessInfo(orderSuccessInfo);
-        showOrderSuccessToast(orderSuccessInfo);
+        setCelebration(
+          betPlacedSpecFromOrderInfo(orderSuccessInfo, market.question),
+        );
 
         if (agentProposalId) {
           try {
@@ -5383,15 +5376,13 @@ export default function MarketDetailView({
         )}
 
         {/* ── Success / Error / Info feedback ──────────────────────────────── */}
-        {showSuccess && successInfo && (
-          <OrderSuccessNotification
-            info={successInfo}
-            onDismiss={() => {
-              setShowSuccess(false);
-              setSuccessInfo(null);
-            }}
-          />
-        )}
+        <TradeCelebration
+          spec={celebration}
+          onDone={() => {
+            setCelebration(null);
+            onClose();
+          }}
+        />
         {(localError || orderError) && (
           <OrderErrorNotification
             raw={localError || orderError?.message}

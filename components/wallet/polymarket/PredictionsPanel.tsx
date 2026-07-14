@@ -34,6 +34,10 @@ import {
 } from '@/hooks/polymarket';
 import { useSportsMeta } from '@/hooks/polymarket/useSportsMeta';
 import {
+  TradeCelebration,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
+import {
   usePolymarketWallet,
   useTrading,
 } from '@/providers/polymarket';
@@ -228,6 +232,9 @@ export default function PredictionsPanel({
     eoaAddress,
   );
 
+  // Dopamine celebration shown after a winning claim is signed & submitted.
+  const [claimCelebration, setClaimCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
     null,
   );
@@ -786,19 +793,32 @@ export default function PredictionsPanel({
         if (isAuto) {
           // Auto-claim stays quiet; balances and pending notices update after
           // the transaction confirms.
-        } else if (result.normalizedCollateral) {
-          toast.success(
-            `Redeemed $${redeemedAmountLabel} and converted to pUSD.`,
-            { id: redeemToastId },
-          );
         } else if (result.normalizationError) {
           toast.success(
             `Redeemed $${redeemedAmountLabel}. Balance conversion will retry automatically.`,
             { id: redeemToastId },
           );
         } else {
-          toast.success(`Redeemed $${redeemedAmountLabel}.`, {
-            id: redeemToastId,
+          // Dopamine celebration — replaces the generic "Redeemed $X" toast.
+          if (redeemToastId) toast.dismiss(redeemToastId);
+          const stakeUsd =
+            Number.isFinite(position.initialValue) && position.initialValue > 0
+              ? position.initialValue
+              : null;
+          const cashPnl = Number(position.cashPnl);
+          setClaimCelebration({
+            kind: 'bet-claimed',
+            title: position.title
+              ? `${position.title}${position.outcome ? ` — ${position.outcome}` : ''}`
+              : 'Prediction market win',
+            payoutUsd: redeemedAmount,
+            stakeUsd,
+            profitUsd:
+              stakeUsd != null
+                ? redeemedAmount - stakeUsd
+                : Number.isFinite(cashPnl) && cashPnl !== 0
+                  ? cashPnl
+                  : null,
           });
         }
 
@@ -1154,6 +1174,10 @@ export default function PredictionsPanel({
           }}
         />
       )}
+      <TradeCelebration
+        spec={claimCelebration}
+        onDone={() => setClaimCelebration(null)}
+      />
     </>
   );
 }

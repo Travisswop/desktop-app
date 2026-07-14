@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Portal from './shared/Portal';
+import {
+  TradeCelebration,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
 import PositionCard from './Positions/PositionCard';
 import OrderCard from './Orders/OrderCard';
 import PositionOutcomeList from './Positions/PositionOutcomeList';
@@ -132,6 +136,9 @@ export default function PredictionsPortfolioModal({
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab);
   }, [isOpen, initialTab]);
+  // Dopamine celebration shown after a winning claim is signed & submitted.
+  const [claimCelebration, setClaimCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [redeemingAsset, setRedeemingAsset] = useState<string | null>(
     null,
   );
@@ -332,7 +339,7 @@ export default function PredictionsPortfolioModal({
 
       setRedeemingAsset(position.asset);
       try {
-        await redeemPosition({
+        const result = await redeemPosition({
           conditionId: position.conditionId,
           asset: position.asset,
           outcomeIndex: position.outcomeIndex,
@@ -341,6 +348,28 @@ export default function PredictionsPortfolioModal({
           safeAddress: redeemWallet.positionWallet,
           depositWalletAddress: redeemWallet.depositWalletAddress,
           walletType: redeemWallet.walletType,
+        });
+
+        // Dopamine celebration — the claim was previously silent on success.
+        const payoutUsd = result.redeemedAmount ?? redeemValue;
+        const stakeUsd =
+          Number.isFinite(position.initialValue) && position.initialValue > 0
+            ? position.initialValue
+            : null;
+        const cashPnl = Number(position.cashPnl);
+        setClaimCelebration({
+          kind: 'bet-claimed',
+          title: position.title
+            ? `${position.title}${position.outcome ? ` — ${position.outcome}` : ''}`
+            : 'Prediction market win',
+          payoutUsd,
+          stakeUsd,
+          profitUsd:
+            stakeUsd != null
+              ? payoutUsd - stakeUsd
+              : Number.isFinite(cashPnl) && cashPnl !== 0
+                ? cashPnl
+                : null,
         });
 
         // Optimistically add the redeemed USDC to the displayed balance immediately.
@@ -621,6 +650,10 @@ export default function PredictionsPortfolioModal({
         </div>
       </div>
 
+      <TradeCelebration
+        spec={claimCelebration}
+        onDone={() => setClaimCelebration(null)}
+      />
     </Portal>
   );
 }

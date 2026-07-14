@@ -17,6 +17,10 @@ import type {
 } from './hooks/useHyperliquidTrading';
 import { OrderConfirmModal, type OrderConfirmDetails } from './OrderConfirmModal';
 import {
+  TradeCelebration,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
+import {
   completeAgentActionFromHandoff,
   type AgentActionCompletion,
   type HyperliquidAgentOrderPrefill,
@@ -125,6 +129,8 @@ export function TradingForm({
   // state (rather than computed at render) so the modal continues to show the
   // order the user actually requested even if mark price drifts mid-confirm.
   const [pendingOrder, setPendingOrder] = useState<OrderConfirmDetails | null>(null);
+  // Dopamine celebration popup — shown once the order is signed and accepted.
+  const [celebration, setCelebration] = useState<TradeCelebrationSpec | null>(null);
   const appliedAgentPrefillKey = useRef<string | null>(null);
 
   const isBuy = side === 'long';
@@ -608,6 +614,41 @@ export function TradingForm({
         }
       }
 
+      // Dopamine celebration — an opposite-side order that reduces/closes the
+      // existing position celebrates the close (with its PnL) instead of a
+      // fresh open.
+      if (
+        (event === 'close' || event === 'reduce') &&
+        existingPosition &&
+        existingSide
+      ) {
+        const closedRatio =
+          existingSizeCoins > 0 ? Math.min(1, sizeNum / existingSizeCoins) : 1;
+        const roePct = toPerpsFeedNumber(existingPosition.returnOnEquity) * 100;
+        setCelebration({
+          kind: 'perp-closed',
+          coin: market.coin,
+          side: existingSide,
+          leverage: existingPosition.leverage?.value ?? safeLeverage,
+          pnlUsd: toPerpsFeedNumber(existingPosition.unrealizedPnl) * closedRatio,
+          pnlPct: Number.isFinite(roePct) && roePct !== 0 ? roePct : null,
+          entryPrice: toPerpsFeedNumber(existingPosition.entryPx) || entryPxNum,
+          exitPrice: entryPxNum,
+          partial: event === 'reduce',
+        });
+      } else {
+        setCelebration({
+          kind: 'perp-opened',
+          coin: market.coin,
+          side,
+          leverage: safeLeverage,
+          sizeUsd: notionalUsd,
+          entryPrice: entryPxNum,
+          orderMode: mode,
+          note: mode === 'tpsl' ? 'Exit triggers submitted.' : null,
+        });
+      }
+
       setPendingOrder(null);
       setSize('');
       setActivePercent(null);
@@ -1003,6 +1044,11 @@ export function TradingForm({
         isSubmitting={isSubmitting || !!isTransferringToDex}
         onConfirm={handleConfirmedSubmit}
         onClose={cancelConfirm}
+      />
+
+      <TradeCelebration
+        spec={celebration}
+        onDone={() => setCelebration(null)}
       />
     </div>
   );

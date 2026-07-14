@@ -35,12 +35,15 @@ import YoullReceiveDisplay from '../OrderModal/YoullReceiveDisplay';
 import OrderConfirmSheet, {
   type PendingOrderData,
 } from '../shared/OrderConfirmSheet';
-import OrderSuccessNotification, {
+import {
   buildOrderSuccessInfo,
   getOutcomeAbbr,
-  showOrderSuccessToast,
-  type OrderSuccessInfo,
 } from '../shared/OrderSuccessNotification';
+import {
+  TradeCelebration,
+  betPlacedSpecFromOrderInfo,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
 import {
   getSafePolymarketMaxBuyAmount,
   getSafePolymarketMaxLimitShares,
@@ -133,8 +136,9 @@ export default function BtcOrderModal({
   const [inputValue, setInputValue] = useState('');
   const [limitPrice, setLimitPrice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successInfo, setSuccessInfo] = useState<OrderSuccessInfo | null>(null);
+  // Dopamine celebration popup — replaces the generic success card + toast.
+  const [celebration, setCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [pendingOrder, setPendingOrder] = useState<PendingOrderData | null>(null);
 
   const { eoaAddress } = usePolymarketWallet();
@@ -197,8 +201,7 @@ export default function BtcOrderModal({
     setInputValue('');
     setLimitPrice('');
     setLocalError(null);
-    setShowSuccess(false);
-    setSuccessInfo(null);
+    setCelebration(null);
     setPendingOrder(null);
     resetOrder(); // ← must come last; clears orderId so the success effect won't re-trigger
   }, [initialOutcome, resetOrder]);
@@ -234,12 +237,11 @@ export default function BtcOrderModal({
           JSON.stringify({ upTokenId, downTokenId, windowLabel: formatWindowLabel() }),
         );
       } catch { /* ignore storage errors in private/restricted contexts */ }
+      // The celebration popup owns the post-success dismissal (Done/backdrop),
+      // so just retire the confirm sheet here.
       setPendingOrder(null);
-      setShowSuccess(true);
-      const t = setTimeout(handleClose, 2000);
-      return () => clearTimeout(t);
     }
-  }, [orderId, isOpen, handleClose, upTokenId, downTokenId]);
+  }, [orderId, isOpen, upTokenId, downTokenId]);
 
   // Escape key
   useEffect(() => {
@@ -356,8 +358,12 @@ export default function BtcOrderModal({
           usd: feedExecution.cost,
           isLimit: !pendingOrder.isMarketOrder,
         });
-        setSuccessInfo(orderSuccessInfo);
-        showOrderSuccessToast(orderSuccessInfo);
+        setCelebration(
+          betPlacedSpecFromOrderInfo(
+            orderSuccessInfo,
+            `Bitcoin Up or Down — ${formatWindowLabel()}`,
+          ),
+        );
 
         // ── POST PREDICTION TO FEED (fire-and-forget) ────────────────────────
         if (user?.primaryMicrosite && user?._id) {
@@ -436,6 +442,7 @@ export default function BtcOrderModal({
 
   return (
     <Portal>
+      <TradeCelebration spec={celebration} onDone={handleClose} />
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
         onClick={handleBackdropClick}
@@ -503,18 +510,6 @@ export default function BtcOrderModal({
 
           {/* ── Body ── */}
           <div className="px-4 pb-4">
-            {/* Success */}
-            {showSuccess && successInfo && (
-              <OrderSuccessNotification
-                className="mb-4"
-                info={successInfo}
-                onDismiss={() => {
-                  setShowSuccess(false);
-                  setSuccessInfo(null);
-                }}
-              />
-            )}
-
             {/* Errors */}
             {(localError || orderError) && (
               <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3">

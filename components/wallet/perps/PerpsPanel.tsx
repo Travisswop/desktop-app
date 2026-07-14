@@ -35,6 +35,10 @@ import { AccountCard } from './AccountCard';
 import { RecentFillsCard } from './RecentFillsCard';
 import { MarketSearchModal } from './MarketSearchModal';
 import { PerpsActionsModal } from './PerpsActionsModal';
+import {
+  TradeCelebration,
+  type TradeCelebrationSpec,
+} from '@/components/celebrations/TradeCelebration';
 
 import type {
   HLMarket,
@@ -200,6 +204,9 @@ export function PerpsPanel({
     initialCoin ?? 'BTC',
   );
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
+  // Dopamine celebration popup — replaces the generic "Position closed" toast.
+  const [closeCelebration, setCloseCelebration] =
+    useState<TradeCelebrationSpec | null>(null);
   const [cancellingOrderKey, setCancellingOrderKey] = useState<string | null>(
     null,
   );
@@ -880,9 +887,18 @@ export function PerpsPanel({
         }).catch((feedError) => {
           console.warn('Failed to update perps feed card:', feedError);
         });
-        toast({
-          title: 'Position closed',
-          description: `${isLong ? 'Long' : 'Short'} ${position.coin} position closed successfully`,
+        // Dopamine celebration — replaces the generic "Position closed" toast.
+        // Realized PnL for a full market close ≈ the position's unrealized PnL.
+        const roePct = toPerpsFeedNumber(position.returnOnEquity) * 100;
+        setCloseCelebration({
+          kind: 'perp-closed',
+          coin: position.coin,
+          side: isLong ? 'long' : 'short',
+          leverage: position.leverage?.value ?? 1,
+          pnlUsd: toPerpsFeedNumber(position.unrealizedPnl),
+          pnlPct: Number.isFinite(roePct) && roePct !== 0 ? roePct : null,
+          entryPrice: toPerpsFeedNumber(position.entryPx),
+          exitPrice: toPerpsFeedNumber(livePrice || position.entryPx),
         });
         refetchPositions();
 
@@ -1383,6 +1399,11 @@ export function PerpsPanel({
         depositStatus={depositStatus}
         onOpenDeposit={handleOpenDepositFromAgentModal}
         onRecheckBalance={onRecheckBalance}
+      />
+
+      <TradeCelebration
+        spec={closeCelebration}
+        onDone={() => setCloseCelebration(null)}
       />
     </>
   );
