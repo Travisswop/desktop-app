@@ -10,6 +10,7 @@ import {
   enrichGamesWithTeamLogos,
   isValidGameCard,
 } from '@/lib/polymarket/sports-grouping';
+import { orderSportsMarkets } from '@/lib/polymarket/sports-ordering';
 import {
   getSportSubcategoryById,
   getCategoryById,
@@ -101,7 +102,11 @@ export default function SportsMarketsView({
   const allSportsMarkets = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   const allGames = useMemo(() => {
-    const grouped = groupFlatMarketsIntoGames(allSportsMarkets).filter(isValidGameCard);
+    // Reorder the volume-ordered pages into sportsbook feed order (live →
+    // upcoming by kickoff, majors first → played → futures) before grouping.
+    const grouped = groupFlatMarketsIntoGames(
+      orderSportsMarkets(allSportsMarkets),
+    ).filter(isValidGameCard);
     // Enrich with live logo URLs once teamsData is available
     return teamsData ? enrichGamesWithTeamLogos(grouped, teamsData) : grouped;
   }, [allSportsMarkets, teamsData]);

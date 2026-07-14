@@ -40,6 +40,7 @@ import {
   isValidGameCard,
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
+import { orderSportsMarkets } from '@/lib/polymarket/sports-ordering';
 import {
   getSportsGameMarketOutcomes,
   getSportsOutcomeSelection,
@@ -187,13 +188,17 @@ export default function HighVolumeMarkets({
     enabled: isSportsActive,
   });
 
-  // Merge all pages of flat sports markets first, then group into games.
-  // Grouping after merging (rather than per-page) means a game whose markets
-  // span two pages will still be assembled into a single complete card.
-  // Finally, enrich with live logo URLs from the Gamma /teams API.
+  // Merge all pages of flat sports markets first, reorder into sportsbook
+  // feed order (live → upcoming by kickoff, majors first → played → futures;
+  // the endpoint returns volume order), then group into games. Grouping after
+  // merging (rather than per-page) means a game whose markets span two pages
+  // will still be assembled into a single complete card. Finally, enrich with
+  // live logo URLs from the Gamma /teams API.
   const allSportsMarkets = useMemo(() => sportsData?.pages.flat() ?? [], [sportsData]);
   const allGames = useMemo(() => {
-    const grouped = groupFlatMarketsIntoGames(allSportsMarkets).filter(isValidGameCard);
+    const grouped = groupFlatMarketsIntoGames(
+      orderSportsMarkets(allSportsMarkets),
+    ).filter(isValidGameCard);
     return teamsData ? enrichGamesWithTeamLogos(grouped, teamsData) : grouped;
   }, [allSportsMarkets, teamsData]);
 

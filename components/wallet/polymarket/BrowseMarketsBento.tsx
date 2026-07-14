@@ -23,6 +23,7 @@ import {
   isValidGameCard,
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
+import { orderSportsMarkets } from '@/lib/polymarket/sports-ordering';
 
 interface BrowseMarketsBentoProps {
   /** Click any market title or non-sports outcome → opens detail modal */
@@ -594,7 +595,9 @@ function SportsHeroCard({
   });
 
   const games = useMemo(() => {
-    const flat = sportsData?.pages.flat() ?? [];
+    // Feed order (live first, then soonest kickoff) so the hero's two slots
+    // show the most relevant games instead of the highest-volume ones.
+    const flat = orderSportsMarkets(sportsData?.pages.flat() ?? []);
     const grouped =
       groupFlatMarketsIntoGames(flat).filter(isValidGameCard);
     const enriched = teamsData

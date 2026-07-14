@@ -17,6 +17,7 @@ import {
   type SportsGameGroup,
   type ParsedOutcome,
 } from '@/lib/polymarket/sports-grouping';
+import { orderSportsMarkets } from '@/lib/polymarket/sports-ordering';
 import {
   findTeam,
   FALLBACK_TEAM_COLOR,
@@ -187,9 +188,12 @@ export default function SportsTableView({
     [allMarkets],
   );
   const games = useMemo(() => {
-    const grouped = groupFlatMarketsIntoGames(allMarkets).filter(
-      isValidGameCard,
-    );
+    // Reorder the volume-ordered pages into sportsbook feed order (live →
+    // upcoming by kickoff, majors first → played) before grouping; the
+    // event-level sort keys keep each game's ML/spread/total contiguous.
+    const grouped = groupFlatMarketsIntoGames(
+      orderSportsMarkets(allMarkets),
+    ).filter(isValidGameCard);
     return teamsData
       ? enrichGamesWithTeamLogos(grouped, teamsData)
       : grouped;

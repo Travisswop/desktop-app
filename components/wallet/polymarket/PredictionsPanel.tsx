@@ -86,6 +86,7 @@ import {
   type ParsedOutcome,
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
+import { compareSportsGames } from '@/lib/polymarket/sports-ordering';
 import type {
   NetDeposits,
   PolymarketCashFlow,
@@ -3755,7 +3756,7 @@ function useLiveSportsGames() {
       const markets = (await response.json()) as PolymarketMarket[];
       const grouped = groupFlatMarketsIntoGames(markets)
         .filter(isValidGameCard)
-        .sort(compareLiveSportsGames);
+        .sort(compareSportsGames);
 
       const liveOnly = grouped.filter(isPolymarketLiveGame);
       const games = (liveOnly.length > 0 ? liveOnly : grouped).slice(0, 20);
@@ -3893,32 +3894,6 @@ async function enrichLiveSportsGames(
 function isPolymarketLiveGame(game: SportsGameGroup) {
   const market = getGamePrimaryMarket(game);
   return Boolean(market?.eventLive || market?.eventPeriod || market?.eventElapsed);
-}
-
-function getGameStartMs(game: SportsGameGroup) {
-  const market = getGamePrimaryMarket(game);
-  const raw =
-    market?.gameStartTime ||
-    market?.eventStartDate ||
-    game.startDate ||
-    null;
-  if (!raw) return 0;
-  const ms = Date.parse(raw);
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-function compareLiveSportsGames(a: SportsGameGroup, b: SportsGameGroup) {
-  const aMarket = getGamePrimaryMarket(a);
-  const bMarket = getGamePrimaryMarket(b);
-  const aLive = aMarket?.eventLive ? 1 : 0;
-  const bLive = bMarket?.eventLive ? 1 : 0;
-  if (aLive !== bLive) return bLive - aLive;
-
-  const aClock = aMarket?.eventPeriod || aMarket?.eventElapsed ? 1 : 0;
-  const bClock = bMarket?.eventPeriod || bMarket?.eventElapsed ? 1 : 0;
-  if (aClock !== bClock) return bClock - aClock;
-
-  return getGameStartMs(b) - getGameStartMs(a);
 }
 
 function useLiveEventScore(
