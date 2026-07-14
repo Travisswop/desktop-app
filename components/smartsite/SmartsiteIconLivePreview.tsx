@@ -268,7 +268,7 @@ const SortablePreviewSection = ({
       }}
       whileDrag={{ scale: isFeedRow ? 1.005 : 1.015, zIndex: 50 }}
       transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
-      className={`group/preview-sort grid w-[calc(100%+3rem)] -ml-12 grid-cols-[2.5rem_minmax(0,1fr)] gap-2 transition ${
+      className={`group/preview-sort grid w-[calc(100%+6rem)] -ml-12 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] gap-2 transition ${
         isDragging ? "relative z-50 cursor-grabbing" : ""
       } ${
         isCompactRow ? "touch-none select-none" : ""
@@ -314,9 +314,34 @@ const SortablePreviewSection = ({
             <Pin className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full border border-gray-200 bg-white p-0.5 text-gray-500" />
           )}
         </button>
-        {/* move-to-tab / pin affordance (tabbed sites, edit mode) */}
+      </div>
+      <div className={`${className} ${isCompactRow ? "[&_.my-2]:my-0" : ""}`}>
+        {isFeedRow && isDragging ? (
+          <div className="flex h-28 w-full items-center rounded-lg bg-white p-4 shadow-small">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
+              <GripVertical className="h-5 w-5" />
+            </div>
+            <div className="ml-3">
+              <p className="text-base font-semibold text-gray-950">Feed</p>
+              <p className="text-sm font-medium text-gray-400">
+                Latest posts
+              </p>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+      {/* move-to-tab / pin affordance (tabbed sites, edit mode) — lives in its
+          own right-side rail so it never stretches the row taller than the
+          public view (drag grip alone stays left). */}
+      <div
+        className={`relative z-20 flex flex-col items-center ${
+          isCompactRow ? "h-full justify-center" : "min-h-[72px] pt-4"
+        }`}
+      >
         {((moveTargets && moveTargets.length > 0 && onMoveToTab) || canPin) && (
-          <Dropdown className="w-max rounded-lg" placement="bottom-start">
+          <Dropdown className="w-max rounded-lg" placement="bottom-end">
             <DropdownTrigger>
               <button
                 type="button"
@@ -391,23 +416,6 @@ const SortablePreviewSection = ({
               }
             </DropdownMenu>
           </Dropdown>
-        )}
-      </div>
-      <div className={`${className} ${isCompactRow ? "[&_.my-2]:my-0" : ""}`}>
-        {isFeedRow && isDragging ? (
-          <div className="flex h-28 w-full items-center rounded-lg bg-white p-4 shadow-small">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500">
-              <GripVertical className="h-5 w-5" />
-            </div>
-            <div className="ml-3">
-              <p className="text-base font-semibold text-gray-950">Feed</p>
-              <p className="text-sm font-medium text-gray-400">
-                Latest posts
-              </p>
-            </div>
-          </div>
-        ) : (
-          children
         )}
       </div>
     </motion.div>
