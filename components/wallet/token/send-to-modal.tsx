@@ -66,7 +66,7 @@ export default function SendToModal({
   isUSD,
   solBalance = 0,
 }: SendToModalProps) {
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 500);
@@ -205,6 +205,11 @@ export default function SendToModal({
           creator: solanaWallet.address,
           isNative: selectedToken.isNative,
           walletId, // undefined for external wallets
+          // Authorizes the backend's user-wallet sponsored relay sign
+          // (owner-enforced Privy apps require the user's own token).
+          privyAccessToken: walletId
+            ? await getAccessToken().catch(() => undefined)
+            : undefined,
         }),
       },
     );

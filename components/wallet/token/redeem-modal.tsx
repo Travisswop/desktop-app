@@ -774,7 +774,7 @@ export default function RedeemModal(props: RedeemModalProps) {
     : "";
 
   // ── Auth / wallet hooks ───────────────────────────────────────────────────
-  const { authenticated, ready, user, user: PrivyUser } = usePrivy();
+  const { authenticated, ready, user, user: PrivyUser, getAccessToken } = usePrivy();
   const { user: swopUser } = useUser();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signTransaction } = useSignTransaction();
@@ -946,6 +946,11 @@ export default function RedeemModal(props: RedeemModalProps) {
           creator: solanaWallet.address,
           isNative: token.isNative,
           walletId, // undefined for external wallets
+          // Authorizes the backend's user-wallet sponsored relay sign
+          // (owner-enforced Privy apps require the user's own token).
+          privyAccessToken: walletId
+            ? await getAccessToken().catch(() => undefined)
+            : undefined,
         }),
       },
     );
