@@ -163,23 +163,6 @@ const VIEM_CHAINS = {
   '42161': arbitrum,
 };
 
-function base64ToUint8Array(value: string) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function uint8ArrayToBase64(value: Uint8Array) {
-  let binary = '';
-  value.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-}
-
 function decimalToRawTokenAmount(value: string, decimals: number) {
   const [whole = '0', fraction = ''] = value.split('.');
   const safeWhole = whole.replace(/\D/g, '') || '0';
@@ -657,7 +640,7 @@ export default function CheckoutPaymentClient({
   onClose,
 }: CheckoutPaymentClientProps) {
   const router = useRouter();
-  const { login, ready, authenticated, user: privyUser } = usePrivy();
+  const { login, ready, authenticated, user: privyUser, getAccessToken } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { accessToken, user } = useUser();
   const { wallets: evmWallets } = useEvmWallets();
@@ -1520,19 +1503,21 @@ export default function CheckoutPaymentClient({
       );
       setQuoteSummary(prepared.quote || null);
 
+      // Sponsored relay contract (backend 16bc5bef): prepare freezes the
+      // amounts, then the backend rebuilds the transfer and has Privy sign
+      // it with the buyer's wallet, sponsoring gas from its fee-payer pool.
+      // The user's Privy access token is what authorizes the sign — no
+      // on-device signature.
       setStage('signing');
-      const signed = await selectedSolanaSignerWallet.signTransaction({
-        transaction: base64ToUint8Array(prepared.serializedTransaction),
-      });
+      const privyAccessToken = await getAccessToken().catch(() => null);
+      if (!privyAccessToken) {
+        throw new Error('Your session expired. Sign in again to pay.');
+      }
 
       setStage('confirming');
       const result = await submitCheckoutTransaction(
         intent.intentId,
-        {
-          signedTransaction: uint8ArrayToBase64(
-            new Uint8Array(signed.signedTransaction)
-          ),
-        },
+        { privyAccessToken },
         accessToken || ''
       );
 

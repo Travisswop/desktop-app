@@ -652,9 +652,18 @@ export async function prepareCheckoutLifiTransaction(
 
 export async function submitCheckoutTransaction(
   intentId: string,
-  params: {
-    signedTransaction: string;
-  },
+  params:
+    | {
+        signedTransaction: string;
+        privyAccessToken?: never;
+      }
+    | {
+        // Sponsored relay contract: the backend rebuilds the prepared
+        // transfer and has Privy sign it with the buyer's wallet, sponsoring
+        // gas from its fee-payer pool. No on-device signature involved.
+        privyAccessToken: string;
+        signedTransaction?: never;
+      },
   accessToken: string
 ) {
   const response = await apiFetch(
