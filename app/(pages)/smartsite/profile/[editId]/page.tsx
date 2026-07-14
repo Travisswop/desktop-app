@@ -17,13 +17,11 @@ const SmartsiteProfileView = async ({
   if (accessToken) {
     const data = await getSingleSmartsiteData(editId, accessToken);
 
-    console.log("data hhh", data);
-
     if (data?.data) {
       return (
         <div>
           {/* <Suspense fallback={<SmartSiteIconLoading />}> */}
-          <SmartsiteIconLivePreview data={data.data} />
+          <SmartsiteIconLivePreview data={data.data} token={accessToken} />
           {/* </Suspense> */}
         </div>
       );
