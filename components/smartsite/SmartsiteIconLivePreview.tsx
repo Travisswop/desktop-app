@@ -266,10 +266,13 @@ const SortablePreviewSection = ({
           suppressClickAfterDragRef.current = false;
         }, COMPACT_ROW_DRAG_CLICK_SUPPRESSION_MS);
       }}
-      whileDrag={{ scale: isFeedRow ? 1.005 : 1.015, zIndex: 50 }}
+      // z-30: above sibling rows (z-20 rails) but below fixed overlays like the
+      // bottom-nav Build modal (z-40), so a mid-snap or stale-drag row can
+      // never cover an open popup.
+      whileDrag={{ scale: isFeedRow ? 1.005 : 1.015, zIndex: 30 }}
       transition={{ layout: { duration: 0.18, ease: "easeOut" } }}
       className={`group/preview-sort grid w-[calc(100%+6rem)] -ml-12 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] gap-2 transition ${
-        isDragging ? "relative z-50 cursor-grabbing" : ""
+        isDragging ? "relative z-30 cursor-grabbing" : ""
       } ${
         isCompactRow ? "touch-none select-none" : ""
       } ${
@@ -297,7 +300,10 @@ const SortablePreviewSection = ({
           onPointerDown={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            onDragStart(orderKey);
+            // Only arm the drag session here. Parent drag state is set in
+            // motion's onDragStart — a bare press (no movement) never fires
+            // onDragEnd, so setting state now would leave the row stuck in
+            // its elevated dragging style.
             dragControls.start(event);
           }}
           className={`relative flex ${
