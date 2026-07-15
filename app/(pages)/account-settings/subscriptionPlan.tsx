@@ -10,10 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import SubscribeButton from "@/components/StripeSubscriptionBtn";
 
+type BillingTerm = "month" | "year";
+
 interface Plan {
   name: "Pro" | "Premium" | "Free";
   description: string;
   price: number;
+  yearlyPrice?: number;
   interval?: string;
   features: string[];
   buttonText: string;
@@ -42,6 +45,7 @@ const plans: Plan[] = [
     name: "Premium",
     description: "Everything unlocked — sites, templates, AI, and blinks.",
     price: 8.99,
+    yearlyPrice: 59.99,
     interval: "month",
     features: [
       "Unlimited SmartSites",
@@ -53,80 +57,119 @@ const plans: Plan[] = [
       "Token-gated SmartSite content",
       "Swop Support 24/7",
     ],
-    buttonText: "Upgrade Premium $8.99/mo",
+    buttonText: "Upgrade Premium",
     isPopular: true,
   },
 ];
 
+// $59.99/yr vs 12 × $8.99
+const YEARLY_SAVINGS_LABEL = "Save 44%";
+
 export default function SubscriptionPlans() {
   const [selectedPlan, setSelectedPlan] = useState("Premium");
+  const [term, setTerm] = useState<BillingTerm>("month");
   return (
     <div className="">
-      {/* <h2 className="text-xl font-semibold mb-8">All Plans</h2> */}
       <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-        {plans.map((plan) => (
-          <Card
-            key={plan.name}
-            onClick={() => setSelectedPlan(plan.name)}
-            className={`relative flex flex-col !rounded-3xl ${
-              plan.name === selectedPlan ? "border-[#593ED3] shadow-lg" : ""
-            }`}
-          >
-            {plan.isPopular && (
-              <Badge className="absolute -top-2 right-1/2 translate-x-1/2 bg-[#593ED3]">
-                Recommended
-              </Badge>
-            )}
-            <div className="h-full">
-              <CardHeader>
-                <h3 className="text-xl font-semibold">{plan.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {plan.description}
-                </p>
-                <div className="mt-4">
-                  <span className="text-3xl font-bold text-[#593ED3]">
-                    {typeof plan.price === "number"
-                      ? `$${plan.price}`
-                      : plan.price}
-                  </span>
-                  {plan.interval && (
-                    <span className="text-muted-foreground ml-1">
-                      / {plan.interval}
+        {plans.map((plan) => {
+          const yearly = term === "year" && plan.yearlyPrice != null;
+          const price = yearly ? plan.yearlyPrice! : plan.price;
+          const interval = plan.interval
+            ? yearly
+              ? "year"
+              : plan.interval
+            : null;
+          const checkoutPlan =
+            plan.name === "Premium" && yearly ? "PremiumYearly" : plan.name;
+          const buttonLabel =
+            plan.price === 0
+              ? plan.buttonText
+              : `${plan.buttonText} $${price}/${yearly ? "yr" : "mo"}`;
+          return (
+            <Card
+              key={plan.name}
+              onClick={() => setSelectedPlan(plan.name)}
+              className={`relative flex flex-col !rounded-3xl ${
+                plan.name === selectedPlan ? "border-[#593ED3] shadow-lg" : ""
+              }`}
+            >
+              {plan.isPopular && (
+                <Badge className="absolute -top-2 right-1/2 translate-x-1/2 bg-[#593ED3]">
+                  Recommended
+                </Badge>
+              )}
+              <div className="h-full">
+                <CardHeader>
+                  <h3 className="text-xl font-semibold">{plan.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {plan.description}
+                  </p>
+                  <div className="mt-4">
+                    <span className="text-3xl font-bold text-[#593ED3]">
+                      ${price}
                     </span>
+                    {interval && (
+                      <span className="text-muted-foreground ml-1">
+                        / {interval}
+                      </span>
+                    )}
+                  </div>
+                  {plan.yearlyPrice != null && (
+                    <div className="mt-3 flex gap-2">
+                      {(["month", "year"] as const).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTerm(option);
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors ${
+                            term === option
+                              ? "border-[#593ED3] text-[#593ED3] bg-[#593ED3]/5"
+                              : "border-gray-200 text-gray-500 hover:border-gray-300"
+                          }`}
+                        >
+                          {option === "month" ? "Monthly" : "Yearly"}
+                          {option === "year" && (
+                            <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                              {YEARLY_SAVINGS_LABEL}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <h4 className="font-semibold">Key Features</h4>
-                  <ul className="space-y-2">
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2">
-                        <Check className="h-4 w-4 text-[#593ED3] mt-1 shrink-0" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-            </div>
-            <CardFooter>
-              <div
-                className={`w-full text-white rounded-lg ${
-                  plan.isPopular
-                    ? "bg-[#593ED3] hover:bg-purple-600"
-                    : plan.price === 0
-                    ? "bg-black hover:bg-gray-800"
-                    : "bg-black hover:bg-gray-800"
-                }`}
-              >
-                <SubscribeButton plan={plan.name} />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Key Features</h4>
+                    <ul className="space-y-2">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2">
+                          <Check className="h-4 w-4 text-[#593ED3] mt-1 shrink-0" />
+                          <span className="text-sm">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </CardContent>
               </div>
-            </CardFooter>
-          </Card>
-        ))}
+              <CardFooter>
+                <div
+                  className={`w-full text-white rounded-lg ${
+                    plan.isPopular
+                      ? "bg-[#593ED3] hover:bg-purple-600"
+                      : "bg-black hover:bg-gray-800"
+                  }`}
+                >
+                  <SubscribeButton plan={checkoutPlan} label={buttonLabel} />
+                </div>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
-      {/* <SubscribeButton plan="Pro" /> */}
     </div>
   );
 }

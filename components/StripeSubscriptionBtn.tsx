@@ -11,27 +11,28 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 );
 
+// Plan keys the backend checkout route accepts (routes/v1/stripe.js).
+export type CheckoutPlan = "Pro" | "Premium" | "PremiumYearly" | "Free";
+
 export default function SubscribeButton({
   plan,
+  label,
 }: {
-  plan: "Pro" | "Premium" | "Free";
+  plan: CheckoutPlan;
+  label?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const { user } = useUser();
-
-  console.log("user", user);
-  console.log("plan", plan);
 
   const handleSubscribe = async () => {
     setLoading(true);
 
     if (plan === "Free") {
-      const res = await fetch("/api/set-free-plan", {
+      await fetch("/api/set-free-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, email: user?.email, userId: user?._id }),
       });
-      console.log("res free plan", res);
 
       toast.success("You are in free tier now");
       setLoading(false);
@@ -44,13 +45,12 @@ export default function SubscribeButton({
       body: JSON.stringify({ plan, email: user?.email, userId: user?._id }),
     });
 
-    console.log("res from pro", res);
-
     const data = await res.json();
-    console.log("res from pro data", data);
     const stripe = await stripePromise;
     if (stripe && data.url) {
       window.location.href = data.url;
+    } else if (data.error) {
+      toast.error(data.error);
     }
 
     setLoading(false);
@@ -62,7 +62,7 @@ export default function SubscribeButton({
       onClick={handleSubscribe}
       disabled={loading}
     >
-      {plan} {loading && <Loader className="animate-spin" size={20} />}
+      {label ?? plan} {loading && <Loader className="animate-spin" size={20} />}
     </button>
   );
 }
