@@ -19,6 +19,8 @@ import SmartSiteUrlShareModal from "../smartsite/socialShare/SmartsiteShareModal
 import { useDisclosure } from "@nextui-org/react";
 import QRCodeShareModal from "../smartsite/socialShare/QRCodeShareModal";
 import filePlus from "@/public/images/file-plus.png";
+import { fetchMicrositeInfo } from "@/actions/fetchMicrositeInfo";
+import { useUser } from "@/lib/UserContext";
 
 // interface Lead {
 //   id: string;
@@ -51,10 +53,34 @@ export default function SmartSiteSlider({
     onOpenChange: onSmartsiteOpenChange,
   } = useDisclosure();
 
+  const { accessToken } = useUser();
   const [smartSiteProfileUrl, setSmartSiteProfileUrl] = useState<string | null>(
     null
   );
   const [qrCode, setQrCode] = useState<string | null>(null);
+
+  // The login payload no longer embeds each microsite's base64 QR PNG
+  // (`qrcodeUrl` was ~125KB per site), so sites coming from UserContext arrive
+  // without one — fetch it on demand and cache per site id.
+  const [lazyQrById, setLazyQrById] = useState<Record<string, string>>({});
+  const requestedQrIds = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    microsites.forEach((site) => {
+      if (site.qrcodeUrl || requestedQrIds.current.has(site._id)) return;
+      requestedQrIds.current.add(site._id);
+      fetchMicrositeInfo(site._id, accessToken || "")
+        .then((res: any) => {
+          const qr = res?.data?.qrcodeUrl;
+          if (typeof qr === "string" && qr) {
+            setLazyQrById((prev) => ({ ...prev, [site._id]: qr }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [microsites, accessToken]);
+
+  const qrCodeFor = (site: SmarsiteInfos) =>
+    site.qrcodeUrl || lazyQrById[site._id] || "";
 
   const handleShareMicrosite = (smartsiteUrl: string) => {
     onSmartsiteOpen();
@@ -172,7 +198,7 @@ export default function SmartSiteSlider({
                           variant="black"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() => handleShareQrCode(item.qrcodeUrl)}
+                          onClick={() => handleShareQrCode(qrCodeFor(item))}
                         >
                           <QrCode />
                         </Button>
@@ -187,13 +213,17 @@ export default function SmartSiteSlider({
                     </div>
                   </div>
                   <div className="mt-6 flex justify-center">
-                    <Image
-                      src={item.qrcodeUrl}
-                      alt="Qr code"
-                      height={120}
-                      width={120}
-                      className=" rounded-2xl border-black border-2"
-                    />
+                    {qrCodeFor(item) ? (
+                      <Image
+                        src={qrCodeFor(item)}
+                        alt="Qr code"
+                        height={120}
+                        width={120}
+                        className=" rounded-2xl border-black border-2"
+                      />
+                    ) : (
+                      <div className="h-[120px] w-[120px] rounded-2xl border-black border-2 bg-neutral-100 animate-pulse" />
+                    )}
                   </div>
                   <div className="flex justify-center mt-6">
                     <Link href="/smartsite/create-smartsite">
