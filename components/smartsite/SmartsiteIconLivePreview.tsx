@@ -64,6 +64,7 @@ import {
   SMARTSITE_TAB_NAME_MAX_LENGTH,
   SMARTSITE_TEMPLATE_SECTION_META,
   SmartsiteTab,
+  SmartsiteTabGate,
   areSmartsiteTabsEqual,
   buildDefaultSmartsiteTabs,
   buildFlatTemplateOrderForTabs,
@@ -87,6 +88,7 @@ import {
   handleV5SmartSiteTabDelete,
   handleV5SmartSiteTabRestore,
 } from "@/actions/update";
+import TabGateConfigModal from "@/components/smartsite/TabGateConfigModal";
 import {
   FolderInput,
   GripVertical,
@@ -1233,8 +1235,17 @@ const SmartsiteIconLivePreview = ({
     });
   };
 
-  // Toggle the active tab's token gate. Allowed even when the site has no
-  // token gate configured (the flag is inert then) — but warn the user.
+  // Toggle the active tab's token gate. A tab is gated on its OWN token —
+  // fully independent of the whole-page Token Powered Site gate. Enabling a
+  // tab with no per-tab config yet opens the config modal (pick token + min
+  // amount), which saves { gated: true, gate } in one step; once configured
+  // the toggle just flips `gated` and keeps the config for quick re-enable.
+  const [gateConfigTabId, setGateConfigTabId] = useState<string | null>(null);
+  const gateConfigTab =
+    gateConfigTabId != null
+      ? (tabs.find((tab) => tab.id === gateConfigTabId) ?? null)
+      : null;
+
   const handleToggleTabGate = (tabId?: string) => {
     const currentActiveTabId = tabId || activeTabIdRef.current;
     if (!currentActiveTabId || !isTabEditable) {
@@ -1250,14 +1261,36 @@ const SmartsiteIconLivePreview = ({
     }
 
     const enabling = !currentTab.gated;
-    if (enabling && !data?.gatedInfo?.isOn) {
-      toast("Set up Token Gate first from the Add menu", { icon: "🔒" });
+    if (enabling && !currentTab.gate?.selectedToken) {
+      setGateConfigTabId(currentTab.id);
+      return;
     }
 
     const nextTabs = previousTabs.map((tab) =>
       tab.id === currentActiveTabId ? { ...tab, gated: enabling } : tab,
     );
     void persistTabs(nextTabs, previousTabs);
+  };
+
+  const handleSaveTabGate = (gate: SmartsiteTabGate) => {
+    const tabId = gateConfigTabId;
+    if (!tabId) {
+      return;
+    }
+    const previousTabs = tabsRef.current;
+    const nextTabs = previousTabs.map((tab) =>
+      tab.id === tabId ? { ...tab, gated: true, gate } : tab,
+    );
+    setGateConfigTabId(null);
+    void persistTabs(nextTabs, previousTabs).then((saved) => {
+      if (saved) {
+        toast.success(
+          gate.tokenName
+            ? `Tab gated — visitors need ${gate.tokenName} to view it`
+            : "Tab token gate saved",
+        );
+      }
+    });
   };
 
   const describeTabContent = (tab: SmartsiteTab) => {
@@ -1786,18 +1819,32 @@ const SmartsiteIconLivePreview = ({
                                       setRenamingTabId(tab.id);
                                     } else if (key === "gate") {
                                       handleToggleTabGate(tab.id);
+                                    } else if (key === "gateEdit") {
+                                      setGateConfigTabId(tab.id);
                                     } else if (key === "delete") {
                                       setTabDeleteTarget(tab);
                                     }
                                   }}
                                 >
-                                  <DropdownItem key="rename">Edit name</DropdownItem>
-                                  <DropdownItem key="gate">
-                                    {tab.gated ? "Turn token gate off" : "Turn token gate on"}
-                                  </DropdownItem>
-                                  <DropdownItem key="delete" className="text-danger" color="danger">
-                                    Delete tab
-                                  </DropdownItem>
+                                  {[
+                                    <DropdownItem key="rename">Edit name</DropdownItem>,
+                                    <DropdownItem key="gate">
+                                      {tab.gated ? "Turn token gate off" : "Turn token gate on"}
+                                    </DropdownItem>,
+                                    ...(tab.gate?.selectedToken
+                                      ? [
+                                          <DropdownItem key="gateEdit">
+                                            Change gate token
+                                            {tab.gate.tokenName
+                                              ? ` (${tab.gate.tokenName})`
+                                              : ""}
+                                          </DropdownItem>,
+                                        ]
+                                      : []),
+                                    <DropdownItem key="delete" className="text-danger" color="danger">
+                                      Delete tab
+                                    </DropdownItem>,
+                                  ]}
                                 </DropdownMenu>
                               </Dropdown>
                             )}
@@ -2590,6 +2637,20 @@ const SmartsiteIconLivePreview = ({
       </div>
 
       <UpdateModalComponents isOn={isOn} iconData={iconData} setOff={setOff} />
+
+      {/* per-tab token gate config — the differentiated (tab-only) gate flow */}
+      <TabGateConfigModal
+        open={Boolean(gateConfigTab)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setGateConfigTabId(null);
+          }
+        }}
+        tabName={gateConfigTab?.name ?? ""}
+        initialGate={gateConfigTab?.gate}
+        saving={orderSaveState === "saving"}
+        onSave={handleSaveTabGate}
+      />
 
       {/* delete tab confirmation — destructive, enumerates what's removed */}
       <Modal

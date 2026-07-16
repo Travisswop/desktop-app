@@ -149,14 +149,33 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     : null;
   const activeTabKeySet = activeTab ? new Set(activeTab.order) : null;
 
-  // Token-gated tab: only meaningful when the site actually has a token gate
-  // configured (gatedInfo.isOn) — otherwise the flag is inert and the tab's
-  // content renders normally.
+  // Token-gated tab — a SEPARATE flow from the whole-page Token Powered Site
+  // gate: only this tab's content hides, blurred behind an "Own X to view
+  // content" pill. A tab with its own gate config verifies against that
+  // token; legacy gated tabs (no per-tab config) fall back to the site's
+  // gatedInfo and stay inert when that gate is off.
   const hasSiteTokenGate = Boolean(gatedInfo?.isOn);
+  const activeTabGate = activeTab?.gated
+    ? activeTab.gate?.selectedToken
+      ? {
+          isOn: true,
+          tokenType: (activeTab.gate.tokenType ?? "NFT") as "NFT" | "Token",
+          selectedToken: activeTab.gate.selectedToken,
+          forwardLink: "",
+          minRequired: activeTab.gate.minRequired ?? 1,
+          coverImage: "",
+          network: (activeTab.gate.network ?? "SOLANA") as
+            | "SOLANA"
+            | "ethereum"
+            | "polygon"
+            | "base",
+        }
+      : hasSiteTokenGate && gatedInfo?.selectedToken
+        ? gatedInfo
+        : null
+    : null;
   const isActiveTabLocked = Boolean(
-    activeTab?.gated &&
-      hasSiteTokenGate &&
-      !verifiedTabIds.includes(activeTab.id),
+    activeTab && activeTabGate && !verifiedTabIds.includes(activeTab.id),
   );
 
   const templateOrder = isTabbed
@@ -183,12 +202,20 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     if (pinnedOrder.includes(orderKey)) {
       return { order: getTemplateBlockOrder(orderKey) };
     }
+    // Locked gated tab: its blocks render as a blurred, inert preview under
+    // the "Own X to view content" pill (order 600) until verified.
+    if (isActiveTabLocked && activeTabKeySet?.has(orderKey)) {
+      return {
+        order: getTemplateBlockOrder(orderKey),
+        filter: "blur(9px)",
+        pointerEvents: "none" as const,
+        userSelect: "none" as const,
+      };
+    }
     return {
       order: getTemplateBlockOrder(orderKey),
       display:
-        (activeTabKeySet && !activeTabKeySet.has(orderKey)) ||
-        // Locked gated tab: hide its blocks and show the verification panel
-        (isActiveTabLocked && activeTabKeySet?.has(orderKey))
+        activeTabKeySet && !activeTabKeySet.has(orderKey)
           ? ("none" as const)
           : undefined,
     };
@@ -260,9 +287,10 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       }
                     >
                       <span className="flex items-center gap-1.5">
-                        {tab.gated && hasSiteTokenGate && (
-                          <Lock className="h-3 w-3 opacity-70" />
-                        )}
+                        {tab.gated &&
+                          (tab.gate?.selectedToken || hasSiteTokenGate) && (
+                            <Lock className="h-3 w-3 opacity-70" />
+                          )}
                         {tab.name}
                       </span>
                     </button>
@@ -271,24 +299,31 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </nav>
             )}
 
-            {/* Token-gate panel for a locked gated tab — scoped to the tab
-                panel area; the tab's blocks stay hidden until verified */}
-            {isActiveTabLocked && gatedInfo && (
-              <div className="w-full" style={{ order: 600 }}>
-                <TokenGateVerification
-                  inline
-                  gatedInfo={gatedInfo}
-                  micrositeName={name}
-                  onVerified={() => {
-                    if (activeTab) {
-                      setVerifiedTabIds((prev) =>
-                        prev.includes(activeTab.id)
-                          ? prev
-                          : [...prev, activeTab.id],
-                      );
-                    }
-                  }}
-                />
+            {/* Token-gated tab: an "Own X to view content" pill floated over
+                the tab's blurred blocks (which render inert below at order
+                1000+; the zero-height wrapper overlays without moving them) */}
+            {isActiveTabLocked && activeTabGate && (
+              <div
+                className="relative z-30 flex h-0 w-full justify-center overflow-visible"
+                style={{ order: 600 }}
+              >
+                <div className="pointer-events-none mt-28 flex justify-center">
+                  <TokenGateVerification
+                    pill
+                    assetName={activeTab?.gate?.tokenName}
+                    gatedInfo={activeTabGate}
+                    micrositeName={name}
+                    onVerified={() => {
+                      if (activeTab) {
+                        setVerifiedTabIds((prev) =>
+                          prev.includes(activeTab.id)
+                            ? prev
+                            : [...prev, activeTab.id],
+                        );
+                      }
+                    }}
+                  />
+                </div>
               </div>
             )}
 

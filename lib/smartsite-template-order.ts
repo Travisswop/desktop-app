@@ -346,15 +346,32 @@ export const getDefaultSmartsiteTemplateBlockOrder = (micrositeData: any) => {
 // smartsite. Whenever tabs are saved, a flattened templateOrder is saved
 // alongside so older clients keep rendering all content as one column.
 
+/**
+ * Per-tab gate config — the tab is gated on its OWN token, independent of the
+ * site-wide Token Powered Site gate (gatedInfo/gatedAccess). The public
+ * viewer blurs the tab's content behind an "Own X to view content" button
+ * until the visitor's wallet holds minRequired of selectedToken. tokenName is
+ * the display name baked in at config time for that button label.
+ */
+export interface SmartsiteTabGate {
+  tokenType?: "NFT" | "Token";
+  selectedToken?: string;
+  tokenName?: string;
+  minRequired?: number;
+  network?: string;
+}
+
 export interface SmartsiteTab {
   id: string;
   name: string;
   order: string[];
   /**
-   * Token-gated tab. Only meaningful when the site's gatedInfo.isOn is true —
-   * with no token gate configured the flag is inert and content renders.
+   * Token-gated tab. With a per-tab `gate` config the tab verifies against
+   * its own token; legacy gated tabs (no `gate`) fall back to the site's
+   * gatedInfo and are inert when that gate is off.
    */
   gated?: boolean;
+  gate?: SmartsiteTabGate | null;
 }
 
 export const SMARTSITE_MAX_TABS = 10;
@@ -611,6 +628,11 @@ export const normalizeSmartsiteTabs = (
           : `Tab ${index + 1}`,
         order,
         gated: tab?.gated === true,
+        // Preserve the per-tab gate config verbatim — every tabs save
+        // persists the normalized array, so dropping it here would wipe it.
+        ...(tab?.gate && typeof tab.gate === "object"
+          ? { gate: tab.gate as SmartsiteTabGate }
+          : {}),
       };
     },
   );

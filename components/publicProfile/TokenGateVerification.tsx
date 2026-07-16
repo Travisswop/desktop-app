@@ -30,6 +30,17 @@ interface TokenGateVerificationProps {
    * `onVerified` instead of redirecting to gatedInfo.forwardLink.
    */
   inline?: boolean;
+  /**
+   * Pill mode (token-gated tab): renders ONLY a dark "Own X to view content"
+   * pill button — the parent overlays it on the tab's blurred content.
+   * Behaves like inline (onVerified, no redirect, no unsolicited toasts).
+   */
+  pill?: boolean;
+  /**
+   * Display name of the gating asset for the pill label ("SWOP",
+   * "Founders Pass"). Falls back to generic copy when omitted.
+   */
+  assetName?: string;
   onVerified?: () => void;
 }
 
@@ -37,8 +48,12 @@ export default function TokenGateVerification({
   gatedInfo,
   micrositeName,
   inline = false,
+  pill = false,
+  assetName,
   onVerified,
 }: TokenGateVerificationProps) {
+  // Pill mode is a presentation variant of the inline (tab-scoped) behavior.
+  const inlineMode = inline || pill;
   const router = useRouter();
   const { toast } = useToast();
   const { authenticated } = usePrivy();
@@ -228,7 +243,7 @@ export default function TokenGateVerification({
 
         // Inline (tab-scoped) mode: no redirect — tell the parent so it can
         // reveal the gated content in place.
-        if (inline) {
+        if (inlineMode) {
           toast({
             title: 'Access Granted!',
             description: 'Unlocking content...',
@@ -322,7 +337,7 @@ export default function TokenGateVerification({
     // the "you don't have the required tokens" helper text — firing an
     // unsolicited "Access Denied" toast on every mount/tab-switch for any
     // authenticated visitor without the token would be noise.
-    if (inline) {
+    if (inlineMode) {
       return;
     }
     if (
@@ -343,7 +358,7 @@ export default function TokenGateVerification({
       });
     }
   }, [
-    inline,
+    inlineMode,
     authenticated,
     verifyAccess,
     tokensLoading,
@@ -355,6 +370,39 @@ export default function TokenGateVerification({
   // If access is granted, don't show the gate
   if (isGranted) {
     return null;
+  }
+
+  // Pill mode (token-gated tab): a single dark "Own X to view content"
+  // button the parent overlays on the tab's blurred content.
+  if (pill) {
+    const loading = isVerifying || tokensLoading || nftsLoading;
+    const assetLabel = assetName?.trim()
+      ? gatedInfo.tokenType === 'Token' && gatedInfo.minRequired > 0
+        ? `${gatedInfo.minRequired} ${assetName.trim()}`
+        : assetName.trim()
+      : gatedInfo.tokenType === 'NFT'
+        ? 'the required NFT'
+        : `${gatedInfo.minRequired} tokens`;
+    return (
+      <button
+        type="button"
+        onClick={handleEnter}
+        disabled={loading}
+        className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-gray-950/90 px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_8px_28px_rgba(10,10,12,0.28)] backdrop-blur-sm transition hover:bg-gray-950 disabled:opacity-60"
+      >
+        {isVerifying ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Verifying…
+          </>
+        ) : (
+          <>
+            <Lock className="h-3.5 w-3.5" />
+            <span className="truncate">Own {assetLabel} to view content</span>
+          </>
+        )}
+      </button>
+    );
   }
 
   // Inline (tab-scoped) card — no full-screen overlay
