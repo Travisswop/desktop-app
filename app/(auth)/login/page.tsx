@@ -198,13 +198,24 @@ async function fetchBackendUserAuth({
   apiPath,
   userEmail,
   privyId,
+  privyToken,
 }: {
   apiPath: string;
   userEmail: string | null;
   privyId: string | null;
+  privyToken: string | null;
 }) {
+  // The Privy access token lets the backend bind the minted session to this
+  // account (swop-app-backend middlewares/privyBinding). Forward it on both the
+  // direct call and the same-origin proxy fallback.
+  const privyHeaders: Record<string, string> = privyToken
+    ? { 'x-privy-token': privyToken }
+    : {};
+
   try {
-    return await apiFetch(buildSwopApiUrl(apiPath));
+    return await apiFetch(buildSwopApiUrl(apiPath), {
+      headers: privyHeaders,
+    });
   } catch (error) {
     if (!isNetworkFetchError(error) || typeof window === 'undefined') {
       throw error;
@@ -222,6 +233,7 @@ async function fetchBackendUserAuth({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...privyHeaders,
       },
       body: JSON.stringify({
         email: userEmail,
@@ -328,7 +340,8 @@ function clearPrivyBrowserSession() {
 
 const Login: React.FC = () => {
   // Privy hooks
-  const { authenticated, ready, user, logout: privyLogout } = usePrivy();
+  const { authenticated, ready, user, logout: privyLogout, getAccessToken } =
+    usePrivy();
   const { state, sendCode, loginWithCode } = useLoginWithEmail();
   const {
     state: passkeyLoginState,
@@ -733,10 +746,12 @@ const Login: React.FC = () => {
           return;
         }
 
+        const privyToken = await getAccessToken().catch(() => null);
         const response = await fetchBackendUserAuth({
           apiPath,
           userEmail,
           privyId: user?.id || null,
+          privyToken,
         });
 
         if (!response.ok) {
@@ -809,7 +824,7 @@ const Login: React.FC = () => {
         loginProcessingRef.current = false;
       }
     },
-    [extractEmailFromUser, processWalletData, router],
+    [extractEmailFromUser, processWalletData, router, getAccessToken],
   );
 
   const handlePasskeyLogin = useCallback(async () => {

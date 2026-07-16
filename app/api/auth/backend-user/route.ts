@@ -38,10 +38,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Forward the caller's Privy access token so the backend can bind the minted
+    // session to this account (swop-app-backend middlewares/privyBinding).
+    const privyToken = request.headers.get('x-privy-token');
+
     const response = await fetch(`${getBackendApiBaseUrl()}${apiPath}`, {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
+        ...(privyToken ? { 'x-privy-token': privyToken } : {}),
       },
     });
     const bodyText = await response.text();

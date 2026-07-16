@@ -38,12 +38,19 @@ const userContextDebugEnabled =
 async function fetchBackendUserByEmail(
   normalizedEmail: string,
   signal: AbortSignal,
+  privyToken: string | null,
 ) {
   const apiPath = `/api/v2/desktop/user/${encodeURIComponent(normalizedEmail)}`;
+  // The Privy access token lets the backend bind the minted session to this
+  // account (swop-app-backend middlewares/privyBinding). Forward it on both the
+  // direct call and the same-origin proxy fallback.
+  const privyHeaders: Record<string, string> = privyToken
+    ? { 'x-privy-token': privyToken }
+    : {};
 
   try {
     return await apiFetch(buildSwopApiUrl(apiPath), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...privyHeaders },
       signal,
     });
   } catch (error) {
@@ -53,7 +60,7 @@ async function fetchBackendUserByEmail(
 
     return fetch('/api/auth/backend-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...privyHeaders },
       body: JSON.stringify({ email: normalizedEmail }),
       cache: 'no-store',
       signal,
@@ -382,7 +389,14 @@ export function UserProvider({
     ready,
     logout: privyLogout,
     authenticated,
+    getAccessToken,
   } = usePrivy();
+
+  // Read the Privy access-token getter through a ref so the login-lookup fetch
+  // can attach it without adding `getAccessToken` to fetchUserData's deps (which
+  // is deliberately kept to [router] to avoid re-firing the main effect).
+  const getAccessTokenRef = useRef(getAccessToken);
+  getAccessTokenRef.current = getAccessToken;
 
   const fetchInProgressRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -517,9 +531,13 @@ export function UserProvider({
           abortControllerRef.current?.abort();
         }, fetchTimeoutMs);
 
+        const privyToken = await getAccessTokenRef
+          .current?.()
+          .catch(() => null);
         const response = await fetchBackendUserByEmail(
           normalizedEmail,
           abortControllerRef.current.signal,
+          privyToken ?? null,
         );
 
         if (!response.ok) {
