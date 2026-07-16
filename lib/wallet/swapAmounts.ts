@@ -50,6 +50,16 @@ function expandExponentialDecimal(value: string): string | null {
   return `${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
 }
 
+/** Parse a base-unit integer string (e.g. the backend's `rawAmount`) into a
+ * bigint. Returns null for anything that isn't a plain non-negative integer,
+ * so callers can fall back to converting the human balance. */
+export function parseRawAmount(value: string | number | undefined | null): bigint | null {
+  if (value === undefined || value === null) return null;
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) return null;
+  return BigInt(raw);
+}
+
 export function decimalAmountToRawUnits(
   amount: string | number,
   decimals: number | bigint | undefined,
@@ -114,6 +124,7 @@ export function getSafeSwapInputAmount({
   reserveRawUnits = 0n,
   subtractOneRawUnit = false,
   maxDisplayDecimals = DEFAULT_DISPLAY_DECIMALS,
+  balanceRawUnits,
 }: {
   balance: string | number;
   decimals: number | bigint | undefined;
@@ -121,9 +132,12 @@ export function getSafeSwapInputAmount({
   reserveRawUnits?: bigint;
   subtractOneRawUnit?: boolean;
   maxDisplayDecimals?: number;
+  /** Exact base-unit balance (e.g. backend `rawAmount`) — when provided it
+   * wins over the lossy human `balance`. */
+  balanceRawUnits?: bigint | null;
 }): string {
   const safeDecimals = normalizeTokenDecimals(decimals);
-  const balanceUnits = decimalAmountToRawUnits(balance, safeDecimals);
+  const balanceUnits = balanceRawUnits ?? decimalAmountToRawUnits(balance, safeDecimals);
   if (balanceUnits === null || balanceUnits <= 0n) return '0';
 
   const spendableUnits =

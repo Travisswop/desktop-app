@@ -33,6 +33,9 @@ export interface Token {
   name: string;
   decimals: number;
   balance: string;
+  /** Exact base-unit balance as an integer string (backend >= e9566efb).
+   * Prefer over `balance` (a lossy float) when sizing full-balance txs. */
+  rawAmount?: string;
   value?: number;
   isNative: boolean;
   marketData: TokenMarketData | null;

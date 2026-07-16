@@ -45,6 +45,9 @@ export interface TokenData {
   name: string;
   symbol: string;
   balance: string;
+  /** Exact base-unit balance as an integer string (backend >= e9566efb).
+   * Prefer over `balance` (a lossy float) when sizing full-balance txs. */
+  rawAmount?: string;
   decimals: number;
   chainId?: number;
   walletAddress?: string;

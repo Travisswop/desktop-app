@@ -94,6 +94,7 @@ import {
   decimalAmountToRawUnits,
   formatRawUnitsToDecimal,
   getSafeSwapInputAmount,
+  parseRawAmount,
   SOLANA_NATIVE_SWAP_RESERVE_LAMPORTS,
   normalizeTokenDecimals,
 } from '@/lib/wallet/swapAmounts';
@@ -2635,10 +2636,10 @@ export default function SwapTokenModal({
       payToken?.balance === ''
     )
       return { isValid: true, error: null };
-    const balanceUnits = decimalAmountToRawUnits(
-      String(payToken.balance),
-      decimals,
-    );
+    // Prefer the backend's exact base-unit balance over the lossy float.
+    const balanceUnits =
+      parseRawAmount(payToken.rawAmount) ??
+      decimalAmountToRawUnits(String(payToken.balance), decimals);
     if (balanceUnits !== null && amountUnits > balanceUnits)
       return {
         isValid: false,
@@ -6715,6 +6716,8 @@ export default function SwapTokenModal({
     setPayAmount(
       getSafeSwapInputAmount({
         balance: String(payToken.balance),
+        // Prefer the backend's exact base-unit balance over the lossy float.
+        balanceRawUnits: parseRawAmount(payToken.rawAmount),
         decimals,
         percent: pct,
         reserveRawUnits,
