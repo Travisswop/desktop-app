@@ -94,6 +94,8 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
   // Gated tabs the visitor unlocked this page-view (session-local)
   const [verifiedTabIds, setVerifiedTabIds] = useState<string[]>([]);
+  // Whole-page Token Powered Site gate unlocked this page-view
+  const [pageVerified, setPageVerified] = useState(false);
 
   if (!micrositeData) {
     return <div>Loading...</div>;
@@ -178,6 +180,17 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
     activeTab && activeTabGate && !verifiedTabIds.includes(activeTab.id),
   );
 
+  // Whole-page Token Powered Site gate (gatedAccess + gatedInfo.isOn): ALL
+  // content blocks render blurred behind one "Own X to view content" pill —
+  // header/bio stay visible. Verifying the visitor's Swop wallet reveals the
+  // page in place; non-Swop visitors are routed to the App Store by the pill.
+  const isPageLocked = Boolean(
+    gatedAccess &&
+      hasSiteTokenGate &&
+      gatedInfo?.selectedToken &&
+      !pageVerified,
+  );
+
   const templateOrder = isTabbed
     ? flattenSmartsiteTabs(tabs)
     : normalizeSmartsiteTemplateBlockOrder(
@@ -198,36 +211,36 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
   // Blocks on inactive tabs stay mounted but hidden — panels are just
   // visibility. Pinned-header blocks are visible on EVERY tab and even while
   // a gated tab is locked (never display:none), like the small icons.
+  const lockedBlockStyle = {
+    filter: "blur(9px)",
+    pointerEvents: "none" as const,
+    userSelect: "none" as const,
+  };
   const getTemplateBlockStyle = (orderKey: string) => {
     if (pinnedOrder.includes(orderKey)) {
-      return { order: getTemplateBlockOrder(orderKey) };
-    }
-    // Locked gated tab: its blocks render as a blurred, inert preview under
-    // the "Own X to view content" pill (order 600) until verified.
-    if (isActiveTabLocked && activeTabKeySet?.has(orderKey)) {
+      // Page-locked: even pinned-header blocks are content — blur them too.
       return {
         order: getTemplateBlockOrder(orderKey),
-        filter: "blur(9px)",
-        pointerEvents: "none" as const,
-        userSelect: "none" as const,
+        ...(isPageLocked ? lockedBlockStyle : {}),
+      };
+    }
+    // Locked page or locked gated tab: visible blocks render as a blurred,
+    // inert preview under the "Own X to view content" pill (order 600).
+    const visibleOnActiveTab = !activeTabKeySet || activeTabKeySet.has(orderKey);
+    if ((isPageLocked || isActiveTabLocked) && visibleOnActiveTab) {
+      return {
+        order: getTemplateBlockOrder(orderKey),
+        ...lockedBlockStyle,
       };
     }
     return {
       order: getTemplateBlockOrder(orderKey),
-      display:
-        activeTabKeySet && !activeTabKeySet.has(orderKey)
-          ? ("none" as const)
-          : undefined,
+      display: !visibleOnActiveTab ? ("none" as const) : undefined,
     };
   };
 
   return (
     <>
-      {/* Token Gate Verification Modal - Shows when gatedInfo.isOn is true */}
-      {/* {gatedInfo?.isOn && (
-        <TokenGateVerification gatedInfo={gatedInfo} micrositeName={name} />
-      )} */}
-
       <div
         style={{
           backgroundImage:
@@ -299,10 +312,29 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
               </nav>
             )}
 
+            {/* Whole-page Token Powered Site gate: one "Own X to view
+                content" pill floated over the page's blurred blocks. Takes
+                precedence over any per-tab pill. */}
+            {isPageLocked && gatedInfo && (
+              <div
+                className="relative z-30 flex h-0 w-full justify-center overflow-visible"
+                style={{ order: 600 }}
+              >
+                <div className="pointer-events-none mt-28 flex justify-center">
+                  <TokenGateVerification
+                    pill
+                    gatedInfo={gatedInfo}
+                    micrositeName={name}
+                    onVerified={() => setPageVerified(true)}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Token-gated tab: an "Own X to view content" pill floated over
                 the tab's blurred blocks (which render inert below at order
                 1000+; the zero-height wrapper overlays without moving them) */}
-            {isActiveTabLocked && activeTabGate && (
+            {!isPageLocked && isActiveTabLocked && activeTabGate && (
               <div
                 className="relative z-30 flex h-0 w-full justify-center overflow-visible"
                 style={{ order: 600 }}

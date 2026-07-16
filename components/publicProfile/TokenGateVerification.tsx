@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
@@ -15,11 +14,18 @@ interface GatedInfo {
   isOn: boolean;
   tokenType: 'NFT' | 'Token';
   selectedToken: string;
+  /** Asset display name for the "Own X to view content" button label. */
+  tokenName?: string;
   forwardLink: string;
   minRequired: number;
   coverImage: string;
   network: 'SOLANA' | 'ethereum' | 'polygon' | 'base';
 }
+
+// Visitors without a Swop account can't verify holdings here — the access
+// button routes them to get the app instead.
+const SWOP_APP_STORE_URL =
+  'https://apps.apple.com/us/app/swop-connecting-the-world/id1593201322';
 
 interface TokenGateVerificationProps {
   gatedInfo: GatedInfo;
@@ -54,7 +60,6 @@ export default function TokenGateVerification({
 }: TokenGateVerificationProps) {
   // Pill mode is a presentation variant of the inline (tab-scoped) behavior.
   const inlineMode = inline || pill;
-  const router = useRouter();
   const { toast } = useToast();
   const { authenticated } = usePrivy();
 
@@ -151,15 +156,15 @@ export default function TokenGateVerification({
 
   // Handle enter button click
   const handleEnter = async () => {
-    // If not authenticated, redirect to login page
+    // Not a logged-in Swop user: they can't verify holdings here — send them
+    // to get the Swop app from the App Store.
     if (!authenticated) {
       toast({
-        title: 'Authentication Required',
-        description: 'Please log in to access this content.',
+        title: 'Get the Swop app',
+        description: 'Verify your tokens in the Swop app to view this content.',
       });
-      // Redirect to login page after a short delay
       setTimeout(() => {
-        router.push('/login');
+        window.location.href = SWOP_APP_STORE_URL;
       }, 1000);
       return;
     }
@@ -376,10 +381,11 @@ export default function TokenGateVerification({
   // button the parent overlays on the tab's blurred content.
   if (pill) {
     const loading = isVerifying || tokensLoading || nftsLoading;
-    const assetLabel = assetName?.trim()
+    const name = (assetName ?? gatedInfo.tokenName)?.trim();
+    const assetLabel = name
       ? gatedInfo.tokenType === 'Token' && gatedInfo.minRequired > 0
-        ? `${gatedInfo.minRequired} ${assetName.trim()}`
-        : assetName.trim()
+        ? `${gatedInfo.minRequired} ${name}`
+        : name
       : gatedInfo.tokenType === 'NFT'
         ? 'the required NFT'
         : `${gatedInfo.minRequired} tokens`;

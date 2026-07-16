@@ -1,6 +1,5 @@
 "use client";
 import { ChevronDown, Loader2, Trash2, CheckCircle2 } from "lucide-react";
-import Image from "next/image";
 import { useState, ChangeEvent, useMemo, useEffect } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
@@ -8,7 +7,6 @@ import { useMultiChainTokenData } from "@/lib/hooks/useToken";
 import { useNFT } from "@/lib/hooks/useNFT";
 import { useToast } from "@/hooks/use-toast";
 import Cookies from "js-cookie";
-import { sendCloudinaryImage } from "@/lib/SendCloudinaryImage";
 import {
   getTokenGating,
   updateTokenGating,
@@ -67,17 +65,10 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
   const [isOn, setIsOn] = useState<boolean>(false);
   const [tokenType, setTokenType] = useState<TokenType>("NFT");
   const [selectedToken, setSelectedToken] = useState<string>("");
-  const [forwardLink, setForwardLink] = useState<string>("");
   const [minRequired, setMinRequired] = useState<string>("");
-  const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(
-    null
-  );
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [fetching, setFetching] = useState<boolean>(true);
   const [deleting, setDeleting] = useState<boolean>(false);
-  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [showSaveModal, setShowSaveModal] = useState<boolean>(false);
 
   // Get access token from cookies on mount
@@ -101,12 +92,15 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
       return solanaNFTs.map((nft) => ({
         value: nft.contract,
         label: nft.name,
+        // Asset display name for the viewers' "Own X to view content" button
+        tokenName: nft.name,
         image: nft.image,
       }));
     } else {
       return solanaTokens.map((token) => ({
         value: token.address || token.symbol,
         label: `${token.name} (${token.symbol})`,
+        tokenName: token.symbol || token.name,
         image: token.logoURI,
       }));
     }
@@ -128,21 +122,6 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
     }
   };
 
-  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Store the file for later Cloudinary upload
-      setImageFile(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCoverImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   // Fetch existing token gating configuration on mount
   useEffect(() => {
     const fetchTokenGatingConfig = async () => {
@@ -160,14 +139,7 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
           setIsOn(gatedInfo.isOn || false);
           setTokenType(gatedInfo.tokenType || "NFT");
           setSelectedToken(gatedInfo.selectedToken || "");
-          setForwardLink(gatedInfo.forwardLink || "");
           setMinRequired(gatedInfo.minRequired?.toString() || "");
-
-          // Set both the Cloudinary URL and preview
-          if (gatedInfo.coverImage) {
-            setCoverImage(gatedInfo.coverImage);
-            setCoverImagePreview(gatedInfo.coverImage);
-          }
         }
       } catch (error) {
         console.error("Error fetching token gating configuration:", error);
@@ -235,60 +207,15 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
         return;
       }
 
-      // Upload image to Cloudinary if a new image was selected
-      let cloudinaryImageUrl = coverImage || "";
-
-      if (imageFile) {
-        try {
-          setUploadingImage(true);
-          toast({
-            title: "📤 Uploading Image",
-            description:
-              "Please wait while we upload your cover image to Cloudinary...",
-          });
-
-          // Convert file to base64 for Cloudinary upload
-          const reader = new FileReader();
-          const base64Promise = new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(imageFile);
-          });
-
-          const base64Image = await base64Promise;
-          cloudinaryImageUrl = await sendCloudinaryImage(base64Image);
-
-          // Update the coverImage state with Cloudinary URL
-          setCoverImage(cloudinaryImageUrl);
-          setImageFile(null); // Clear the file after successful upload
-
-          toast({
-            title: "✓ Image Uploaded",
-            description:
-              "Your cover image has been uploaded successfully to Cloudinary.",
-          });
-        } catch (uploadError: any) {
-          console.error("Error uploading image to Cloudinary:", uploadError);
-          toast({
-            title: "❌ Image Upload Failed",
-            description:
-              uploadError.message ||
-              "Failed to upload image to Cloudinary. Proceeding without cover image.",
-            variant: "destructive",
-          });
-          cloudinaryImageUrl = ""; // Proceed without image
-        } finally {
-          setUploadingImage(false);
-        }
-      }
-
       const tokenGatingData = {
         isOn,
         tokenType,
         selectedToken,
-        forwardLink,
+        // Asset display name for the viewers' "Own X to view content" button
+        tokenName:
+          currentItems.find((item) => item.value === selectedToken)
+            ?.tokenName ?? "",
         minRequired: tokenType === "Token" ? Number(minRequired) : 1,
-        coverImage: cloudinaryImageUrl,
         network: "SOLANA" as const,
       };
 
@@ -305,11 +232,13 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
         }.`;
 
         if (isOn) {
-          statusMessage += ` Users must own ${
+          statusMessage += ` Visitors see your page blurred until their wallet holds ${
             tokenType === "NFT"
               ? "the selected NFT"
-              : `at least ${minRequired} ${selectedToken} tokens`
-          } to access your SmartSite.`;
+              : `at least ${minRequired} ${
+                  tokenGatingData.tokenName || "of the selected token"
+                }`
+          }.`;
         } else {
           statusMessage += ` Your SmartSite is publicly accessible.`;
         }
@@ -332,7 +261,6 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
       });
     } finally {
       setLoading(false);
-      setUploadingImage(false);
     }
   };
 
@@ -366,11 +294,7 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
         setIsOn(false);
         setTokenType("NFT");
         setSelectedToken("");
-        setForwardLink("");
         setMinRequired("");
-        setCoverImage(null);
-        setCoverImagePreview(null);
-        setImageFile(null);
 
         toast({
           title: "✓ Configuration Reset",
@@ -409,9 +333,13 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
   return (
     <div className="min-h-screen bg-white max-w-4xl rounded-2xl mx-auto p-8 flex items-center justify-center">
       <div className="w-full">
-        <h1 className="text-2xl font-semibold text-center mb-12">
+        <h1 className="text-2xl font-semibold text-center mb-3">
           Token Powered Site
         </h1>
+        <p className="mx-auto mb-12 max-w-md text-center text-sm text-gray-500">
+          Visitors see your page blurred until their wallet holds the token
+          below. Non-Swop visitors are sent to get the app.
+        </p>
 
         <div className="space-y-8">
           {/* On/Off and Token Type Row */}
@@ -481,9 +409,8 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
             </div>
           </div>
 
-          {/* Select Token and Forward Link Row */}
-          <div className="grid grid-cols-2 gap-6">
-            {/* Select Token */}
+          {/* Select Token */}
+          <div>
             <div>
               <label className="block text-sm font-medium mb-3">
                 Select {tokenType}:
@@ -536,22 +463,6 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
                 </p>
               )}
             </div>
-
-            {/* Forward Link */}
-            <div>
-              <label className="block text-sm font-medium mb-3">
-                Forward Link:
-              </label>
-              <input
-                type="text"
-                value={forwardLink}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setForwardLink(e.target.value)
-                }
-                className="w-full px-4 py-3 bg-white rounded-xl focus:outline-none shadow-medium"
-                placeholder=""
-              />
-            </div>
           </div>
 
           {/* Min Required - Only show for Tokens */}
@@ -575,80 +486,14 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
             </div>
           )}
 
-          {/* Upload Cover Image */}
-          <div className="bg-white rounded-2xl p-8 shadow-medium">
-            <div className="flex flex-col items-center">
-              <div className="w-32 h-32 bg-gray-100 rounded-2xl flex items-center justify-center mb-6 relative">
-                {coverImagePreview ? (
-                  <Image
-                    src={coverImagePreview}
-                    alt="Cover"
-                    width={320}
-                    height={320}
-                    className="w-full h-full object-cover rounded-2xl"
-                  />
-                ) : (
-                  <svg
-                    className="w-12 h-12 text-gray-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <rect
-                      x="3"
-                      y="3"
-                      width="18"
-                      height="18"
-                      rx="2"
-                      ry="2"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <circle
-                      cx="8.5"
-                      cy="8.5"
-                      r="1.5"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <polyline
-                      points="21 15 16 10 5 21"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </div>
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-                <span className="inline-block px-8 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-colors">
-                  Upload Cover Image
-                </span>
-              </label>
-            </div>
-          </div>
-
           {/* Action Buttons */}
           <div className="flex gap-4">
             <button
               onClick={handleSaveClick}
-              disabled={loading || deleting || uploadingImage}
+              disabled={loading || deleting}
               className="flex-1 py-4 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {uploadingImage ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Uploading Image...
-                </>
-              ) : loading ? (
+              {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Saving...
@@ -660,7 +505,7 @@ const TokenGatedContent = ({ micrositeId }: TokenGatedContentProps) => {
 
             <button
               onClick={handleDelete}
-              disabled={loading || deleting || uploadingImage}
+              disabled={loading || deleting}
               className="px-6 py-4 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl font-medium text-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               title="Reset token gating configuration"
             >

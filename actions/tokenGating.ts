@@ -47,7 +47,11 @@ export async function updateTokenGating(
     isOn: boolean;
     tokenType: "NFT" | "Token";
     selectedToken: string;
-    forwardLink: string;
+    /** Asset display name for the viewers' "Own X to view content" button. */
+    tokenName?: string;
+    // Legacy fields — the gate now blurs content in place (no forward, no
+    // cover); kept optional for old callers.
+    forwardLink?: string;
     minRequired?: number;
     coverImage?: string;
     network: "SOLANA" | "ethereum" | "polygon" | "base";
