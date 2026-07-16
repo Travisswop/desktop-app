@@ -685,7 +685,9 @@ describe("ensureFeedTabInSmartsiteTabs (Feed auto-tab)", () => {
     expect(result.feedTabId).toBe("feed-tab");
   });
 
-  it("reuses a stored MIXED tab holding 'feed' (user placed it there)", () => {
+  it("moves a stale 'feed' key out of a stored MIXED tab into a new dedicated Feed tab", () => {
+    // A mixed tab can hold 'feed' from first-tab conversion while the feed
+    // was on — re-enabling the feed must never swallow that tab.
     const normalized: SmartsiteTab[] = [
       { id: "home", name: "Home", order: ["marketPlace", "feed"], gated: false },
     ];
@@ -694,8 +696,30 @@ describe("ensureFeedTabInSmartsiteTabs (Feed auto-tab)", () => {
     ];
     const result = ensureFeedTabInSmartsiteTabs(normalized, storedTabs);
 
+    expect(result.changed).toBe(true);
+    expect(result.tabs).toHaveLength(2);
+    expect(result.tabs[0].order).toEqual(["marketPlace"]);
+    const feedTab = result.tabs[1];
+    expect(feedTab.name).toBe(SMARTSITE_FEED_TAB_NAME);
+    expect(feedTab.order).toEqual(["feed"]);
+    expect(result.feedTabId).toBe(feedTab.id);
+  });
+
+  it("still reuses a dedicated feed-only tab whose stored order is mixed but whose other content was deleted", () => {
+    // Stored tab holds ['video', 'feed'] but the video no longer exists —
+    // normalized it is feed-only, so it IS the dedicated Feed tab.
+    const normalized: SmartsiteTab[] = [
+      { id: "home", name: "Home", order: ["marketPlace"], gated: false },
+      { id: "feed-tab", name: "Feed", order: ["feed"], gated: false },
+    ];
+    const storedTabs = [
+      { id: "home", name: "Home", order: ["marketPlace"] },
+      { id: "feed-tab", name: "Feed", order: ["video", "feed"] },
+    ];
+    const result = ensureFeedTabInSmartsiteTabs(normalized, storedTabs);
+
     expect(result.changed).toBe(false);
-    expect(result.feedTabId).toBe("home");
+    expect(result.feedTabId).toBe("feed-tab");
   });
 
   it("is a no-op on untabbed sites", () => {

@@ -648,10 +648,13 @@ export const isFeedOnlySmartsiteTab = (
  *
  * `tabs` is the NORMALIZED tab list (where the normalizer re-homes
  * unassigned content — including a freshly enabled 'feed' — onto the first
- * tab). `rawStoredTabs` (the unnormalized micrositeData.tabs) tells the two
+ * tab). `rawStoredTabs` (the unnormalized micrositeData.tabs) tells the
  * cases apart:
- *  - a stored tab already claims 'feed' (an earlier auto-tab, or the user
- *    moved it): reuse that tab — never create a duplicate
+ *  - a stored tab claims 'feed' AND is feed-only: a dedicated Feed tab
+ *    already exists (an earlier auto-tab) — reuse it, never duplicate
+ *  - a stored MIXED tab claims 'feed' (a stale key inherited by first-tab
+ *    conversion while the feed was on): the feed must not swallow that
+ *    tab — strip the key and append a dedicated feed-only tab
  *  - no stored tab claims it: the key only sits on the first tab via the
  *    normalizer's re-home — strip it and append a new feed-only tab
  * Pure; `changed` is false when the inputs are returned unchanged.
@@ -665,13 +668,18 @@ export const ensureFeedTabInSmartsiteTabs = (
   }
 
   const currentFeedTab = tabs.find((tab) => tab.order.includes("feed")) ?? null;
-  const storedTabHoldsFeed = (
+  const storedTabHoldsDedicatedFeed = (
     Array.isArray(rawStoredTabs) ? rawStoredTabs : []
   ).some(
-    (tab: any) => Array.isArray(tab?.order) && tab.order.includes("feed"),
+    (tab: any) =>
+      Array.isArray(tab?.order) &&
+      tab.order.includes("feed") &&
+      typeof tab?.id === "string" &&
+      tab.id === currentFeedTab?.id &&
+      isFeedOnlySmartsiteTab(currentFeedTab),
   );
 
-  if (storedTabHoldsFeed || tabs.length >= SMARTSITE_MAX_TABS) {
+  if (storedTabHoldsDedicatedFeed || tabs.length >= SMARTSITE_MAX_TABS) {
     return { tabs, feedTabId: currentFeedTab?.id ?? null, changed: false };
   }
 

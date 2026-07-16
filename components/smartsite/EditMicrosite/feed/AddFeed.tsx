@@ -10,6 +10,7 @@ import {
   buildDefaultSmartsiteTabs,
   buildFlatTemplateOrderForTabs,
   generateSmartsiteTabId,
+  isFeedOnlySmartsiteTab,
   normalizeSmartsitePinnedOrder,
   type SmartsiteTab,
 } from "@/lib/smartsite-template-order";
@@ -42,11 +43,15 @@ const AddFeed = ({ onCloseModal }: any) => {
       const storedTabs: SmartsiteTab[] = Array.isArray(site.tabs)
         ? site.tabs
         : [];
-      const existingFeedTab = storedTabs.find(
-        (tab) => Array.isArray(tab?.order) && tab.order.includes("feed"),
+      // Only a DEDICATED feed-only tab counts as "the Feed tab". A mixed tab
+      // holding a stale 'feed' key (inherited by first-tab conversion while
+      // the feed was on) must not swallow the feed — the key is stripped
+      // below and the feed always gets its own tab.
+      const existingFeedOnlyTab = storedTabs.find((tab) =>
+        isFeedOnlySmartsiteTab(tab),
       );
 
-      if (existingFeedTab && site.showFeed) {
+      if (existingFeedOnlyTab && site.showFeed) {
         toast.success(
           "Feed is already on your SmartSite — delete its Feed tab to remove it.",
         );
@@ -55,8 +60,9 @@ const AddFeed = ({ onCloseModal }: any) => {
       }
 
       let nextTabs: SmartsiteTab[];
-      if (existingFeedTab) {
-        // Tab survived an earlier toggle-off — reuse it, never duplicate.
+      if (existingFeedOnlyTab) {
+        // Dedicated tab survived an earlier toggle-off — reuse it, never
+        // duplicate.
         nextTabs = storedTabs;
       } else if (storedTabs.length === 0) {
         nextTabs = [
