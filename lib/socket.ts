@@ -55,10 +55,20 @@ export const useSocket = ({
       extraHeaders: {
         "ngrok-skip-browser-warning": "true",
       },
-      transports: ['polling', 'websocket'],
+      // websocket first: prod runs multiple API instances behind the ALB, and
+      // Engine.IO polling only survives that with sticky-session cookies. A
+      // websocket is pinned to one instance for its lifetime, so it needs no
+      // stickiness. Keep polling as a fallback for proxies that block ws.
+      transports: ['websocket', 'polling'],
+      tryAllTransports: true,
+      // Send cookies so the ALB sticky cookie (AWSALB) makes the polling
+      // fallback land on one instance — without it every poll round-robins
+      // and the server 400s with "Session ID unknown".
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 10_000,
     });
 
     socketRef.current = socketInstance;

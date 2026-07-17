@@ -692,7 +692,11 @@ export const SocketChatProvider = ({
           extraHeaders: {
             'ngrok-skip-browser-warning': 'true',
           },
-          transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
+          // websocket first: polling needs sticky sessions across the ALB's
+          // API instances (cookie-based, fragile) while a websocket stays
+          // pinned to one instance. Polling remains as a guarded fallback.
+          transports: ['websocket', 'polling'],
+          tryAllTransports: true,
           timeout: 20000,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,

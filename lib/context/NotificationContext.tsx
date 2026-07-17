@@ -79,6 +79,10 @@ export const NotificationProvider: React.FC<{
     const socket = io(API_URL, {
       auth: { token: accessToken },
       transports: ['websocket', 'polling'],
+      tryAllTransports: true,
+      // Cookies carry the ALB sticky-session cookie; without them the polling
+      // fallback round-robins across API instances and 400s.
+      withCredentials: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
