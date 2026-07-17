@@ -1,5 +1,6 @@
 "use client";
 import { Check } from "lucide-react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -7,8 +8,9 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SubscribeButton from "@/components/StripeSubscriptionBtn";
+import { useUser } from "@/lib/UserContext";
 
 type BillingTerm = "month" | "year";
 
@@ -68,6 +70,34 @@ const YEARLY_SAVINGS_LABEL = "Save 44%";
 export default function SubscriptionPlans() {
   const [selectedPlan, setSelectedPlan] = useState("Premium");
   const [term, setTerm] = useState<BillingTerm>("month");
+  const { user } = useUser();
+  // 'premium' | 'free' | null while unknown (loading / logged out) — unknown
+  // keeps the default upgrade buttons so nothing flashes or blocks checkout.
+  const [currentPlan, setCurrentPlan] = useState<"premium" | "free" | null>(
+    null
+  );
+
+  useEffect(() => {
+    const userId = user?._id;
+    if (!userId) return;
+    let cancelled = false;
+    fetch(`/api/manage-subscription/${userId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const status = data?.subscription?.status;
+        const periodEnd = data?.subscription?.currentPeriodEnd;
+        const active =
+          (status === "premium" || status === "pro") &&
+          (!periodEnd || new Date(periodEnd).getTime() > Date.now());
+        setCurrentPlan(active ? "premium" : "free");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?._id]);
+
   return (
     <div className="">
       <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
@@ -156,15 +186,40 @@ export default function SubscriptionPlans() {
                 </CardContent>
               </div>
               <CardFooter>
-                <div
-                  className={`w-full text-white rounded-lg ${
-                    plan.isPopular
-                      ? "bg-[#593ED3] hover:bg-purple-600"
-                      : "bg-black hover:bg-gray-800"
-                  }`}
-                >
-                  <SubscribeButton plan={checkoutPlan} label={buttonLabel} />
-                </div>
+                {currentPlan === "premium" && plan.name === "Premium" ? (
+                  <div className="w-full space-y-2">
+                    <div className="w-full rounded-lg border border-[#593ED3] bg-[#593ED3]/5 py-2 text-center font-medium text-[#593ED3]">
+                      Current plan
+                    </div>
+                    <Link
+                      href="/manage-subscription"
+                      className="block w-full text-center text-sm text-gray-500 underline-offset-2 hover:underline"
+                    >
+                      Manage subscription
+                    </Link>
+                  </div>
+                ) : currentPlan === "premium" && plan.price === 0 ? (
+                  <Link
+                    href="/manage-subscription"
+                    className="w-full rounded-lg bg-black py-2 text-center text-white hover:bg-gray-800"
+                  >
+                    Downgrade plan
+                  </Link>
+                ) : currentPlan === "free" && plan.price === 0 ? (
+                  <div className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2 text-center font-medium text-gray-500">
+                    Current plan
+                  </div>
+                ) : (
+                  <div
+                    className={`w-full text-white rounded-lg ${
+                      plan.isPopular
+                        ? "bg-[#593ED3] hover:bg-purple-600"
+                        : "bg-black hover:bg-gray-800"
+                    }`}
+                  >
+                    <SubscribeButton plan={checkoutPlan} label={buttonLabel} />
+                  </div>
+                )}
               </CardFooter>
             </Card>
           );
