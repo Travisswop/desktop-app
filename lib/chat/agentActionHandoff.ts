@@ -465,6 +465,17 @@ export async function completeAgentActionFromHandoff(
 
 export type HyperliquidOrderMode = 'market' | 'limit' | 'tpsl';
 
+export interface ApprovedActionBoundary {
+  riskControls?: string[];
+  maxOrderUsd?: string;
+  maxDailySpendUsd?: string;
+  maxDailyLossUsd?: string;
+  maxOpenPositions?: string;
+  expiry?: string;
+  reviewStateLabel?: string;
+  operatingModeLabel?: string;
+}
+
 export interface HyperliquidAgentOrderPrefill {
   proposalId?: string;
   proposalNonce?: string;
@@ -485,6 +496,7 @@ export interface HyperliquidAgentOrderPrefill {
   isCross?: boolean;
   reduceOnly?: boolean;
   requiredFields?: string[];
+  approvalBoundary?: ApprovedActionBoundary | null;
 }
 
 export interface PolymarketAgentOrderPrefill {
@@ -502,6 +514,7 @@ export interface PolymarketAgentOrderPrefill {
   orderType?: 'market' | 'limit';
   limitPrice?: string;
   requiredFields?: string[];
+  approvalBoundary?: ApprovedActionBoundary | null;
 }
 
 export interface MarketplaceAgentProductPrefill {
@@ -567,6 +580,17 @@ function firstString(params: UnknownRecord, names: string[]): string | undefined
     if (value) return value;
   }
   return undefined;
+}
+
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stringValue(item))
+      .filter((item): item is string => Boolean(item));
+  }
+
+  const single = stringValue(value);
+  return single ? [single] : [];
 }
 
 const HYPERLIQUID_MARKET_ALIASES: Record<string, string[]> = {
@@ -693,11 +717,139 @@ function toCentsInput(value: unknown): string | undefined {
   return String(Math.round(cents));
 }
 
+function handoffMetaFrom(
+  value?:
+    | AgentApprovalHandoff
+    | AgentApprovalHandoffPayload
+    | { payload?: AgentApprovalHandoffPayload; approvalResult?: AgentApprovalHandoff }
+    | null
+) {
+  if (!value || typeof value !== 'object') {
+    return { nextStep: undefined, expiresAt: undefined };
+  }
+
+  if ('approvalResult' in value && value.approvalResult) {
+    return {
+      nextStep: stringValue(value.approvalResult.nextStep),
+      expiresAt: stringValue(value.approvalResult.expiresAt),
+    };
+  }
+
+  if ('nextStep' in value || 'expiresAt' in value) {
+    const handoff = value as AgentApprovalHandoff;
+    return {
+      nextStep: stringValue(handoff.nextStep),
+      expiresAt: stringValue(handoff.expiresAt),
+    };
+  }
+
+  return { nextStep: undefined, expiresAt: undefined };
+}
+
+function reviewStateLabelFrom(
+  params: UnknownRecord,
+  nextStep?: string
+): string | undefined {
+  const normalizedNextStep = nextStep?.toLowerCase();
+  if (normalizedNextStep) {
+    if (normalizedNextStep.includes('waiting_for_funding')) {
+      return 'Funding required';
+    }
+
+    if (
+      normalizedNextStep.includes('frontend_signing_required') ||
+      normalizedNextStep.includes('inline_signing_required')
+    ) {
+      return 'User signing required';
+    }
+
+    if (normalizedNextStep.includes('order_form_required')) {
+      return 'Review trade details';
+    }
+
+    if (normalizedNextStep.includes('review_required')) {
+      return 'Review required';
+    }
+  }
+
+  if (boolValue(params.approvalRequired)) {
+    return 'Proposal approval required';
+  }
+
+  return undefined;
+}
+
+function operatingModeLabelFrom(params: UnknownRecord): string | undefined {
+  if (boolValue(params.monitorOnly ?? params.monitoringOnly)) {
+    return 'Monitor only';
+  }
+
+  if (boolValue(params.paperTrading ?? params.paperMode ?? params.isPaper)) {
+    return 'Paper mode';
+  }
+
+  if (boolValue(params.shadowTrading ?? params.shadowMode ?? params.isShadow)) {
+    return 'Shadow mode';
+  }
+
+  if (boolValue(params.liveExecutionReady ?? params.executionReady)) {
+    return 'Live execution ready';
+  }
+
+  return undefined;
+}
+
+export function getApprovedActionBoundary(
+  value?:
+    | AgentApprovalHandoff
+    | AgentApprovalHandoffPayload
+    | { payload?: AgentApprovalHandoffPayload; approvalResult?: AgentApprovalHandoff }
+    | null
+): ApprovedActionBoundary | null {
+  const payload = payloadFrom(value);
+  if (!payload) return null;
+
+  const params = paramsFrom(payload);
+  const meta = handoffMetaFrom(value);
+  const riskControls = stringList(params.riskControls).slice(0, 4);
+  const boundary: ApprovedActionBoundary = {
+    riskControls,
+    maxOrderUsd: firstString(params, ['maxOrderUsd']),
+    maxDailySpendUsd: firstString(params, ['maxDailySpendUsd']),
+    maxDailyLossUsd: firstString(params, ['maxDailyLossUsd']),
+    maxOpenPositions: firstString(params, ['maxOpenPositions']),
+    expiry: firstString(params, ['expiry']) || meta.expiresAt,
+    reviewStateLabel: reviewStateLabelFrom(
+      params,
+      firstString(params, ['nextStep']) || meta.nextStep,
+    ),
+    operatingModeLabel: operatingModeLabelFrom(params),
+  };
+
+  if (
+    !boundary.reviewStateLabel &&
+    !boundary.operatingModeLabel &&
+    !boundary.maxOrderUsd &&
+    !boundary.maxDailySpendUsd &&
+    !boundary.maxDailyLossUsd &&
+    !boundary.maxOpenPositions &&
+    !boundary.expiry &&
+    riskControls.length === 0
+  ) {
+    return null;
+  }
+
+  return boundary;
+}
+
 export function getHyperliquidOrderPrefill(
   value?:
     | AgentApprovalHandoff
     | AgentApprovalHandoffPayload
-    | { payload?: AgentApprovalHandoffPayload }
+    | {
+        payload?: AgentApprovalHandoffPayload;
+        approvalResult?: AgentApprovalHandoff;
+      }
     | null
 ): HyperliquidAgentOrderPrefill | null {
   const payload = payloadFrom(value);
@@ -765,6 +917,7 @@ export function getHyperliquidOrderPrefill(
     isCross: boolValue(params.isCross ?? params.cross),
     reduceOnly: boolValue(params.reduceOnly),
     requiredFields: payload.requiredFields,
+    approvalBoundary: getApprovedActionBoundary(value),
   };
 }
 
@@ -772,7 +925,10 @@ export function getPolymarketOrderPrefill(
   value?:
     | AgentApprovalHandoff
     | AgentApprovalHandoffPayload
-    | { payload?: AgentApprovalHandoffPayload }
+    | {
+        payload?: AgentApprovalHandoffPayload;
+        approvalResult?: AgentApprovalHandoff;
+      }
     | null
 ): PolymarketAgentOrderPrefill | null {
   const payload = payloadFrom(value);
@@ -812,6 +968,7 @@ export function getPolymarketOrderPrefill(
         ? toCentsInput(params.price ?? params.limitPrice)
         : undefined,
     requiredFields: payload.requiredFields,
+    approvalBoundary: getApprovedActionBoundary(value),
   };
 }
 

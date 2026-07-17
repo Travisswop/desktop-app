@@ -1,6 +1,7 @@
 import { GROUP_AGENT_SOCKET_EVENTS } from '@/hooks/useGroupAgents';
 import {
   AGENT_ACTION_HANDOFF_STORAGE_KEY,
+  getApprovedActionBoundary,
   getHyperliquidOrderPrefill,
   getPolymarketOrderPrefill,
   persistAgentActionHandoff,
@@ -193,6 +194,11 @@ describe('desktop group agent payloads', () => {
           price: '3200',
           leverage: '5',
           isCross: 'false',
+          riskControls: ['Use only approved size.', 'Stop after the first fill.'],
+          maxOrderUsd: '750',
+          maxDailyLossUsd: '150',
+          maxOpenPositions: '2',
+          expiry: '2026-06-29T18:30:00.000Z',
         },
       },
     });
@@ -207,6 +213,111 @@ describe('desktop group agent payloads', () => {
       price: '3200',
       leverage: 5,
       isCross: false,
+      approvalBoundary: {
+        maxOrderUsd: '750',
+        maxDailyLossUsd: '150',
+        maxOpenPositions: '2',
+        expiry: '2026-06-29T18:30:00.000Z',
+        reviewStateLabel: 'User signing required',
+      },
+    });
+    expect(prefill?.approvalBoundary?.riskControls).toEqual([
+      'Use only approved size.',
+      'Stop after the first fill.',
+    ]);
+  });
+
+  test('prefers post-approval next-step labels over stale approval-required flags', () => {
+    const prefill = getHyperliquidOrderPrefill({
+      status: 'approved',
+      nextStep: 'hyperliquid_order_form_required',
+      payload: {
+        proposalId: 'prop_hl_review',
+        proposalNonce: 'nonce_hl_review',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          coin: 'ETH',
+          side: 'long',
+          sizeUsd: '500',
+          approvalRequired: true,
+          maxOrderUsd: '500',
+        },
+      },
+    });
+
+    expect(prefill?.approvalBoundary?.reviewStateLabel).toBe(
+      'Review trade details',
+    );
+  });
+
+  test.each([
+    [
+      'monitor-only',
+      { monitorOnly: true },
+      'Monitor only',
+    ],
+    [
+      'paper',
+      { paperMode: true },
+      'Paper mode',
+    ],
+    [
+      'shadow',
+      { shadowMode: true },
+      'Shadow mode',
+    ],
+    [
+      'live-ready',
+      { liveExecutionReady: true },
+      'Live execution ready',
+    ],
+  ])(
+    'preserves %s operating-mode disclosure alongside generic review-state labels',
+    (_caseName, modeParams, expectedModeLabel) => {
+      const prefill = getHyperliquidOrderPrefill({
+        status: 'approved',
+        nextStep: 'hyperliquid_order_form_required',
+        payload: {
+          proposalId: `prop_hl_${expectedModeLabel}`,
+          proposalNonce: `nonce_hl_${expectedModeLabel}`,
+          provider: 'hyperliquid',
+          panel: 'perps',
+          action: 'perps.place_order',
+          normalizedParams: {
+            coin: 'ETH',
+            side: 'long',
+            sizeUsd: '500',
+            ...modeParams,
+          },
+        },
+      });
+
+      expect(prefill?.approvalBoundary).toMatchObject({
+        reviewStateLabel: 'Review trade details',
+        operatingModeLabel: expectedModeLabel,
+      });
+    },
+  );
+
+  test('preserves mode-only approved boundary disclosure', () => {
+    const boundary = getApprovedActionBoundary({
+      status: 'approved',
+      payload: {
+        proposalId: 'prop_mode_only',
+        proposalNonce: 'nonce_mode_only',
+        provider: 'hyperliquid',
+        panel: 'perps',
+        action: 'perps.place_order',
+        normalizedParams: {
+          paperMode: true,
+        },
+      },
+    });
+
+    expect(boundary).toMatchObject({
+      operatingModeLabel: 'Paper mode',
     });
   });
 
@@ -318,6 +429,10 @@ describe('desktop group agent payloads', () => {
           amount: '25',
           orderType: 'limit',
           price: '0.42',
+          riskControls: ['No more than one live order.'],
+          maxOrderUsd: '25',
+          maxDailySpendUsd: '80',
+          expiry: '2026-06-30T16:00:00.000Z',
         },
       },
     });
@@ -333,6 +448,15 @@ describe('desktop group agent payloads', () => {
       amount: '25',
       orderType: 'limit',
       limitPrice: '42',
+      approvalBoundary: {
+        maxOrderUsd: '25',
+        maxDailySpendUsd: '80',
+        expiry: '2026-06-30T16:00:00.000Z',
+        reviewStateLabel: 'User signing required',
+      },
     });
+    expect(prefill?.approvalBoundary?.riskControls).toEqual([
+      'No more than one live order.',
+    ]);
   });
 });
