@@ -190,6 +190,7 @@ import {
   proposalFromMessage,
 } from '@/lib/chat/groupAgentPayloads';
 import { StrategyApprovalModal } from '@/components/chat/goldman/StrategyApprovalModal';
+import GoldmanWithdrawModal from '@/components/chat/goldman/GoldmanWithdrawModal';
 import { GoldmanPerformanceSection } from '@/components/chat/goldman/GoldmanPerformanceSection';
 import { AUTONOMY_GATE_EXPLAINER } from '@/components/chat/goldman/goldmanAutonomy';
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
@@ -8723,6 +8724,7 @@ function GoldmanAccessStation({
   const [fundingMode, setFundingMode] = useState<GoldmanFundingMode | null>(
     null
   );
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [consoleTab, setConsoleTab] = useState<'console' | 'activity'>(
     'console'
   );
@@ -9283,9 +9285,12 @@ function GoldmanAccessStation({
               },
             },
             {
+              // Opens the token+amount popup; the backend sends vault funds
+              // straight to the owner's main wallet (destination is resolved
+              // server-side, never client-chosen).
               label: 'Withdraw',
-              command: '@goldman withdraw from the sack ',
               icon: Download,
+              onClick: () => setIsWithdrawOpen(true),
             },
             {
               label: 'Audit',
@@ -9295,6 +9300,7 @@ function GoldmanAccessStation({
           ].map((action) => {
             const ActionIcon = action.icon;
             const isFundingAction = action.label === 'Fund';
+            const isWithdrawAction = action.label === 'Withdraw';
             return (
               <button
                 key={action.label}
@@ -9302,9 +9308,17 @@ function GoldmanAccessStation({
                 disabled={
                   isFundingAction
                     ? isVaultBusy && !fundingAddress?.address
+                    : isWithdrawAction
+                    ? !groupId || !accessToken || !fundingAddress?.address
                     : !onQuickCommand
                 }
-                data-testid={isFundingAction ? 'goldman-fund-button' : undefined}
+                data-testid={
+                  isFundingAction
+                    ? 'goldman-fund-button'
+                    : isWithdrawAction
+                    ? 'goldman-withdraw-button'
+                    : undefined
+                }
                 onClick={() => {
                   if (action.onClick) {
                     action.onClick();
@@ -10026,6 +10040,15 @@ function GoldmanAccessStation({
             </div>
           </div>
         </div>
+      )}
+      {groupId && accessToken && (
+        <GoldmanWithdrawModal
+          open={isWithdrawOpen}
+          onClose={() => setIsWithdrawOpen(false)}
+          tokens={consoleData?.walletPortfolioTokens || []}
+          groupId={groupId}
+          accessToken={accessToken}
+        />
       )}
     </aside>
   );

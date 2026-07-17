@@ -218,3 +218,75 @@ export async function fetchGoldmanActivity({
 
   return { supported: true, entries };
 }
+
+export type GoldmanVaultWithdrawResult = {
+  transactionHash: string;
+  chain: string;
+  chainId: number;
+  token: {
+    symbol: string;
+    address: string | null;
+    isNative: boolean;
+    decimals: number;
+  };
+  amount: number;
+  amountRaw: string;
+  to: string;
+  vaultAddress: string;
+};
+
+/**
+ * Withdraw liquid vault funds back to the owner's main wallet. The backend
+ * resolves the destination from the authenticated user server-side — the
+ * client only picks which vault holding (chain + token) and how much.
+ * `isMax: true` withdraws the full balance (minus float-safety headroom).
+ */
+export async function withdrawGoldmanVault({
+  groupId,
+  accessToken,
+  chain,
+  tokenAddress,
+  symbol,
+  amount,
+  isMax = false,
+}: {
+  groupId: string;
+  accessToken: string;
+  chain: string;
+  tokenAddress?: string | null;
+  symbol?: string | null;
+  amount?: number;
+  isMax?: boolean;
+}): Promise<GoldmanVaultWithdrawResult> {
+  const response = await apiFetch(
+    goldmanAgentUrl(groupId, '/strategy-vault/withdraw'),
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders(accessToken),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        chain,
+        tokenAddress: tokenAddress || null,
+        symbol: symbol || null,
+        amount,
+        isMax,
+      }),
+    }
+  );
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Vault withdrawal failed (${response.status})`
+    );
+  }
+
+  const data = (body as { data?: GoldmanVaultWithdrawResult } | null)?.data;
+  if (!data?.transactionHash) {
+    throw new Error('Vault withdrawal did not return a transaction.');
+  }
+  return data;
+}
