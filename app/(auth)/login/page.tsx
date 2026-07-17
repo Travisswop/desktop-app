@@ -767,7 +767,7 @@ const Login: React.FC = () => {
               setLoginFlow(LoginFlow.SUCCESS);
               redirectTimeoutRef.current = setTimeout(() => {
                 router.refresh();
-                router.push('/');
+                router.push('/wallet');
               }, 500);
               return;
             }
@@ -813,7 +813,7 @@ const Login: React.FC = () => {
         redirectTimeoutRef.current = setTimeout(() => {
           router.refresh();
           router.push(
-            shouldCompleteSwopId ? SWOP_ID_ONBOARDING_PATH : '/',
+            shouldCompleteSwopId ? SWOP_ID_ONBOARDING_PATH : '/wallet',
           );
         }, 1500);
       } catch (error) {

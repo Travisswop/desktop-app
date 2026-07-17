@@ -729,8 +729,8 @@ async function handleAuthenticatedUser(
       const { exists } = await checkUserInBackend(userId);
 
       if (exists) {
-        console.log(`User exists, redirecting to /`);
-        return createRedirect(req, "/");
+        console.log(`User exists, redirecting to /wallet`);
+        return createRedirect(req, "/wallet");
       } else {
         // // User doesn't exist - clear cookies and allow login page access
         // console.log(
