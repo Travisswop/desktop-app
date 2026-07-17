@@ -4,9 +4,9 @@ import {
 } from '@/lib/chat/fundingOnrampIntent';
 
 describe('funding onramp chat intent', () => {
-  test('detects fund wallet requests with default Polygon funding', () => {
+  test('detects fund wallet requests with default Ethereum funding', () => {
     expect(findFundingOnrampIntent('Astro fund my wallet with $35')).toEqual({
-      initialNetwork: 'polygon',
+      initialNetwork: 'ethereum',
       initialAmount: '35',
       sourceText: 'fund my wallet with 35',
     });
@@ -19,9 +19,9 @@ describe('funding onramp chat intent', () => {
     });
   });
 
-  test('detects perps funding as Arbitrum USDC', () => {
+  test('routes perps funding to the default Swop wallet onramp', () => {
     expect(findFundingOnrampIntent('add funds for perps')).toMatchObject({
-      initialNetwork: 'arbitrum',
+      initialNetwork: 'ethereum',
       initialAmount: '20',
     });
   });

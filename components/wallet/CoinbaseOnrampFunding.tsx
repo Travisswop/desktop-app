@@ -36,12 +36,6 @@ const FUNDING_OPTIONS: FundingOption[] = [
     walletType: "evm",
   },
   {
-    network: "polygon",
-    label: "Predictions USDC",
-    description: "Polygon USDC for Polymarket funding",
-    walletType: "evm",
-  },
-  {
     network: "base",
     label: "Base USDC",
     description: "Base network USDC",
@@ -52,12 +46,6 @@ const FUNDING_OPTIONS: FundingOption[] = [
     label: "Solana USDC",
     description: "Solana wallet funding",
     walletType: "solana",
-  },
-  {
-    network: "arbitrum",
-    label: "Perps USDC",
-    description: "Arbitrum USDC for Hyperliquid deposits",
-    walletType: "evm",
   },
 ];
 
@@ -89,7 +77,7 @@ function toUsE164(value: string): string | null {
 function normalizeNetwork(value?: CoinbaseOnrampNetwork): CoinbaseOnrampNetwork {
   return value && FUNDING_OPTIONS.some((option) => option.network === value)
     ? value
-    : "polygon";
+    : "ethereum";
 }
 
 function isDomainAllowlistError(message: string) {
@@ -130,7 +118,7 @@ type CoinbaseOnrampFundingProps = {
 };
 
 export default function CoinbaseOnrampFunding({
-  initialNetwork = "polygon",
+  initialNetwork = "ethereum",
   initialAmount = "20",
   variant = "light",
   compact = false,

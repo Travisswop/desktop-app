@@ -22,19 +22,13 @@ export function normalizeFundingOnrampSourceText(value: unknown) {
 export function inferFundingOnrampNetwork(
   text: string
 ): CoinbaseOnrampNetwork {
-  if (/\b(perps?|hyperliquid|arbitrum|arb)\b/i.test(text)) {
-    return 'arbitrum';
-  }
   if (/\b(solana|sol)\b/i.test(text)) {
     return 'solana';
   }
   if (/\bbase\b/i.test(text)) {
     return 'base';
   }
-  if (/\b(ethereum|mainnet|eth)\b/i.test(text)) {
-    return 'ethereum';
-  }
-  return 'polygon';
+  return 'ethereum';
 }
 
 export function parseFundingOnrampAmount(text: string) {
