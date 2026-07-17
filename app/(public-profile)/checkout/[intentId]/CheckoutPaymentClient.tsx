@@ -1430,48 +1430,56 @@ export default function CheckoutPaymentClient({
     }
 
     setStage('signing');
-    const txValue = transactionRequest.value
-      ? BigInt(transactionRequest.value)
-      : undefined;
-    let result: Awaited<ReturnType<typeof sendTransaction>>;
-    try {
-      result = await sendTransaction(
-        {
-          from: sourceWalletAddress as `0x${string}`,
-          to: transactionRequest.to as `0x${string}`,
-          data: transactionRequest.data as `0x${string}`,
-          ...(txValue ? { value: txValue } : {}),
-          chainId: transactionRequest.chainId || sourceChainId,
-        },
-        {
-          sponsor: true,
-          address: sourceWalletAddress,
-          uiOptions: { showWalletUIs: false },
-        }
-      );
-    } catch (sendError) {
-      if (isUserRejectionError(sendError)) throw sendError;
-      result = await sendTransaction(
-        {
-          from: sourceWalletAddress as `0x${string}`,
-          to: transactionRequest.to as `0x${string}`,
-          data: transactionRequest.data as `0x${string}`,
-          ...(txValue ? { value: txValue } : {}),
-          chainId: transactionRequest.chainId || sourceChainId,
-        },
-        { sponsor: false, address: sourceWalletAddress }
-      );
-    }
-
-    return result.hash;
+    return sendEvmTransactionSponsoredFirst(
+      transactionRequest,
+      sourceWalletAddress,
+      sourceChainId
+    );
   };
 
-  const pollLifiSettlement = async (txHash: string) => {
+  // Sponsored-first send with an on-device (unsponsored) fallback — shared by
+  // the main payment leg and the split-transfer fee leg.
+  const sendEvmTransactionSponsoredFirst = async (
+    request: {
+      to: string;
+      data: string;
+      value?: string;
+      chainId?: number;
+    },
+    sourceWalletAddress: string,
+    fallbackChainId: number
+  ) => {
+    const txValue = request.value ? BigInt(request.value) : undefined;
+    const txParams = {
+      from: sourceWalletAddress as `0x${string}`,
+      to: request.to as `0x${string}`,
+      data: request.data as `0x${string}`,
+      ...(txValue ? { value: txValue } : {}),
+      chainId: request.chainId || fallbackChainId,
+    };
+    try {
+      const result = await sendTransaction(txParams, {
+        sponsor: true,
+        address: sourceWalletAddress,
+        uiOptions: { showWalletUIs: false },
+      });
+      return result.hash;
+    } catch (sendError) {
+      if (isUserRejectionError(sendError)) throw sendError;
+      const result = await sendTransaction(txParams, {
+        sponsor: false,
+        address: sourceWalletAddress,
+      });
+      return result.hash;
+    }
+  };
+
+  const pollLifiSettlement = async (txHash: string, feeTxHash?: string) => {
     let latestIntent: CheckoutIntent | undefined;
     for (let attempt = 0; attempt < 15; attempt += 1) {
       const result = await submitCheckoutLifiTransaction(
         intentId,
-        { txHash },
+        { txHash, ...(feeTxHash ? { feeTxHash } : {}) },
         accessToken || ''
       );
       if (result.intent) {
@@ -1527,8 +1535,25 @@ export default function CheckoutPaymentClient({
         );
         setTransactionHash(hash);
 
+        // Fee leg (split direct transfers): the Swop fee travels as its own
+        // ERC-20 transfer to the settlement wallet. Never fail the payment
+        // over it — the backend records a fee shortfall instead.
+        let feeTxHash = '';
+        if (prepared.feeTransactionRequest) {
+          try {
+            feeTxHash = await sendEvmTransactionSponsoredFirst(
+              prepared.feeTransactionRequest,
+              fromAddress,
+              chainConfig.id ? Number(chainConfig.id) : 0
+            );
+          } catch (feeError) {
+            if (isUserRejectionError(feeError)) throw feeError;
+            console.error('checkout fee leg failed', feeError);
+          }
+        }
+
         setStage('confirming');
-        const result = await pollLifiSettlement(hash);
+        const result = await pollLifiSettlement(hash, feeTxHash || undefined);
         if (result.intent) setIntent(result.intent);
         if (result.settlementStatus === 'pending_payment') {
           toast.success('Payment sent. Settlement is still confirming.');

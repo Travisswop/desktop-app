@@ -307,6 +307,15 @@ type ApiResponse<T> = {
     gasLimit?: string;
     gasPrice?: string;
   };
+  // Split direct transfers: the Swop fee travels as its own ERC-20 transfer
+  // to the settlement wallet, alongside the merchant leg above.
+  feeTransactionRequest?: {
+    to: string;
+    data: string;
+    value?: string;
+    chainId?: number;
+  } | null;
+  feeTransactionHash?: string | null;
   quote?: {
     merchantReceivesAmount: number;
     platformFeeAmount: number;
@@ -646,6 +655,7 @@ export async function prepareCheckoutLifiTransaction(
 
   return {
     transactionRequest: data.transactionRequest,
+    feeTransactionRequest: data.feeTransactionRequest || null,
     quote: data.quote,
   };
 }
@@ -690,6 +700,9 @@ export async function submitCheckoutLifiTransaction(
   intentId: string,
   params: {
     txHash: string;
+    // Fee-leg hash for split direct transfers — verified separately by the
+    // backend and credited as the collected Swop fee.
+    feeTxHash?: string;
   },
   accessToken: string
 ) {
