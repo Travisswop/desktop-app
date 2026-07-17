@@ -72,7 +72,7 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
         </div>
         <span className={`h-2.5 w-2.5 rounded-full ${interactive ? "bg-emerald-500" : "bg-gray-300"}`} />
       </div>
-      <div className="flex max-h-72 flex-col gap-2 overflow-y-auto p-4">
+      <div className="flex h-[576px] flex-col gap-2 overflow-y-auto p-4">
         {messages.map((message, index) => (
           <div key={index} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${message.role === "visitor" ? "ml-auto bg-gray-950 text-white" : "bg-gray-100 text-gray-900"}`}>
             <p>{message.text}</p>
