@@ -4,6 +4,7 @@ export type ChainType =
   | 'BASE'
   | 'SOLANA'
   | 'ARBITRUM'
+  | 'ROBINHOOD'
   | 'SEPOLIA';
 export type EVMChain = Exclude<ChainType, 'SOLANA'>;
 
@@ -59,6 +60,7 @@ export interface TokenData {
     | 'BASE'
     | 'SOLANA'
     | 'ARBITRUM'
+    | 'ROBINHOOD'
     | 'SEPOLIA';
   marketData: MarketData | null;
   sparklineData?: Array<{ timestamp: number; value: number }>;

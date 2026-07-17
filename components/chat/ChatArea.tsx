@@ -1730,12 +1730,13 @@ function parseWalletSendRecipient(text: string) {
 function inferWalletSendChain(text: string) {
   const normalizedText = normalizeIntentText(text);
   const networkMatch = normalizedText.match(
-    /\b(?:on|via|over|using|network|chain)\s+(sol|solana|base|arbitrum|arb|polygon|matic|pol|ethereum|mainnet)\b/i
+    /\b(?:on|via|over|using|network|chain)\s+(sol|solana|base|arbitrum|arb|polygon|matic|pol|ethereum|mainnet|robinhood|hood)\b/i
   );
   const network = networkMatch?.[1]?.toLowerCase();
   if (network === 'sol' || network === 'solana') return 'SOLANA';
   if (network === 'base') return 'BASE';
   if (network === 'arbitrum' || network === 'arb') return 'ARBITRUM';
+  if (network === 'robinhood' || network === 'hood') return 'ROBINHOOD';
   if (network === 'polygon' || network === 'matic' || network === 'pol') {
     return 'POLYGON';
   }
@@ -1937,6 +1938,7 @@ function buildSyntheticWalletSendNetworkPromptMessage(
 function parseWalletSendNetworkReply(text?: string | null) {
   const normalizedText = normalizeIntentText(text);
   if (/\b(arbitrum|arb)\b/.test(normalizedText)) return 'ARBITRUM';
+  if (/\b(robinhood|hood)\b/.test(normalizedText)) return 'ROBINHOOD';
   if (/\b(base)\b/.test(normalizedText)) return 'BASE';
   if (/\b(ethereum|mainnet|eth mainnet)\b/.test(normalizedText)) {
     return 'ETHEREUM';
@@ -12931,6 +12933,7 @@ function formatSwapPercent(value: unknown) {
 
 function normalizeWalletSendChainValue(value?: string | number | null): Network {
   const normalized = String(value || '').trim().toLowerCase();
+  if (normalized.includes('robinhood') || normalized === '4663') return 'ROBINHOOD';
   if (normalized.includes('arb')) return 'ARBITRUM';
   if (normalized.includes('base')) return 'BASE';
   if (normalized.includes('polygon') || normalized.includes('matic')) {
@@ -13036,6 +13039,8 @@ function getWalletSendExplorerTxUrl(chain: string, hash: string) {
   if (!hash) return undefined;
   if (normalized === 'SOLANA') return `https://solscan.io/tx/${hash}`;
   if (normalized === 'ARBITRUM') return `https://arbiscan.io/tx/${hash}`;
+  if (normalized === 'ROBINHOOD')
+    return `https://robinhoodchain.blockscout.com/tx/${hash}`;
   if (normalized === 'BASE') return `https://basescan.org/tx/${hash}`;
   if (normalized === 'POLYGON') return `https://polygonscan.com/tx/${hash}`;
   if (normalized === 'SEPOLIA') return `https://sepolia.etherscan.io/tx/${hash}`;
@@ -14902,6 +14907,7 @@ const CHAT_SWAP_CHAIN_IDS: Record<TokenData['chain'], string> = {
   ETHEREUM: '1',
   BASE: '8453',
   ARBITRUM: '42161',
+  ROBINHOOD: '4663',
   POLYGON: '137',
   SEPOLIA: '11155111',
   SOLANA: SOLANA_CHAIN_ID,
@@ -14911,6 +14917,7 @@ const CHAT_SWAP_CHAIN_NAMES: Record<string, string> = {
   '1': 'Ethereum',
   '8453': 'Base',
   '42161': 'Arbitrum',
+  '4663': 'Robinhood',
   '137': 'Polygon',
   [SOLANA_CHAIN_ID]: 'Solana',
 };
@@ -15030,6 +15037,21 @@ const CHAT_SWAP_TOKEN_META: Record<string, ChatSwapTokenMeta> = {
     decimals: 6,
     chainId: '42161',
     chainName: 'Arbitrum',
+  },
+  '4663:ETH': {
+    symbol: 'ETH',
+    address: EVM_NATIVE_TOKEN_ADDRESS,
+    decimals: 18,
+    chainId: '4663',
+    chainName: 'Robinhood',
+  },
+  // Robinhood Chain has no native USDC — USDG (Global Dollar) is its stable.
+  '4663:USDG': {
+    symbol: 'USDG',
+    address: '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
+    decimals: 6,
+    chainId: '4663',
+    chainName: 'Robinhood',
   },
   '137:POL': {
     symbol: 'POL',

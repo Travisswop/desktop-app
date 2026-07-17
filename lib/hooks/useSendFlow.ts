@@ -54,6 +54,7 @@ export function useSendFlow() {
       POLYGON: '0.0001',
       BASE: '0.0001',
       ARBITRUM: '0.0001',
+      ROBINHOOD: '0.0001',
       SEPOLIA: '0.0001',
     };
 

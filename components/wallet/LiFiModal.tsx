@@ -11,6 +11,7 @@ import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { createWalletClient, custom } from 'viem';
 import { mainnet, polygon, base, arbitrum, optimism, bsc } from 'viem/chains';
+import { robinhoodChain, ROBINHOOD_CHAIN_ID } from '@/lib/chains/robinhood';
 import { PrivySolanaSync } from './PrivySolanaSync';
 import { PrivyWalletAdapter } from './PrivyWalletAdapter'; // Import your adapter
 import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
@@ -27,6 +28,7 @@ const VIEM_CHAIN_MAP: Record<number, Parameters<typeof createWalletClient>[0]['c
   [arbitrum.id]:  arbitrum,
   [optimism.id]:  optimism,
   [bsc.id]:       bsc,
+  [robinhoodChain.id]: robinhoodChain,
 };
 
 const isPrivyEmbeddedWalletType = (walletClientType?: string | null) =>
@@ -423,6 +425,8 @@ export default function LiFiModal({
           [ChainId.POL]: [ALCHEMY_RPC_URLS.POLYGON!].filter(Boolean),
           [ChainId.BAS]: [ALCHEMY_RPC_URLS.BASE!].filter(Boolean),
           [ChainId.ARB]: [ALCHEMY_RPC_URLS.ARBITRUM!].filter(Boolean),
+          // Robinhood Chain isn't in the SDK's ChainId enum yet — raw id.
+          [ROBINHOOD_CHAIN_ID]: [ALCHEMY_RPC_URLS.ROBINHOOD!].filter(Boolean),
           [ChainId.SOL]: [process.env.NEXT_PUBLIC_SOLANA_RPC_URL!].filter(Boolean),
         },
       },
@@ -518,6 +522,7 @@ export default function LiFiModal({
             ChainId.BAS,
             ChainId.ARB,
             ChainId.OPT,
+            ROBINHOOD_CHAIN_ID,
           ],
         },
         sdkConfig: {

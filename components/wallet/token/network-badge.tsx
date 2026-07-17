@@ -25,6 +25,8 @@ const NetworkBadge = ({
         return '/assets/icons/solana.png';
       case 'ARBITRUM':
         return '/assets/icons/arbitrum.png';
+      case 'ROBINHOOD':
+        return '/assets/icons/robinhood.png';
       default:
         return null;
     }

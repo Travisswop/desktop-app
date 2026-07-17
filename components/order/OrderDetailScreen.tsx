@@ -201,6 +201,7 @@ const EVM_EXPLORERS: Record<string, string> = {
   '137': 'https://polygonscan.com',
   '8453': 'https://basescan.org',
   '42161': 'https://arbiscan.io',
+  '4663': 'https://robinhoodchain.blockscout.com',
 };
 
 // Explorer link for a tx hash. chain is 'solana' (or empty, the default rail)

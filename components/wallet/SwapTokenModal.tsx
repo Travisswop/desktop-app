@@ -58,6 +58,7 @@ import {
   http,
 } from 'viem';
 import { arbitrum, base, bsc, mainnet, polygon } from 'viem/chains';
+import { robinhoodChain } from '@/lib/chains/robinhood';
 import {
   Connection,
   VersionedTransaction,
@@ -655,6 +656,7 @@ const getChainIcon = (chainName: string) => {
     POLYGON: '/images/IconShop/polygon@3x.png',
     ARBITRUM: '/assets/icons/arbitrum.png',
     BASE: '/assets/icons/base.png',
+    ROBINHOOD: '/assets/icons/robinhood.png',
   };
   return chainIcons[chainName.toUpperCase()] || null;
 };
@@ -667,6 +669,7 @@ const getChainId = (chainName: string) => {
     POLYGON: '137',
     ARBITRUM: '42161',
     BASE: '8453',
+    ROBINHOOD: '4663',
   };
   return chainIds[chainName.toUpperCase()] || '1';
 };
@@ -920,6 +923,7 @@ const getNetworkByChainId = (chainId: string): string => {
     '137': 'polygon',
     '42161': 'arbitrum',
     '8453': 'base',
+    '4663': 'robinhood',
   };
   return map[chainId] || 'ethereum';
 };
@@ -1022,6 +1026,7 @@ const getExplorerUrl = (chainId: string, txHash: string): string => {
     '137': `https://polygonscan.com/tx/${txHash}`,
     '42161': `https://arbiscan.io/tx/${txHash}`,
     '8453': `https://basescan.org/tx/${txHash}`,
+    '4663': `https://robinhoodchain.blockscout.com/tx/${txHash}`,
   };
   return explorerUrls[chainId] || `https://etherscan.io/tx/${txHash}`;
 };
@@ -1038,6 +1043,8 @@ const getViemChain = (chainId: number) => {
       return arbitrum;
     case 8453:
       return base;
+    case 4663:
+      return robinhoodChain;
     default:
       return null;
   }
@@ -1472,6 +1479,22 @@ const FALLBACK_CHAIN_TOKENS: Record<string, any[]> = {
         'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/assets/0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063/logo.png',
     },
   ],
+  // Robinhood Chain stables — no native USDC exists there; USDG (Global
+  // Dollar, Paxos) is the chain's primary stablecoin.
+  '4663': [
+    {
+      symbol: 'USDG',
+      name: 'Global Dollar',
+      address: '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168',
+      decimals: 6,
+      chain: 'ROBINHOOD',
+      chainId: '4663',
+      network: 'robinhood',
+      logoURI:
+        'https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png',
+      isVerified: true,
+    },
+  ],
 };
 
 // Lowercased lookup tables for case-insensitive matching of token addresses/ids
@@ -1583,6 +1606,11 @@ const ALL_CHAINS = [
     name: 'ARB',
     icon: '/assets/icons/arbitrum.png',
   },
+  {
+    id: '4663',
+    name: 'HOOD',
+    icon: '/assets/icons/robinhood.png',
+  },
 ];
 
 const PAY_CHAINS = [
@@ -1608,6 +1636,11 @@ const PAY_CHAINS = [
     name: 'ARB',
     icon: '/assets/icons/arbitrum.png',
   },
+  {
+    id: '4663',
+    name: 'HOOD',
+    icon: '/assets/icons/robinhood.png',
+  },
 ];
 
 const CATEGORY_LABELS: Record<TokenCategory, string> = {
@@ -1624,6 +1657,7 @@ const NETWORK_DISPLAY_ORDER = [
   'polygon',
   'base',
   'arbitrum',
+  'robinhood',
   'bsc',
 ];
 
@@ -1678,6 +1712,7 @@ const CHART_CHAIN_BY_CHAIN_ID: Record<string, string> = {
   '137': 'POLYGON',
   '8453': 'BASE',
   '42161': 'ARBITRUM',
+  '4663': 'ROBINHOOD',
 };
 
 const SUPPORTED_CHART_CHAINS = new Set(
@@ -3009,6 +3044,7 @@ export default function SwapTokenModal({
           baseTokens,
           solanaTokens,
           arbitrumTokens,
+          robinhoodTokens,
           ondoGlobalMarketsTokens,
         ] = await Promise.all([
           fetchLiFiTokensCached('1'),
@@ -3016,6 +3052,7 @@ export default function SwapTokenModal({
           fetchLiFiTokensCached('8453'),
           fetchLiFiTokensCached('1151111081099710'),
           fetchLiFiTokensCached('42161'),
+          fetchLiFiTokensCached('4663'),
           fetchOndoGlobalMarketsTokens().catch(() => []),
         ]);
         const ondoStockAddresses =
@@ -3038,6 +3075,7 @@ export default function SwapTokenModal({
           ...baseTokens,
           ...solanaTokens,
           ...arbitrumTokens,
+          ...robinhoodTokens,
         ];
         const seen = new Set<string>();
         const deduped = merged.filter((t) => {

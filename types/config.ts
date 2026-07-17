@@ -17,6 +17,7 @@ export const ALCHEMY_RPC_URLS = {
   POLYGON: buildAlchemyRpcUrl('polygon-mainnet'),
   BASE: buildAlchemyRpcUrl('base-mainnet'),
   ARBITRUM: buildAlchemyRpcUrl('arb-mainnet'),
+  ROBINHOOD: buildAlchemyRpcUrl('robinhood-mainnet'),
   SEPOLIA: buildAlchemyRpcUrl('eth-sepolia'),
 } as const;
 
@@ -39,6 +40,11 @@ export const EVM_CHAIN_CONFIG = {
   ARBITRUM: {
     id: 42161,
     network: 'arb-mainnet',
+    apiKey: ALCHEMY_API_KEY,
+  },
+  ROBINHOOD: {
+    id: 4663,
+    network: 'robinhood-mainnet',
     apiKey: ALCHEMY_API_KEY,
   },
   SEPOLIA: {
@@ -108,6 +114,22 @@ export const CHAINS = {
     rpcUrl: ALCHEMY_RPC_URLS.ARBITRUM,
     nativeToken: {
       uuid: 'ethereum', // Arbitrum uses ETH as native gas token
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+    },
+    type: 'evm',
+  },
+  ROBINHOOD: {
+    chainId: 4663,
+    // Etherscan v2 does NOT index Robinhood Chain — its explorer is Blockscout
+    // (robinhoodchain.blockscout.com), so tx-history via this URL returns
+    // nothing until Etherscan adds chain 4663.
+    transactionApiUrl: 'https://api.etherscan.io/v2',
+    accessToken: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY_TOKEN,
+    rpcUrl: ALCHEMY_RPC_URLS.ROBINHOOD,
+    nativeToken: {
+      uuid: 'ethereum', // Robinhood Chain uses ETH as native gas token
       symbol: 'ETH',
       name: 'Ethereum',
       decimals: 18,

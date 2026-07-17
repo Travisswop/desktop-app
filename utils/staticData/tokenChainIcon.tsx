@@ -3,4 +3,6 @@ export const chainIcons: Record<string, string> = {
   ethereum: "/assets/icons/ETH.png",
   polygon: "/assets/icons/POL.png",
   base: "/assets/icons/base.png",
+  arbitrum: "/assets/icons/arbitrum.png",
+  robinhood: "/assets/icons/robinhood.png",
 };

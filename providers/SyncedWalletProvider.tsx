@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import type { FC, PropsWithChildren } from 'react';
 import { mainnet, polygon, base, arbitrum } from 'viem/chains';
+import { robinhoodChain } from '@/lib/chains/robinhood';
 import { SolanaProvider } from './SolanaProvider';
 import { createConfig } from '@privy-io/wagmi';
 import { http } from 'viem';
@@ -18,12 +19,13 @@ import { ALCHEMY_RPC_URLS } from '@/types/config';
 // must be listed here with the correct chainId so typed-data signatures
 // include the right domain separator.
 const wagmiConfig = createConfig({
-  chains: [mainnet, polygon, base, arbitrum],
+  chains: [mainnet, polygon, base, arbitrum, robinhoodChain],
   transports: {
     [mainnet.id]:  http(ALCHEMY_RPC_URLS.ETHEREUM),
     [polygon.id]:  http(ALCHEMY_RPC_URLS.POLYGON),
     [base.id]:     http(ALCHEMY_RPC_URLS.BASE),
     [arbitrum.id]: http(ALCHEMY_RPC_URLS.ARBITRUM),
+    [robinhoodChain.id]: http(ALCHEMY_RPC_URLS.ROBINHOOD),
   },
 });
 
