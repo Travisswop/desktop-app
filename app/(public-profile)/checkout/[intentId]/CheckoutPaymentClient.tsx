@@ -63,6 +63,7 @@ import {
   SOLANA_USDC_MINT,
 } from '@/lib/checkout-payment-amounts';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { decimalAmountToRawUnits } from '@/lib/wallet/swapAmounts';
 import { formatUsdAmount } from '@/lib/marketplace-api';
 import {
   getPhantomCheckoutUrl,
@@ -224,6 +225,45 @@ function checkoutItemLabel(intent?: CheckoutIntent | null) {
   return intent?.description || 'Checkout payment';
 }
 
+// Gate on the exact base-unit balance whenever the backend provides it —
+// `balance` is a display float that can round 1.014999 up to 1.015 and
+// approve a payment the on-chain transfer then rejects with "insufficient
+// funds". The Swop fee rides on top of the item price, so real payments sit
+// exactly on that boundary.
+function tokenCoversAmount(token: TokenData, tokenAmount: string) {
+  if (!tokenAmount) return false;
+  if (token.rawAmount != null) {
+    try {
+      const requiredRaw = decimalAmountToRawUnits(tokenAmount, token.decimals);
+      if (requiredRaw !== null) return requiredRaw <= BigInt(token.rawAmount);
+    } catch {
+      // Malformed rawAmount — fall back to the float comparison below.
+    }
+  }
+  return Number(token.balance || 0) >= Number(tokenAmount);
+}
+
+function tokenHeldBalanceLabel(token: TokenData) {
+  if (token.rawAmount != null) {
+    try {
+      return formatTokenQuantity(
+        formatRawTokenAmount(token.rawAmount, token.decimals)
+      );
+    } catch {
+      // Malformed rawAmount — fall back to the float below.
+    }
+  }
+  return formatTokenQuantity(token.balance);
+}
+
+function insufficientBalanceCopy(token: TokenData, tokenAmount: string) {
+  return `Insufficient ${token.symbol}: this payment needs ${formatTokenQuantity(
+    tokenAmount
+  )} ${token.symbol} (Swop fee included), but the selected wallet holds ${tokenHeldBalanceLabel(
+    token
+  )}. Top up or pay with another token.`;
+}
+
 function tokenUnitPriceLabel(token: TokenData | null) {
   if (!token) return '';
   const price = Number(token.marketData?.price || 0);
@@ -327,6 +367,18 @@ function humanizeCheckoutError(error: unknown, fallback: string) {
   const message = raw.toLowerCase();
 
   if (!message) return fallback;
+
+  // The backend's balance gate already writes shopper-facing copy naming
+  // exact required/held amounts — pass it through before the generic rules
+  // below flatten it (or worse, the sponsorship rule claims the token
+  // balance "is not the problem").
+  if (
+    message.includes('swop fee') ||
+    message.includes('add at least') ||
+    message.includes('the paying wallet holds')
+  ) {
+    return raw;
+  }
 
   if (
     message.includes('timeout') ||
@@ -909,7 +961,7 @@ export default function CheckoutPaymentClient({
 
   const hasSufficientBalance = useMemo(() => {
     if (!selectedToken || !tokenAmount) return false;
-    return Number(selectedToken.balance || 0) >= Number(tokenAmount);
+    return tokenCoversAmount(selectedToken, tokenAmount);
   }, [selectedToken, tokenAmount]);
 
   useEffect(() => {
@@ -1542,7 +1594,7 @@ export default function CheckoutPaymentClient({
     if (!selectedToken) return 'Select a token to continue.';
     if (!tokenAmount) return 'Payment amount is still loading.';
     if (!hasSufficientBalance) {
-      return `Insufficient ${selectedToken.symbol} balance.`;
+      return insufficientBalanceCopy(selectedToken, tokenAmount);
     }
     if (!accessToken) return 'Sign in again to authorize payment.';
     if (needsSolanaSigner) {
@@ -1886,7 +1938,7 @@ export default function CheckoutPaymentClient({
 
               {selectedToken && tokenAmount && !hasSufficientBalance ? (
                 <div className="mt-5 rounded-2xl border border-[#ffd0d0] bg-[#fff5f5] px-4 py-3 text-sm font-semibold text-[#b42318]">
-                  Insufficient {selectedToken.symbol} balance.
+                  {insufficientBalanceCopy(selectedToken, tokenAmount)}
                 </div>
               ) : null}
 
@@ -2800,7 +2852,7 @@ export default function CheckoutPaymentClient({
 
               {selectedToken && tokenAmount && !hasSufficientBalance && (
                 <div className="mt-4 rounded-md border border-[#ffd0d0] bg-[#fff5f5] p-3 text-xs font-medium text-[#b42318]">
-                  Insufficient {selectedToken.symbol} balance.
+                  {insufficientBalanceCopy(selectedToken, tokenAmount)}
                 </div>
               )}
 
