@@ -36,6 +36,7 @@ import {
   activateCheckoutNfcTerminal,
   cancelCheckoutIntent,
   createCheckoutRefundRequest,
+  executeCheckoutRefundRequest,
   createCheckoutIntent,
   getStablecoinMerchantStatus,
   isCancellableCheckoutIntent,
@@ -151,6 +152,10 @@ function statusLabel(status: CheckoutIntent['status']) {
       return 'Conversion pending';
     case 'settlement_failed':
       return 'Settlement pending';
+    case 'refunding':
+      return 'Refunding';
+    case 'refunded':
+      return 'Refunded';
     case 'expired':
       return 'Expired';
     case 'cancelled':
@@ -171,6 +176,8 @@ function statusTone(status: CheckoutIntent['status']) {
     case 'settlement_failed':
     case 'pending_payment':
       return 'border-[#f1d8a7] bg-[#fff8e6] text-[#8a5a00]';
+    case 'refunding':
+    case 'refunded':
     case 'expired':
     case 'cancelled':
       return 'border-[#e5e7eb] bg-[#f4f5f7] text-[#5d6673]';
@@ -230,6 +237,23 @@ function isStuckPaidIntent(intent: CheckoutIntent) {
 
 function canReconcileIntent(intent: CheckoutIntent) {
   return canReconcileStatus(intent.status) || isStuckPaidIntent(intent);
+}
+
+// Platform-held: the buyer paid into the settlement wallet but the merchant
+// was never paid — the escrow can refund the buyer directly (backend
+// executeRefundRequest). Once settled, the money is the merchant's and only
+// the Solana Pay refund link applies.
+function isPlatformHeldIntent(intent: CheckoutIntent) {
+  return (
+    ['paid', 'settlement_failed', 'conversion_failed'].includes(intent.status) &&
+    intent.settlement?.status !== 'completed'
+  );
+}
+
+function openRefundRequest(intent: CheckoutIntent) {
+  return (intent.refundRequests || []).find(
+    (request) => request.status === 'requested'
+  );
 }
 
 function isActiveCheckoutStatus(status: CheckoutIntent['status']) {
@@ -304,6 +328,9 @@ export default function CheckoutCreateClient() {
   const [refundWallet, setRefundWallet] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [executingRefundIntentId, setExecutingRefundIntentId] = useState<
+    string | null
+  >(null);
   const [recentFilter, setRecentFilter] = useState<RecentFilter>('all');
   const [recentHasMore, setRecentHasMore] = useState(false);
   const [recentCursor, setRecentCursor] = useState<string | null>(null);
@@ -860,6 +887,65 @@ export default function CheckoutCreateClient() {
       loadRecent();
     } finally {
       setCancellingIntentId(null);
+    }
+  };
+
+  // Platform-held refund: the buyer paid the settlement wallet but the
+  // merchant was never paid — one click creates the refund request (if none
+  // is open) and has the escrow send the USDC back to the buyer.
+  const handleExecuteRefund = async (intent: CheckoutIntent) => {
+    if (!accessToken || executingRefundIntentId) return;
+
+    let refund = openRefundRequest(intent) || null;
+    const amountLabel =
+      refund?.amount ?? intent.fees?.merchantReceivesAmount ?? intent.amount.value;
+    const buyerWallet =
+      refund?.recipientWallet || intent.payer?.wallet?.address || '';
+    if (!buyerWallet) {
+      toast.error('No buyer wallet on this payment to refund to.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Send ${amountLabel} USDC from the Swop settlement wallet back to ${buyerWallet.slice(0, 6)}…${buyerWallet.slice(-4)}? This cancels the sale.`
+    );
+    if (!confirmed) return;
+
+    setExecutingRefundIntentId(intent.intentId);
+    try {
+      if (!refund) {
+        const updated = await createCheckoutRefundRequest(
+          intent.intentId,
+          { payerWallet: buyerWallet },
+          accessToken
+        );
+        refund = openRefundRequest(updated) || null;
+        if (!refund) throw new Error('Refund request was not created');
+      }
+
+      const result = await executeCheckoutRefundRequest(
+        intent.intentId,
+        refund.refundId,
+        accessToken
+      );
+      if (result.intent) {
+        setRecentIntents((current) =>
+          current.map((item) =>
+            item.intentId === result.intent?.intentId ? result.intent : item
+          )
+        );
+        setCreatedIntent((current) =>
+          current?.intentId === result.intent?.intentId
+            ? result.intent || current
+            : current
+        );
+      }
+      toast.success(result.message || 'Refund sent to the buyer');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to execute refund'
+      );
+    } finally {
+      setExecutingRefundIntentId(null);
     }
   };
 
@@ -1759,6 +1845,21 @@ export default function CheckoutCreateClient() {
                         Refund
                       </button>
                     )}
+                    {isPlatformHeldIntent(intent) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleExecuteRefund(intent)}
+                        disabled={executingRefundIntentId === intent.intentId}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[#f3c8c8] bg-white px-3 text-sm font-semibold text-[#b91c1c] transition hover:border-[#e5a3a3] hover:bg-[#fdf3f3] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {executingRefundIntentId === intent.intentId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4" />
+                        )}
+                        Refund buyer
+                      </button>
+                    ) : null}
                     {isCancellableCheckoutIntent(intent) ? (
                       <button
                         type="button"

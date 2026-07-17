@@ -84,6 +84,8 @@ const SUCCESS_STATUSES = new Set(['paid', 'settled']);
 const FINAL_STATUSES = new Set([
   'paid',
   'settled',
+  'refunding',
+  'refunded',
   'expired',
   'cancelled',
   'conversion_failed',

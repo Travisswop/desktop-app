@@ -35,6 +35,8 @@ export type CheckoutIntent = {
     | 'conversion_failed'
     | 'settlement_failed'
     | 'settled'
+    | 'refunding'
+    | 'refunded'
     | 'expired'
     | 'cancelled';
   checkoutMode?: 'online' | 'in_person';
@@ -188,7 +190,7 @@ export type CheckoutIntent = {
   } | null;
   refundRequests?: Array<{
     refundId: string;
-    status: 'requested' | 'completed' | 'cancelled';
+    status: 'requested' | 'processing' | 'completed' | 'cancelled';
     amount: number;
     currency: string;
     recipientWallet: string;
@@ -197,6 +199,7 @@ export type CheckoutIntent = {
     reason?: string;
     solanaPayUrl: string;
     txHash?: string | null;
+    error?: string | null;
     createdAt: string;
     completedAt?: string | null;
   }>;
@@ -551,6 +554,33 @@ export async function createCheckoutRefundRequest(
   const data = await parseResponse<CheckoutIntent>(response);
   if (!data.data) throw new Error('Refund request was not created');
   return data.data;
+}
+
+// Execute a refund of PLATFORM-HELD funds: the settlement wallet transfers
+// the refund back to the buyer (backend 379ea217). Only for payments the
+// merchant was never paid for — settled intents keep the Solana Pay
+// refund-link flow (merchant pays from their own wallet).
+export async function executeCheckoutRefundRequest(
+  intentId: string,
+  refundId: string,
+  accessToken: string
+) {
+  const response = await apiFetch(
+    `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
+      intentId
+    )}/refund-requests/${encodeURIComponent(refundId)}/execute`,
+    {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({}),
+    }
+  );
+  const data = await parseResponse<CheckoutIntent>(response);
+  return {
+    message: data.message,
+    transactionHash: data.transactionHash,
+    intent: data.data,
+  };
 }
 
 export async function createMarketplaceCheckoutIntent(
