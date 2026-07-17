@@ -557,13 +557,15 @@ export async function createCheckoutRefundRequest(
 }
 
 // Execute a refund of PLATFORM-HELD funds: the settlement wallet transfers
-// the refund back to the buyer (backend 379ea217). Only for payments the
-// merchant was never paid for — settled intents keep the Solana Pay
-// refund-link flow (merchant pays from their own wallet).
+// the refund back to the buyer (backend 379ea217). For SETTLED sales, pass
+// the merchant's Privy access token — the refund is rebuilt as a USDC
+// transfer from the MERCHANT's wallet and relayed through Privy gas
+// sponsorship (backend cef965e7).
 export async function executeCheckoutRefundRequest(
   intentId: string,
   refundId: string,
-  accessToken: string
+  accessToken: string,
+  privyAccessToken?: string
 ) {
   const response = await apiFetch(
     `${API_URL}/api/v5/checkout-intents/${encodeURIComponent(
@@ -572,7 +574,7 @@ export async function executeCheckoutRefundRequest(
     {
       method: 'POST',
       headers: authHeaders(accessToken),
-      body: JSON.stringify({}),
+      body: JSON.stringify(privyAccessToken ? { privyAccessToken } : {}),
     }
   );
   const data = await parseResponse<CheckoutIntent>(response);

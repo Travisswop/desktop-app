@@ -28,6 +28,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { usePrivy } from '@privy-io/react-auth';
 
 import {
   CheckoutNfcTerminal,
@@ -256,6 +257,21 @@ function openRefundRequest(intent: CheckoutIntent) {
   );
 }
 
+// Settled to the merchant: the money is theirs, so a refund is funded from
+// THEIR Swop wallet (sponsored relay, backend cef965e7) — never from escrow.
+function isSettledToMerchant(intent: CheckoutIntent) {
+  return (
+    intent.status === 'settled' ||
+    (intent.status === 'paid' && intent.settlement?.status === 'completed')
+  );
+}
+
+function hasCompletedRefund(intent: CheckoutIntent) {
+  return (intent.refundRequests || []).some(
+    (request) => request.status === 'completed'
+  );
+}
+
 function isActiveCheckoutStatus(status: CheckoutIntent['status']) {
   return status === 'active' || status === 'pending_payment';
 }
@@ -294,6 +310,7 @@ function terminalProgrammedLabel(terminal: CheckoutNfcTerminal) {
 export default function CheckoutCreateClient() {
   const router = useRouter();
   const { user, accessToken } = useUser();
+  const { getAccessToken: getPrivyAccessToken } = usePrivy();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [search, setSearch] = useState('');
@@ -896,6 +913,7 @@ export default function CheckoutCreateClient() {
   const handleExecuteRefund = async (intent: CheckoutIntent) => {
     if (!accessToken || executingRefundIntentId) return;
 
+    const merchantFunded = isSettledToMerchant(intent);
     let refund = openRefundRequest(intent) || null;
     const amountLabel =
       refund?.amount ?? intent.fees?.merchantReceivesAmount ?? intent.amount.value;
@@ -906,12 +924,24 @@ export default function CheckoutCreateClient() {
       return;
     }
     const confirmed = window.confirm(
-      `Send ${amountLabel} USDC from the Swop settlement wallet back to ${buyerWallet.slice(0, 6)}…${buyerWallet.slice(-4)}? This cancels the sale.`
+      merchantFunded
+        ? `Send ${amountLabel} USDC from YOUR Swop wallet back to ${buyerWallet.slice(0, 6)}…${buyerWallet.slice(-4)}? Gas is sponsored.`
+        : `Send ${amountLabel} USDC from the Swop settlement wallet back to ${buyerWallet.slice(0, 6)}…${buyerWallet.slice(-4)}? This cancels the sale.`
     );
     if (!confirmed) return;
 
     setExecutingRefundIntentId(intent.intentId);
     try {
+      // Settled sales are funded from the merchant's own wallet — the relay
+      // needs their Privy token to authorize signing.
+      let privyAccessToken: string | undefined;
+      if (merchantFunded) {
+        privyAccessToken = (await getPrivyAccessToken().catch(() => null)) || undefined;
+        if (!privyAccessToken) {
+          throw new Error('Your session expired. Sign in again to refund.');
+        }
+      }
+
       if (!refund) {
         const updated = await createCheckoutRefundRequest(
           intent.intentId,
@@ -925,7 +955,8 @@ export default function CheckoutCreateClient() {
       const result = await executeCheckoutRefundRequest(
         intent.intentId,
         refund.refundId,
-        accessToken
+        accessToken,
+        privyAccessToken
       );
       if (result.intent) {
         setRecentIntents((current) =>
@@ -1779,9 +1810,11 @@ export default function CheckoutCreateClient() {
                           intent.status
                         )}`}
                       >
-                        {isStuckPaidIntent(intent)
-                          ? 'Payout pending'
-                          : statusLabel(intent.status)}
+                        {hasCompletedRefund(intent)
+                          ? 'Refunded'
+                          : isStuckPaidIntent(intent)
+                            ? 'Payout pending'
+                            : statusLabel(intent.status)}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[#737b8c]">
@@ -1845,7 +1878,8 @@ export default function CheckoutCreateClient() {
                         Refund
                       </button>
                     )}
-                    {isPlatformHeldIntent(intent) ? (
+                    {(isPlatformHeldIntent(intent) ||
+                      (isSettledToMerchant(intent) && !hasCompletedRefund(intent))) ? (
                       <button
                         type="button"
                         onClick={() => handleExecuteRefund(intent)}
