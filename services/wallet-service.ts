@@ -126,6 +126,24 @@ export interface CoinbaseOnrampOrderResponse {
   sandbox?: boolean;
 }
 
+export interface OnrampPhoneStatus {
+  otpRequired: boolean;
+  verified: boolean;
+  phoneNumberMasked: string | null;
+  verifiedAt: string | null;
+}
+
+export interface OnrampPhoneStartResponse {
+  phoneNumber: string;
+  phoneNumberMasked: string;
+}
+
+export interface OnrampPhoneVerifyResponse {
+  verified: boolean;
+  phoneNumberMasked: string;
+  verifiedAt: string;
+}
+
 export class WalletService {
   private static async requestWalletTokens(
     url: string,
@@ -223,6 +241,92 @@ export class WalletService {
       throw new Error(
         result.message || 'Unable to start Coinbase funding.'
       );
+    }
+
+    return result.data;
+  }
+
+  // Coinbase guest checkout requires the phone number to be OTP-verified by us
+  // (re-verified every 60 days). These endpoints back the verify step; /status
+  // reports otpRequired=false while the backend has no Twilio credentials, in
+  // which case the legacy client-supplied phone flow stays active.
+  static async getOnrampPhoneStatus(
+    accessToken?: string | null
+  ): Promise<OnrampPhoneStatus> {
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(
+      buildSwopApiUrl('/api/v5/wallet/onramp/phone/status'),
+      { headers, signal: AbortSignal.timeout(15000) }
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || 'Unable to load phone verification status.'
+      );
+    }
+
+    return result.data;
+  }
+
+  static async startOnrampPhoneVerification(
+    phoneNumber: string,
+    accessToken?: string | null
+  ): Promise<OnrampPhoneStartResponse> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(
+      buildSwopApiUrl('/api/v5/wallet/onramp/phone/start'),
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ phoneNumber }),
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Unable to send verification code.');
+    }
+
+    return result.data;
+  }
+
+  static async verifyOnrampPhoneCode(
+    phoneNumber: string,
+    code: string,
+    accessToken?: string | null
+  ): Promise<OnrampPhoneVerifyResponse> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(
+      buildSwopApiUrl('/api/v5/wallet/onramp/phone/verify'),
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ phoneNumber, code }),
+        signal: AbortSignal.timeout(20000),
+      }
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Verification failed. Try again.');
     }
 
     return result.data;

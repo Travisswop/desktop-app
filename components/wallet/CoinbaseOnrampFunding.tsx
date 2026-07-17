@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
+import type { OnrampPhoneStatus } from "@/services/wallet-service";
 import { useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import coinbaseImg from "@/public/images/coinbase.png";
@@ -139,7 +140,98 @@ export default function CoinbaseOnrampFunding({
     useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [onrampEvent, setOnrampEvent] = useState<string | null>(null);
+  // Coinbase requires us to OTP-verify the phone (re-verify every 60 days).
+  // otpRequired=false (backend without Twilio, or older backend without the
+  // endpoint) keeps the legacy type-a-phone flow.
+  const [phoneStatus, setPhoneStatus] = useState<OnrampPhoneStatus | null>(
+    null
+  );
+  const [otpCodeSent, setOtpCodeSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const isDark = variant === "dark";
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    WalletService.getOnrampPhoneStatus(accessToken)
+      .then((status) => {
+        if (!cancelled) setPhoneStatus(status);
+      })
+      .catch(() => {
+        // Status endpoint unavailable (older backend) — keep the legacy flow.
+        if (!cancelled) {
+          setPhoneStatus({
+            otpRequired: false,
+            verified: false,
+            phoneNumberMasked: null,
+            verifiedAt: null,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  const otpRequired = Boolean(phoneStatus?.otpRequired);
+  const phoneVerified = Boolean(phoneStatus?.verified);
+
+  const handleSendOtp = async () => {
+    const normalized = toUsE164(phoneNumber);
+    if (!normalized) return;
+    setOtpBusy(true);
+    setOtpError(null);
+    try {
+      await WalletService.startOnrampPhoneVerification(
+        normalized,
+        accessToken
+      );
+      setOtpCodeSent(true);
+      setOtpCode("");
+    } catch (err: any) {
+      setOtpError(err?.message || "Unable to send verification code.");
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const normalized = toUsE164(phoneNumber);
+    if (!normalized || !otpCode.trim()) return;
+    setOtpBusy(true);
+    setOtpError(null);
+    try {
+      const result = await WalletService.verifyOnrampPhoneCode(
+        normalized,
+        otpCode.trim(),
+        accessToken
+      );
+      setPhoneStatus({
+        otpRequired: true,
+        verified: true,
+        phoneNumberMasked: result.phoneNumberMasked,
+        verifiedAt: result.verifiedAt,
+      });
+      setOtpCodeSent(false);
+      setOtpCode("");
+    } catch (err: any) {
+      setOtpError(err?.message || "Verification failed. Try again.");
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const handleChangePhone = () => {
+    setPhoneStatus((status) =>
+      status ? { ...status, verified: false } : status
+    );
+    setPhoneNumber("");
+    setOtpCodeSent(false);
+    setOtpCode("");
+    setOtpError(null);
+  };
 
   const evmAddress = useMemo(() => {
     const embeddedWallet =
@@ -172,7 +264,10 @@ export default function CoinbaseOnrampFunding({
   const amountValid = Number.isFinite(numericAmount) && numericAmount > 0;
   // Guest checkout requires a valid US phone in strict E.164 — match the server.
   const phoneValid = toUsE164(phoneNumber) !== null;
-  const canStart = Boolean(accessToken && amountValid && phoneValid);
+  // With OTP enforcement, the phone gate is a completed verification instead of
+  // a locally-valid number.
+  const phoneReady = otpRequired ? phoneVerified : phoneValid;
+  const canStart = Boolean(accessToken && amountValid && phoneReady);
 
   const handleSelectNetwork = (network: CoinbaseOnrampNetwork) => {
     setSelectedNetwork(network);
@@ -202,8 +297,12 @@ export default function CoinbaseOnrampFunding({
           paymentCurrency: "USD",
           paymentAmount,
           paymentMethod: "GUEST_CHECKOUT_APPLE_PAY",
-          phoneNumber,
-          phoneNumberVerifiedAt: agreementAcceptedAt,
+          // With OTP enforcement the backend uses the stored verified number
+          // and its real verification timestamp; client phone fields are
+          // ignored there, so only send them on legacy backends.
+          ...(otpRequired
+            ? {}
+            : { phoneNumber, phoneNumberVerifiedAt: agreementAcceptedAt }),
           agreementAcceptedAt,
           domain:
             typeof window !== "undefined"
@@ -226,6 +325,16 @@ export default function CoinbaseOnrampFunding({
     } catch (err: any) {
       const message =
         err?.message || "Unable to start embedded Coinbase funding.";
+
+      // Backend refused the order because the stored verification lapsed
+      // (60-day re-verify) — reopen the OTP step instead of a dead-end error.
+      if (/verify your phone/i.test(message)) {
+        setPhoneStatus((status) =>
+          status ? { ...status, verified: false } : status
+        );
+        setError(message);
+        return;
+      }
 
       if (isDomainAllowlistError(message)) {
         setError(
@@ -584,36 +693,138 @@ export default function CoinbaseOnrampFunding({
           </div>
         </label>
 
-        <label
-          className={`mt-4 block text-sm font-semibold ${
-            isDark ? "text-[#9ca0aa]" : "text-gray-700"
-          }`}
-        >
-          Phone number
+        {otpRequired && phoneVerified ? (
           <div
-            className={`mt-2 flex items-center rounded-xl border px-3 ${
+            className={`mt-4 flex items-center justify-between rounded-xl border p-3 ${
               isDark
-                ? "border-white/[0.08] bg-black text-[#eceef2]"
-                : "border-gray-200 bg-white"
+                ? "border-[#3fe08f]/25 bg-[#3fe08f]/10"
+                : "border-emerald-200 bg-emerald-50"
             }`}
           >
-            <Phone
-              className={`h-4 w-4 ${
-                isDark ? "text-[#6f7380]" : "text-gray-400"
-              }`}
-            />
-            <input
-              value={phoneNumber}
-              onChange={(event) =>
-                setPhoneNumber(normalizePhoneInput(event.target.value))
-              }
+            <div className="flex items-center gap-2">
+              <CheckCircle2
+                className={`h-4 w-4 ${
+                  isDark ? "text-[#3fe08f]" : "text-emerald-600"
+                }`}
+              />
+              <span
+                className={`text-sm font-semibold ${
+                  isDark ? "text-[#eceef2]" : "text-gray-950"
+                }`}
+              >
+                Phone verified · {phoneStatus?.phoneNumberMasked}
+              </span>
+            </div>
+            <button
+              onClick={handleChangePhone}
               disabled={isLoading}
-              inputMode="tel"
-              className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none disabled:opacity-60"
-              placeholder="+1 555 123 4567"
-            />
+              className={`text-xs font-semibold underline-offset-2 hover:underline ${
+                isDark ? "text-[#9ca0aa]" : "text-gray-500"
+              }`}
+            >
+              Change
+            </button>
           </div>
-        </label>
+        ) : (
+          <label
+            className={`mt-4 block text-sm font-semibold ${
+              isDark ? "text-[#9ca0aa]" : "text-gray-700"
+            }`}
+          >
+            Phone number
+            <div
+              className={`mt-2 flex items-center rounded-xl border px-3 ${
+                isDark
+                  ? "border-white/[0.08] bg-black text-[#eceef2]"
+                  : "border-gray-200 bg-white"
+              }`}
+            >
+              <Phone
+                className={`h-4 w-4 ${
+                  isDark ? "text-[#6f7380]" : "text-gray-400"
+                }`}
+              />
+              <input
+                value={phoneNumber}
+                onChange={(event) =>
+                  setPhoneNumber(normalizePhoneInput(event.target.value))
+                }
+                disabled={isLoading || otpBusy || (otpRequired && otpCodeSent)}
+                inputMode="tel"
+                className="w-full bg-transparent px-2 py-3 text-lg font-semibold outline-none disabled:opacity-60"
+                placeholder="+1 555 123 4567"
+              />
+              {otpRequired && !otpCodeSent && (
+                <button
+                  onClick={handleSendOtp}
+                  disabled={!phoneValid || otpBusy || isLoading}
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isDark
+                      ? "bg-[#3fe08f] text-[#031008] hover:bg-[#64f2aa]"
+                      : "bg-black text-white hover:bg-gray-900"
+                  }`}
+                >
+                  {otpBusy ? "Sending…" : "Text me a code"}
+                </button>
+              )}
+            </div>
+            {otpRequired && otpCodeSent && (
+              <div
+                className={`mt-2 flex items-center gap-2 rounded-xl border px-3 ${
+                  isDark
+                    ? "border-white/[0.08] bg-black text-[#eceef2]"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <ShieldCheck
+                  className={`h-4 w-4 flex-none ${
+                    isDark ? "text-[#6f7380]" : "text-gray-400"
+                  }`}
+                />
+                <input
+                  value={otpCode}
+                  onChange={(event) =>
+                    setOtpCode(event.target.value.replace(/\D/g, ""))
+                  }
+                  disabled={otpBusy || isLoading}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  className="w-full bg-transparent px-2 py-3 text-lg font-semibold tracking-widest outline-none disabled:opacity-60"
+                  placeholder="Enter SMS code"
+                />
+                <button
+                  onClick={handleVerifyOtp}
+                  disabled={!otpCode.trim() || otpBusy || isLoading}
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isDark
+                      ? "bg-[#3fe08f] text-[#031008] hover:bg-[#64f2aa]"
+                      : "bg-black text-white hover:bg-gray-900"
+                  }`}
+                >
+                  {otpBusy ? "Checking…" : "Verify"}
+                </button>
+                <button
+                  onClick={handleSendOtp}
+                  disabled={otpBusy || isLoading}
+                  className={`whitespace-nowrap text-xs font-semibold underline-offset-2 hover:underline disabled:opacity-50 ${
+                    isDark ? "text-[#9ca0aa]" : "text-gray-500"
+                  }`}
+                >
+                  Resend
+                </button>
+              </div>
+            )}
+            {otpError && (
+              <p
+                className={`mt-2 text-xs font-medium ${
+                  isDark ? "text-[#ffb2b6]" : "text-red-600"
+                }`}
+              >
+                {otpError}
+              </p>
+            )}
+          </label>
+        )}
 
         <div
           className={`mt-3 rounded-xl p-3 text-sm ${
@@ -676,8 +887,9 @@ export default function CoinbaseOnrampFunding({
           >
             <AlertCircle className="mt-0.5 h-4 w-4 flex-none" />
             <span>
-              Enter an amount greater than $0 and a valid US phone number to
-              render the in-app Coinbase payment button.
+              {otpRequired
+                ? "Enter an amount greater than $0 and verify your US phone number by SMS to render the in-app Coinbase payment button."
+                : "Enter an amount greater than $0 and a valid US phone number to render the in-app Coinbase payment button."}
             </span>
           </div>
         )}
