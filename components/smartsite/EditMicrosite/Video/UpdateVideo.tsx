@@ -29,6 +29,9 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
   );
   const [fileError, setFileError] = useState<string>('');
   const [attachLink, setAttachLink] = useState<string>('');
+  // Raw File kept alongside the data-URL preview: videos upload as binary
+  // (chunked past the base64 body-size cliff), the data URL is preview-only.
+  const [rawVideoFile, setRawVideoFile] = useState<File | null>(null);
   const isSubmittingRef = useRef(false);
   const isDeletingRef = useRef(false);
 
@@ -57,20 +60,21 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
       return;
     }
 
-    const maxSize = nextFileType === 'video' ? 20 : 10;
-    if (file.size > maxSize * 1024 * 1024) {
-      setFileError(`File size should be less than ${maxSize} MB`);
+    if (nextFileType === 'image' && file.size > 10 * 1024 * 1024) {
+      setFileError('File size should be less than 10 MB');
       setVideoFile(null);
       setVideoFileType(null);
+      setRawVideoFile(null);
       return;
     }
 
     if (nextFileType === 'video') {
-      // Plan-based video length cap (2 min free / 30 min premium).
+      // Plan-based caps (length: 2 min free / 30 min premium; size: maxUploadMb).
       const [allowed] = await filterVideoFilesByPlan([file]);
       if (!allowed) {
         setVideoFile(null);
         setVideoFileType(null);
+        setRawVideoFile(null);
         return;
       }
     }
@@ -79,6 +83,7 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
     reader.onloadend = () => {
       setVideoFile(reader.result as any);
       setVideoFileType(nextFileType);
+      setRawVideoFile(nextFileType === 'video' ? file : null);
       setFileError('');
     };
     reader.readAsDataURL(file);
@@ -120,9 +125,8 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
           const uploadedUrl =
             videoFileType === 'image'
               ? await sendCloudinaryImage(info.file)
-              : await sendCloudinaryVideo(info.file);
+              : await sendCloudinaryVideo(rawVideoFile ?? info.file);
           if (!uploadedUrl) {
-            toast.error('Media upload failed!');
             throw new Error('Media upload failed');
           }
           info.file = uploadedUrl;
@@ -140,6 +144,11 @@ const UpdateVideo = ({ iconDataObj, isOn, setOff }: any) => {
         }
       } catch (error) {
         console.error(error);
+        toast.error(
+          error instanceof Error && error.message
+            ? error.message
+            : 'Media upload failed!',
+        );
       } finally {
         isSubmittingRef.current = false;
         setIsLoading(false);

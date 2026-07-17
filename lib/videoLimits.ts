@@ -3,17 +3,24 @@
 import Cookies from 'js-cookie';
 import toast from 'react-hot-toast';
 
-// Plan-based video length caps: 2 minutes on Free, 30 minutes on Premium.
-// The numbers come from the backend entitlements payload so every surface
-// (desktop, mobile, feed, SmartSite media) agrees.
+// Plan-based media caps: video length (2 minutes Free / 30 minutes Premium)
+// and upload size (maxUploadMb). The numbers come from the backend
+// entitlements payload so every surface (desktop, mobile, feed, SmartSite
+// media) agrees.
 const FREE_FALLBACK_SECONDS = 120;
+const FREE_FALLBACK_UPLOAD_MB = 100;
 const CACHE_MS = 5 * 60 * 1000;
 
-let cached: { value: number; at: number } | null = null;
+type MediaFeatures = { maxVideoSeconds: number; maxUploadMb: number };
 
-export async function getMaxVideoSeconds(): Promise<number> {
+let cached: { value: MediaFeatures; at: number } | null = null;
+
+async function getMediaFeatures(): Promise<MediaFeatures> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.value;
-  let value = FREE_FALLBACK_SECONDS;
+  const value: MediaFeatures = {
+    maxVideoSeconds: FREE_FALLBACK_SECONDS,
+    maxUploadMb: FREE_FALLBACK_UPLOAD_MB,
+  };
   try {
     const token = Cookies.get('access-token');
     if (token) {
@@ -22,15 +29,27 @@ export async function getMaxVideoSeconds(): Promise<number> {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const body = await res.json();
-      const fromServer = body?.data?.features?.maxVideoSeconds;
-      if (typeof fromServer === 'number' && fromServer > 0) value = fromServer;
-      if (fromServer === null) value = Number.POSITIVE_INFINITY;
+      const features = body?.data?.features || {};
+      // null = unlimited for either cap.
+      for (const key of ['maxVideoSeconds', 'maxUploadMb'] as const) {
+        const fromServer = features[key];
+        if (typeof fromServer === 'number' && fromServer > 0) value[key] = fromServer;
+        if (fromServer === null) value[key] = Number.POSITIVE_INFINITY;
+      }
     }
   } catch {
-    // Signed out / offline — enforce the free cap rather than blocking.
+    // Signed out / offline — enforce the free caps rather than blocking.
   }
   cached = { value, at: Date.now() };
   return value;
+}
+
+export async function getMaxVideoSeconds(): Promise<number> {
+  return (await getMediaFeatures()).maxVideoSeconds;
+}
+
+export async function getMaxUploadMb(): Promise<number> {
+  return (await getMediaFeatures()).maxUploadMb;
 }
 
 export function getVideoDurationSeconds(file: File): Promise<number | null> {
@@ -51,14 +70,20 @@ export function getVideoDurationSeconds(file: File): Promise<number | null> {
 }
 
 /**
- * Drop videos longer than the plan allows (images pass through untouched)
- * and toast an upgrade prompt when something was dropped.
+ * Drop files that exceed the plan's caps — videos longer than the plan
+ * allows, or any media over the plan's upload size — and toast a clear
+ * reason when something was dropped.
  */
 export async function filterVideoFilesByPlan(files: File[]): Promise<File[]> {
-  const cap = await getMaxVideoSeconds();
+  const { maxVideoSeconds, maxUploadMb } = await getMediaFeatures();
   const allowed: File[] = [];
-  let dropped = 0;
+  let droppedTooLong = 0;
+  let droppedTooBig = 0;
   for (const file of files) {
+    if (file.size > maxUploadMb * 1024 * 1024) {
+      droppedTooBig += 1;
+      continue;
+    }
     if (!file.type.startsWith('video/')) {
       allowed.push(file);
       continue;
@@ -66,16 +91,23 @@ export async function filterVideoFilesByPlan(files: File[]): Promise<File[]> {
     const duration = await getVideoDurationSeconds(file);
     // Unreadable metadata → let it through; the cap is a product limit, not
     // a security boundary.
-    if (duration !== null && duration > cap) {
-      dropped += 1;
+    if (duration !== null && duration > maxVideoSeconds) {
+      droppedTooLong += 1;
       continue;
     }
     allowed.push(file);
   }
-  if (dropped > 0) {
-    const minutes = Math.round(cap / 60);
+  if (droppedTooLong > 0) {
+    const minutes = Math.round(maxVideoSeconds / 60);
     toast.error(
       `Videos can be up to ${minutes} minute${minutes === 1 ? '' : 's'} on your plan. Upgrade to Premium for 30-minute videos.`
+    );
+  }
+  if (droppedTooBig > 0) {
+    toast.error(
+      Number.isFinite(maxUploadMb)
+        ? `Files can be up to ${maxUploadMb} MB on your plan.`
+        : 'That file is too large to upload.'
     );
   }
   return allowed;

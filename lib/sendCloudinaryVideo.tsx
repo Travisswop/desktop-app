@@ -1,37 +1,9 @@
-import logger from '../utils/logger';
+import { uploadToCloudinary } from './cloudinaryUpload';
 
 export const maxDuration = 60;
+
+// Accepts a raw File/Blob (preferred — enables chunked uploads past the
+// base64 body-size cliff) or a legacy base64 data URI.
 export const sendCloudinaryVideo = async (
-  base64Video: string
-): Promise<string> => {
-  try {
-    const data = new FormData();
-
-    data.append('file', base64Video);
-    data.append('upload_preset', 'swopapp');
-    data.append('cloud_name', 'bayshore');
-
-    const cloudResponse = await fetch(
-      'https://api.cloudinary.com/v1_1/bayshore/auto/upload',
-      {
-        method: 'POST',
-        body: data,
-      }
-    );
-
-    if (!cloudResponse.ok) {
-      const errorObj = await cloudResponse.json();
-      throw new Error(
-        `Cloudinary upload failed: ${errorObj.message}`
-      );
-    }
-
-    const cloudResData = await cloudResponse.json();
-    const cloudPicUrl = cloudResData.secure_url;
-
-    return cloudPicUrl;
-  } catch (err) {
-    logger.error('Error uploading image to Cloudinary:', err);
-    throw err;
-  }
-};
+  video: File | Blob | string
+): Promise<string> => uploadToCloudinary(video);
