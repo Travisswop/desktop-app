@@ -214,13 +214,32 @@ function canReconcileStatus(status: CheckoutIntent['status']) {
   ].includes(status);
 }
 
+// A paid intent whose settlement never completed (crash between 'paid' and
+// 'settled', or a mint hold that recorded an error) can be re-driven via
+// reconcile (backend cbd2fbc3). Escrow-held intents — settlement 'pending'
+// with NO error — are deliberately waiting for the buyer to confirm receipt
+// and must not show a retry.
+function isStuckPaidIntent(intent: CheckoutIntent) {
+  if (intent.status !== 'paid') return false;
+  const settlement = intent.settlement;
+  if (!settlement || !settlement.status) return true;
+  if (settlement.status === 'completed') return false;
+  if (settlement.status === 'failed') return true;
+  return Boolean(settlement.error);
+}
+
+function canReconcileIntent(intent: CheckoutIntent) {
+  return canReconcileStatus(intent.status) || isStuckPaidIntent(intent);
+}
+
 function isActiveCheckoutStatus(status: CheckoutIntent['status']) {
   return status === 'active' || status === 'pending_payment';
 }
 
-function reconcileActionLabel(status: CheckoutIntent['status']) {
-  if (status === 'settlement_failed') return 'Retry settlement';
-  if (status === 'conversion_failed') return 'Retry conversion';
+function reconcileActionLabel(intent: CheckoutIntent) {
+  if (intent.status === 'settlement_failed') return 'Retry settlement';
+  if (intent.status === 'conversion_failed') return 'Retry conversion';
+  if (isStuckPaidIntent(intent)) return 'Retry payout';
   return 'Reconcile';
 }
 
@@ -1674,7 +1693,9 @@ export default function CheckoutCreateClient() {
                           intent.status
                         )}`}
                       >
-                        {statusLabel(intent.status)}
+                        {isStuckPaidIntent(intent)
+                          ? 'Payout pending'
+                          : statusLabel(intent.status)}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[#737b8c]">
@@ -1714,7 +1735,7 @@ export default function CheckoutCreateClient() {
                       <Copy className="h-4 w-4" />
                       {paymentType === 'phantom' ? 'Copy Phantom' : 'Copy Swop'}
                     </button>
-                    {canReconcileStatus(intent.status) ? (
+                    {canReconcileIntent(intent) ? (
                       <button
                         type="button"
                         onClick={() => handleReconcile(intent)}
@@ -1726,7 +1747,7 @@ export default function CheckoutCreateClient() {
                         ) : (
                           <RefreshCw className="h-4 w-4" />
                         )}
-                        {reconcileActionLabel(intent.status)}
+                        {reconcileActionLabel(intent)}
                       </button>
                     ) : (
                       <button
