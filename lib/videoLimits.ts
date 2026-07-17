@@ -56,15 +56,20 @@ export function getVideoDurationSeconds(file: File): Promise<number | null> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
+    // The browser can fire NEITHER loadedmetadata NOR error (codecs it can't
+    // probe, media loading deferred in background/occluded tabs) — without a
+    // deadline the caller's await hangs forever and the upload dies silently
+    // before any spinner or toast. Null = unreadable = let it through.
+    const settle = (value: number | null) => {
+      clearTimeout(deadline);
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    const deadline = setTimeout(() => settle(null), 5000);
     video.preload = 'metadata';
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(Number.isFinite(video.duration) ? video.duration : null);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
+    video.onloadedmetadata = () =>
+      settle(Number.isFinite(video.duration) ? video.duration : null);
+    video.onerror = () => settle(null);
     video.src = url;
   });
 }
