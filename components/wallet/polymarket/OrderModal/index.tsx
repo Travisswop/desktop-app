@@ -1,6 +1,7 @@
 'use client';
 
 import { useClobOrder, useTickSize } from '@/hooks/polymarket';
+import { useEventLiveScore } from '@/hooks/polymarket/useEventLiveScore';
 import { useState, useEffect, useRef } from 'react';
 import { usePolymarketWallet, useTrading } from '@/providers/polymarket';
 import { usePrivy } from '@privy-io/react-auth';
@@ -33,6 +34,9 @@ import {
 } from '@/lib/polymarket/validation';
 import { resolvePredictionFeedExecution } from '@/lib/polymarket/orderExecution';
 
+
+// Default order size for a fresh buy ticket (mobile parity).
+const DEFAULT_BUY_AMOUNT = '20';
 
 function isValidTickPrice(price: number, tickSize: number): boolean {
   if (tickSize <= 0) return false;
@@ -115,6 +119,15 @@ export default function OrderPlacementModal({
   const { user }: any = useUser();
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Live scoreboard under the title — the market data a modal was opened from
+  // can be minutes stale, so poll the event feed while the modal is open.
+  const liveScore = useEventLiveScore(isOpen ? eventSlug : undefined);
+  const scoredTeams = (liveScore?.teams ?? []).filter(
+    (team) => team.score != null,
+  );
+  const teamAbbr = (team: { name: string | null; abbreviation: string | null }) =>
+    (team.abbreviation || team.name || '?').slice(0, 3).toUpperCase();
+
   const activeTokenId =
     selectedOutcome === 'yes' ? yesTokenId : noTokenId || tokenId;
   const activePrice = selectedOutcome === 'yes' ? yesPrice : noPrice;
@@ -135,7 +148,7 @@ export default function OrderPlacementModal({
 
   useEffect(() => {
     if (isOpen) {
-      setInputValue('');
+      setInputValue(DEFAULT_BUY_AMOUNT);
       setOrderType('market');
       setSide('BUY');
       setSelectedOutcome(
@@ -148,9 +161,9 @@ export default function OrderPlacementModal({
     }
   }, [isOpen, outcome]);
 
-  // Reset input when switching between buy/sell
+  // Reset input when switching between buy/sell (sell input means shares)
   useEffect(() => {
-    setInputValue('');
+    setInputValue(side === 'BUY' ? DEFAULT_BUY_AMOUNT : '');
     setLocalError(null);
   }, [side]);
 
@@ -432,9 +445,30 @@ export default function OrderPlacementModal({
           {/* Header with Market Title */}
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-start justify-between">
-              <h3 className="text-sm font-medium text-gray-600 line-clamp-2 flex-1 pr-2">
-                {marketTitle}
-              </h3>
+              <div className="flex-1 pr-2 min-w-0">
+                <h3 className="text-sm font-medium text-gray-600 line-clamp-2">
+                  {marketTitle}
+                </h3>
+                {scoredTeams.length >= 2 && (
+                  <div className="flex items-center gap-2 mt-1">
+                    {liveScore?.live ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {[liveScore.period, liveScore.elapsed]
+                          .filter(Boolean)
+                          .join(' ') || 'Live'}
+                      </span>
+                    ) : liveScore?.ended ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                        Final
+                      </span>
+                    ) : null}
+                    <span className="font-mono text-xs font-bold text-gray-950 truncate">
+                      {`${teamAbbr(scoredTeams[0])} ${scoredTeams[0].score} — ${teamAbbr(scoredTeams[1])} ${scoredTeams[1].score}`}
+                    </span>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-800 transition-colors p-1"
@@ -534,6 +568,7 @@ export default function OrderPlacementModal({
                 }}
                 balance={balance}
                 balanceHint={balanceHint}
+                marketPrice={isMarketVariant ? activePrice : 0}
                 onQuickAmount={handleQuickAmount}
                 onMaxAmount={() => {
                   if (isLimitVariant && limitPriceNum > 0) {

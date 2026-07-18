@@ -41,6 +41,7 @@ import {
   type PriceMap,
 } from '@/lib/polymarket/clob-prices';
 import EnableTradingModal from '@/components/wallet/polymarket/EnableTradingModal';
+import AmountDial from '../shared/AmountDial';
 import { buildOrderSuccessInfo } from '../shared/OrderSuccessNotification';
 import {
   TradeCelebration,
@@ -75,6 +76,9 @@ const D = {
 
 const GAME_LINES_GRID =
   'minmax(0,1fr) minmax(72px,96px) minmax(78px,108px) minmax(78px,108px)';
+
+// Default order size for a fresh buy ticket (mobile parity).
+const DEFAULT_BUY_AMOUNT = '20';
 
 const ERC1155_BALANCE_OF_ABI = [
   {
@@ -2398,6 +2402,9 @@ function OrderTicket(p: OrderTicketProps) {
   const yesLabel = p.outcomeLabels?.[0] ?? p.yesOutcomeName;
   const noLabel = p.outcomeLabels?.[1] ?? p.noOutcomeName;
   const hasDisplayOutcomeLabels = Boolean(p.outcomeLabels);
+  // Rotary dial entry (mobile-swap parity) for market-mode dollar buys —
+  // drag to size the order as a % of the max buyable balance.
+  const [entryMode, setEntryMode] = useState<'dial' | 'input'>('dial');
 
   const isLimit = p.orderType === 'limit';
   const inputNum = parseFloat(p.inputValue) || 0;
@@ -2535,6 +2542,19 @@ function OrderTicket(p: OrderTicketProps) {
     if (p.activeShareBalance > 0) {
       p.onInputChange(floorShares(p.activeShareBalance));
     }
+  };
+
+  const safeMaxBuy = getSafePolymarketMaxBuyAmount(p.balance);
+  const dialUsable = p.side === 'BUY' && !isLimit && safeMaxBuy > 0;
+  const showDial = dialUsable && entryMode === 'dial';
+  const dialPercent = dialUsable
+    ? Math.min(100, Math.max(0, (inputNum / safeMaxBuy) * 100))
+    : 0;
+  const handleDialPercent = (pct: number) => {
+    if (!dialUsable || p.isSubmitting) return;
+    const clampedPct = Math.min(100, Math.max(0, pct));
+    const usd = (safeMaxBuy * clampedPct) / 100;
+    p.onInputChange(clampedPct === 0 ? '' : usd.toFixed(2));
   };
 
   const buyQuickChips: {
@@ -3001,82 +3021,101 @@ function OrderTicket(p: OrderTicketProps) {
               : `Holdings · ${floorShares(p.activeShareBalance)} shares`}
           </FieldHint>
         </div>
-        <div
-          style={{
-            padding: '20px 18px',
-            borderRadius: 14,
-            border: `1px solid ${D.hair}`,
-            background: D.surface2,
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
+        {showDial ? (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              minWidth: 0,
-              flex: 1,
+              padding: '12px 0 4px',
+              borderRadius: 14,
+              border: `1px solid ${D.hair}`,
+              background: D.surface2,
             }}
           >
-            {p.side === 'BUY' && (
-              <span
+            <AmountDial
+              percent={dialPercent}
+              onPercentChange={handleDialPercent}
+              primaryText={`$${inputNum.toFixed(2)}`}
+              secondaryText={`≈ ${p.shares.toFixed(2)} shares`}
+              disabled={p.isSubmitting}
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: '20px 18px',
+              borderRadius: 14,
+              border: `1px solid ${D.hair}`,
+              background: D.surface2,
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
+              {p.side === 'BUY' && (
+                <span
+                  style={{
+                    fontFamily: D.mono,
+                    fontSize: 36,
+                    fontWeight: 600,
+                    color: D.muted2,
+                  }}
+                >
+                  $
+                </span>
+              )}
+              <input
+                type="number"
+                inputMode="decimal"
+                value={p.inputValue}
+                onChange={(e) => p.onInputChange(e.target.value)}
+                placeholder="0.00"
+                disabled={p.isSubmitting}
                 style={{
                   fontFamily: D.mono,
                   fontSize: 36,
                   fontWeight: 600,
-                  color: D.muted2,
+                  letterSpacing: -1,
+                  color: D.ink,
+                  marginLeft: p.side === 'BUY' ? 4 : 0,
+                  width: '100%',
+                  minWidth: 0,
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              />
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <FieldLabel>
+                {p.side === 'BUY' ? 'Shares' : 'You receive'}
+              </FieldLabel>
+              <div
+                style={{
+                  fontFamily: D.mono,
+                  fontSize: 22,
+                  fontWeight: 600,
+                  letterSpacing: -0.4,
+                  color: D.ink,
+                  marginTop: 2,
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                $
-              </span>
-            )}
-            <input
-              type="number"
-              inputMode="decimal"
-              value={p.inputValue}
-              onChange={(e) => p.onInputChange(e.target.value)}
-              placeholder="0.00"
-              disabled={p.isSubmitting}
-              style={{
-                fontFamily: D.mono,
-                fontSize: 36,
-                fontWeight: 600,
-                letterSpacing: -1,
-                color: D.ink,
-                marginLeft: p.side === 'BUY' ? 4 : 0,
-                width: '100%',
-                minWidth: 0,
-                border: 'none',
-                outline: 'none',
-                background: 'transparent',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            />
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <FieldLabel>
-              {p.side === 'BUY' ? 'Shares' : 'You receive'}
-            </FieldLabel>
-            <div
-              style={{
-                fontFamily: D.mono,
-                fontSize: 22,
-                fontWeight: 600,
-                letterSpacing: -0.4,
-                color: D.ink,
-                marginTop: 2,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {p.side === 'BUY'
-                ? p.shares.toFixed(2)
-                : fmtMoney(p.amountToReceive)}
+                {p.side === 'BUY'
+                  ? p.shares.toFixed(2)
+                  : fmtMoney(p.amountToReceive)}
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div
           style={{
             display: 'flex',
@@ -3099,6 +3138,15 @@ function OrderTicket(p: OrderTicketProps) {
             </ChipBtn>
           ))}
           <ChipBtn onClick={onMaxAmount}>Max</ChipBtn>
+          {dialUsable && (
+            <ChipBtn
+              onClick={() =>
+                setEntryMode(entryMode === 'dial' ? 'input' : 'dial')
+              }
+            >
+              {entryMode === 'dial' ? '⌨ Type' : '◎ Dial'}
+            </ChipBtn>
+          )}
         </div>
         {p.side === 'BUY' && p.balanceHint && (
           <div
@@ -4893,7 +4941,7 @@ export default function MarketDetailView({
   // Pre-fill from any deep-link / hand-off props on first mount and whenever
   // the page is navigated to with new initial outcome/amount.
   useEffect(() => {
-    setInputValue(initialAmount ?? '');
+    setInputValue(initialAmount ?? DEFAULT_BUY_AMOUNT);
     setOrderType(initialOrderType ?? 'market');
     setSide(initialSide ?? 'BUY');
     setSelectedOutcome(initialOutcome ?? 'yes');
@@ -4903,8 +4951,9 @@ export default function MarketDetailView({
     setShowFullDescription(false);
   }, [initialOutcome, initialAmount, initialSide, initialOrderType, initialLimitPrice]);
 
+  // Sell input means shares, so only the buy side gets the default stake.
   useEffect(() => {
-    setInputValue('');
+    setInputValue(side === 'BUY' ? DEFAULT_BUY_AMOUNT : '');
     setLocalError(null);
   }, [side]);
 

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
+import AmountDial from '../shared/AmountDial';
 import {
   isValidDecimalInput,
   isValidCentsInput,
@@ -25,6 +26,8 @@ interface AmountInputProps {
   minOrderAmount?: number;
   /** Limit price as 0-1 decimal — used to compute max shares in limit mode */
   limitPriceDecimal?: number;
+  /** Live 0-1 price of the selected outcome — powers the dial's share preview */
+  marketPrice?: number;
 }
 
 export default function AmountInput({
@@ -42,9 +45,26 @@ export default function AmountInput({
   isLoadingTickSize,
   minOrderAmount = 1,
   limitPriceDecimal = 0,
+  marketPrice = 0,
 }: AmountInputProps) {
   const isLimitMode = orderType === 'limit';
   const safeMaxBuyAmount = getSafePolymarketMaxBuyAmount(balance);
+  // Rotary dial entry (mobile-swap parity): drag to size the order as a % of
+  // the max buyable balance. Only meaningful for market-mode dollar entry with
+  // a positive balance; the typed input stays one toggle away.
+  const [entryMode, setEntryMode] = useState<'dial' | 'input'>('dial');
+  const dialUsable = !isLimitMode && safeMaxBuyAmount > 0;
+  const showDial = dialUsable && entryMode === 'dial';
+  const amountNum = parseFloat(amount) || 0;
+  const dialPercent = dialUsable
+    ? Math.min(100, Math.max(0, (amountNum / safeMaxBuyAmount) * 100))
+    : 0;
+  const handleDialPercent = (pct: number) => {
+    if (!dialUsable || isSubmitting) return;
+    const clampedPct = Math.min(100, Math.max(0, pct));
+    const usd = (safeMaxBuyAmount * clampedPct) / 100;
+    onAmountChange(clampedPct === 0 ? '' : usd.toFixed(2));
+  };
   const maxShares =
     isLimitMode && limitPriceDecimal > 0
       ? getSafePolymarketMaxLimitShares(balance, limitPriceDecimal)
@@ -194,41 +214,57 @@ export default function AmountInput({
                 {minOrderAmount.toFixed(2)}
               </p>
             </div>
-            <div className="flex items-center gap-0.5 min-w-0">
-              <span className="text-3xl font-bold text-gray-900">
-                $
-              </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={handleAmountChange}
-                placeholder="0"
-                disabled={isSubmitting}
-                className="min-w-0 w-full max-w-[100px] bg-transparent text-3xl font-bold text-gray-900 text-left outline-none placeholder-gray-400"
-              />
-            </div>
+            {!showDial && (
+              <div className="flex items-center gap-0.5 min-w-0">
+                <span className="text-3xl font-bold text-gray-900">
+                  $
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={handleAmountChange}
+                  placeholder="0"
+                  disabled={isSubmitting}
+                  className="min-w-0 w-full max-w-[100px] bg-transparent text-3xl font-bold text-gray-900 text-left outline-none placeholder-gray-400"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Balance Slider */}
-          <div className="mt-3 px-0.5">
-            <input
-              type="range"
-              min={0}
-              max={safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100}
-              step={0.01}
-              value={Math.min(
-                parseFloat(amount) || 0,
-                safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100,
-              )}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                onAmountChange(val === 0 ? '' : val.toFixed(2));
-              }}
+          {showDial ? (
+            <AmountDial
+              percent={dialPercent}
+              onPercentChange={handleDialPercent}
+              primaryText={`$${amountNum.toFixed(2)}`}
+              secondaryText={
+                marketPrice > 0
+                  ? `≈ ${(amountNum / marketPrice).toFixed(0)} shares`
+                  : `of $${safeMaxBuyAmount.toFixed(2)} max`
+              }
               disabled={isSubmitting}
-              className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
             />
-          </div>
+          ) : (
+            /* Balance Slider */
+            <div className="mt-3 px-0.5">
+              <input
+                type="range"
+                min={0}
+                max={safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100}
+                step={0.01}
+                value={Math.min(
+                  parseFloat(amount) || 0,
+                  safeMaxBuyAmount > 0 ? safeMaxBuyAmount : 100,
+                )}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  onAmountChange(val === 0 ? '' : val.toFixed(2));
+                }}
+                disabled={isSubmitting}
+                className="w-full h-1 rounded-full appearance-none cursor-pointer bg-gray-300 accent-gray-900 disabled:cursor-not-allowed"
+              />
+            </div>
+          )}
 
           {/* Quick dollar buttons */}
           <div className="flex gap-2 mt-2">
@@ -249,6 +285,17 @@ export default function AmountInput({
             >
               Max
             </button>
+            {dialUsable && (
+              <button
+                onClick={() =>
+                  setEntryMode(entryMode === 'dial' ? 'input' : 'dial')
+                }
+                disabled={isSubmitting}
+                className="flex-1 py-2 px-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium transition-colors disabled:opacity-50"
+              >
+                {entryMode === 'dial' ? '⌨ Type' : '◎ Dial'}
+              </button>
+            )}
           </div>
         </div>
       )}
