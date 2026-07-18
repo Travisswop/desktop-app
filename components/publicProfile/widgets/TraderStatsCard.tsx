@@ -43,7 +43,10 @@ const CHART_H = 150;
 
 export default function TraderStatsCard({ widgetId }: { widgetId: string }) {
   const [data, setData] = useState<TraderStatsData | null>(null);
-  const [range, setRange] = useState<PortfolioRange>("ALL");
+  // Default to 1W: the all-time % is a snapshot delta that deposits inflate,
+  // so it makes a poor first impression; the venue sub-cards carry the honest
+  // all-time numbers.
+  const [range, setRange] = useState<PortfolioRange>("1W");
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +89,11 @@ export default function TraderStatsCard({ widgetId }: { widgetId: string }) {
           {usd(data.portfolioValue)}
         </p>
 
-        <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} className="mt-3 h-40 w-full">
+        <svg
+          viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+          preserveAspectRatio="none"
+          className="mt-3 h-40 w-full"
+        >
           <defs>
             <linearGradient id={`stats-${widgetId}`} x1="0" y1="0" x2="0" y2="1">
               <stop stopColor="#0F172A" stopOpacity=".09" />
