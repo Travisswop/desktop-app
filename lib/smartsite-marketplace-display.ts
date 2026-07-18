@@ -4,7 +4,6 @@ import type {
   MarketplaceProductType,
   MarketplaceProductVariant,
 } from "@/lib/marketplace-api";
-import { getMarketplaceProductSectionLabel } from "@/lib/marketplace-display";
 
 export type SmartsiteMarketplaceDisplayItem = MarketplaceProduct & {
   marketplaceEntryId?: string;
@@ -416,34 +415,18 @@ export const normalizeSmartsiteMarketplaceItem = (
   };
 };
 
-export const getSmartsiteMarketplaceSectionTitle = (
-  item: SmartsiteMarketplaceDisplayItem,
-) => {
-  const customTitle = item.carouselTitle?.trim();
-  if (customTitle) return customTitle;
-
-  const legacyType =
-    item.productType || item.templateId?.nftType || item.templateId?.type || "";
-  return getMarketplaceProductSectionLabel(String(legacyType));
-};
-
 export const normalizeSmartsiteMarketplaceItems = (items: any[] = []) =>
   items
     .map((item) => normalizeSmartsiteMarketplaceItem(item))
     .filter(Boolean) as SmartsiteMarketplaceDisplayItem[];
 
+// One "Products" section for everything — splitting by category/carouselTitle
+// stacked a titled rail per group, which reads as a vertical list when each
+// group holds a single item. Mirrors the mobile app's marketplace display.
 export const groupSmartsiteMarketplaceItems = (
   items: SmartsiteMarketplaceDisplayItem[],
-) =>
-  items.reduce(
-    (groups, item) => {
-      const title = getSmartsiteMarketplaceSectionTitle(item);
-      if (!groups[title]) groups[title] = [];
-      groups[title].push(item);
-      return groups;
-    },
-    {} as Record<string, SmartsiteMarketplaceDisplayItem[]>,
-  );
+): Record<string, SmartsiteMarketplaceDisplayItem[]> =>
+  items.length ? { Products: items } : {};
 
 export const getSmartsiteMarketplaceImage = (
   item: SmartsiteMarketplaceDisplayItem,
