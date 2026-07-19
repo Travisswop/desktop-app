@@ -45,6 +45,10 @@ import {
   getSportsGameMarketOutcomes,
   getSportsOutcomeSelection,
 } from '@/lib/polymarket/sports-selection';
+import {
+  eventOutcomeToMarket,
+  type PolymarketEventOutcome,
+} from '@/lib/polymarket/event-outcomes';
 
 import ErrorState from '../shared/ErrorState';
 import EmptyState from '../shared/EmptyState';
@@ -168,11 +172,10 @@ export default function HighVolumeMarkets({
 
   const allMarkets = useMemo(() => marketsData?.pages.flat() ?? [], [marketsData]);
 
-  const filteredMarkets = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return allMarkets;
-    const q = deferredSearchQuery.toLowerCase();
-    return allMarkets.filter((m) => m.question.toLowerCase().includes(q));
-  }, [allMarkets, deferredSearchQuery]);
+  // Search is server-side (the backend resolves category aliases like
+  // "crypto" to tag filters, so results often don't contain the literal
+  // query text — a local substring re-filter would empty them out).
+  const filteredMarkets = allMarkets;
 
   // ── Sports events ─────────────────────────────────────────────────────────
   const {
@@ -202,11 +205,8 @@ export default function HighVolumeMarkets({
     return teamsData ? enrichGamesWithTeamLogos(grouped, teamsData) : grouped;
   }, [allSportsMarkets, teamsData]);
 
-  const filteredGames = useMemo(() => {
-    if (!deferredSearchQuery.trim()) return allGames;
-    const q = deferredSearchQuery.toLowerCase();
-    return allGames.filter((g) => g.title.toLowerCase().includes(q));
-  }, [allGames, deferredSearchQuery]);
+  // Server-side search — see filteredMarkets note above.
+  const filteredGames = allGames;
 
   // ── Unified pagination state (drives the single sentinel) ────────────────
   const isLoading = isSportsActive ? isSportsLoading : isMarketsLoading;
@@ -437,6 +437,11 @@ export default function HighVolumeMarkets({
       isSportsCategory={false}
       onOutcomeClick={handleOutcomeClick}
       onTitleClick={() => navigateToMarket(market)}
+      onEventOutcomeClick={(outcome: PolymarketEventOutcome) =>
+        navigateToMarket(eventOutcomeToMarket(outcome, market), {
+          initialOutcome: 'yes',
+        })
+      }
     />
   );
 

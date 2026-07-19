@@ -63,6 +63,15 @@ export type PolymarketMarket = {
   negRisk?: boolean;
   orderMinSize?: number;
   orderPriceMinTickSize?: number;
+  /** Gamma's short label when this market is one outcome of a grouped event
+   *  (e.g. "Miami Heat" inside "NBA: LeBron James Next Team"). */
+  groupItemTitle?: string | null;
+  /** Total sibling outcome markets when the backend collapsed a
+   *  multi-outcome event into this representative market. */
+  eventMarketCount?: number;
+  /** Sibling outcome markets of the parent event (yes-price desc, capped).
+   *  See lib/polymarket/event-outcomes.ts. */
+  eventMarkets?: import('@/lib/polymarket/event-outcomes').PolymarketEventOutcome[];
   realtimePrices?: Record<
     string,
     {

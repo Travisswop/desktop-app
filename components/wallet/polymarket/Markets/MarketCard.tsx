@@ -1,6 +1,12 @@
 'use client';
 
 import type { PolymarketMarket } from '@/hooks/polymarket';
+import {
+  isMultiOutcomeMarket,
+  eventOutcomeLabel,
+  eventOutcomeYesPrice,
+  type PolymarketEventOutcome,
+} from '@/lib/polymarket/event-outcomes';
 
 import Card from '../shared/Card';
 import OutcomeButtons from './OutcomeButtons';
@@ -76,7 +82,13 @@ interface MarketCardProps {
   ) => void;
   /** Called when the user clicks the market title to open the detail modal */
   onTitleClick?: () => void;
+  /** Called when the user clicks a specific outcome row of a collapsed
+   *  multi-outcome event (e.g. one team of "LeBron's Next Team"). */
+  onEventOutcomeClick?: (outcome: PolymarketEventOutcome) => void;
 }
+
+/** Rows shown on a collapsed multi-outcome event card before "+N more". */
+const EVENT_OUTCOME_PREVIEW_ROWS = 3;
 
 export default function MarketCard({
   market,
@@ -84,6 +96,7 @@ export default function MarketCard({
   isSportsCategory = false,
   onOutcomeClick,
   onTitleClick,
+  onEventOutcomeClick,
 }: MarketCardProps) {
   const volumeUSD = parseFloat(
     String(market.volume24hr || market.volume || '0'),
@@ -126,6 +139,74 @@ export default function MarketCard({
   );
 
   const icon = market.icon || market.eventIcon;
+
+  // ── Collapsed multi-outcome event ("Who will…?" — one market per option) ──
+  if (isMultiOutcomeMarket(market)) {
+    const siblings = (market.eventMarkets ?? []).filter((o) => !o.closed);
+    const preview = siblings.slice(0, EVENT_OUTCOME_PREVIEW_ROWS);
+    const remaining =
+      Math.max(market.eventMarketCount ?? siblings.length, siblings.length) -
+      preview.length;
+    const eventIcon = market.eventIcon || icon;
+
+    return (
+      <Card hover className="px-4 py-3">
+        <div className="flex items-start gap-3 mb-2.5">
+          {eventIcon ? (
+            <img
+              src={eventIcon}
+              alt=""
+              className="w-10 h-10 rounded-lg flex-shrink-0 object-cover bg-gray-100"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg flex-shrink-0 bg-gray-200" />
+          )}
+          <button
+            onClick={onTitleClick}
+            disabled={!onTitleClick}
+            className={`flex-1 min-w-0 text-sm font-semibold text-gray-900 line-clamp-2 leading-snug text-left ${
+              onTitleClick
+                ? 'hover:text-blue-600 transition-colors'
+                : 'cursor-default'
+            }`}
+          >
+            {market.eventTitle || market.question}
+          </button>
+        </div>
+
+        <div className="space-y-1.5">
+          {preview.map((outcome) => {
+            const pct = Math.round(eventOutcomeYesPrice(outcome) * 100);
+            return (
+              <button
+                key={outcome.id || outcome.slug || eventOutcomeLabel(outcome)}
+                onClick={() => onEventOutcomeClick?.(outcome)}
+                disabled={disabled || !onEventOutcomeClick}
+                className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 transition-colors disabled:opacity-60"
+              >
+                <span className="text-[13px] font-medium text-gray-700 truncate text-left">
+                  {eventOutcomeLabel(outcome)}
+                </span>
+                <span className="text-[13px] font-bold text-gray-900 tabular-nums flex-shrink-0">
+                  {pct}%
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {remaining > 0 && (
+          <button
+            onClick={onTitleClick}
+            disabled={!onTitleClick}
+            className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600"
+          >
+            +{remaining} more option{remaining === 1 ? '' : 's'}
+          </button>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card hover className="px-4 py-3">

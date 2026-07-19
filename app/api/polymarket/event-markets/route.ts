@@ -37,11 +37,16 @@ function marketsFromEvent(event: GammaEvent): GammaMarket[] {
   }));
 }
 
-async function fetchEventMarkets(slug: string): Promise<GammaMarket[]> {
-  const params = new URLSearchParams({
-    slug: normalizeEventSlug(slug),
-    closed: 'true',
-  });
+async function fetchEventMarketsBySlug(
+  slug: string,
+  closedOnly: boolean,
+): Promise<GammaMarket[]> {
+  // Gamma's `closed` param is a FILTER, not "include closed": closed=true
+  // returns only closed events, so an active event yields nothing. Query
+  // without it first (active/live events), then fall back to closed=true
+  // for just-settled events.
+  const params = new URLSearchParams({ slug: normalizeEventSlug(slug) });
+  if (closedOnly) params.set('closed', 'true');
   const response = await fetch(`${GAMMA_EVENTS_URL}?${params}`, {
     signal: AbortSignal.timeout(8000),
   });
@@ -63,6 +68,12 @@ async function fetchEventMarkets(slug: string): Promise<GammaMarket[]> {
   );
 
   return event ? marketsFromEvent(event) : [];
+}
+
+async function fetchEventMarkets(slug: string): Promise<GammaMarket[]> {
+  const active = await fetchEventMarketsBySlug(slug, false);
+  if (active.length > 0) return active;
+  return fetchEventMarketsBySlug(slug, true);
 }
 
 async function fetchEventMarketsById(id: string): Promise<GammaMarket[]> {

@@ -195,6 +195,22 @@ function MarketDetailPageInner() {
     [router, sharesForMarket, snapshot?.game],
   );
 
+  const handleEventOutcomeSelect = useCallback(
+    (market: PolymarketMarket) => {
+      const key = marketRouteKey(market);
+      if (!key) return;
+      const shares = sharesForMarket(market);
+      const nextEntry: MarketDetailEntry = {
+        market,
+        initialOutcome: 'yes',
+        ...shares,
+      };
+      useMarketDetailStore.getState().set(key, nextEntry);
+      router.replace(`/prediction/market/${encodeURIComponent(key)}`);
+    },
+    [router, sharesForMarket],
+  );
+
   const isRecoveringSportsGame =
     Boolean(snapshot && !snapshot.game) &&
     !sportsRecoveryFailed &&
@@ -275,6 +291,7 @@ function MarketDetailPageInner() {
       outcomeLabels={snapshot.outcomeLabels}
       game={snapshot.game}
       onGameMarketSelect={handleGameMarketSelect}
+      onEventOutcomeSelect={handleEventOutcomeSelect}
     />
   );
 }

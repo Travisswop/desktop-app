@@ -24,6 +24,12 @@ import {
   samePolymarketMarket,
   type SportsOutcomeSelection,
 } from '@/lib/polymarket/sports-selection';
+import {
+  eventOutcomeLabel,
+  eventOutcomeToMarket,
+  eventOutcomeYesPrice,
+  type PolymarketEventOutcome,
+} from '@/lib/polymarket/event-outcomes';
 import { useTrading } from '@/providers/polymarket';
 import {
   completeAgentActionFromHandoff,
@@ -4526,6 +4532,152 @@ function OrderBookCard({
   );
 }
 
+// ── Multi-outcome event card ─────────────────────────────────────────────────
+// A collapsed Gamma event ("NBA: LeBron James Next Team") is one binary
+// market per option; this card lists every option so the user can see all
+// the teams and jump between their markets.
+
+const EVENT_OUTCOMES_COLLAPSED_ROWS = 8;
+
+function EventOutcomesCard({
+  title,
+  outcomes,
+  activeMarketId,
+  disabled,
+  onSelect,
+}: {
+  title: string;
+  outcomes: PolymarketEventOutcome[];
+  activeMarketId: string;
+  disabled?: boolean;
+  onSelect: (outcome: PolymarketEventOutcome) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded
+    ? outcomes
+    : outcomes.slice(0, EVENT_OUTCOMES_COLLAPSED_ROWS);
+  const hiddenCount = outcomes.length - visible.length;
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: `1px solid ${D.hair}`,
+        borderRadius: 18,
+        overflow: 'hidden',
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+      }}
+    >
+      <div
+        style={{
+          padding: '14px 18px 10px',
+          borderBottom: `1px solid ${D.hair}`,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: D.mono,
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: 0.6,
+            textTransform: 'uppercase',
+            color: D.muted2,
+            marginBottom: 4,
+          }}
+        >
+          Outcomes · {outcomes.length}
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: D.ink,
+            lineHeight: 1.3,
+          }}
+        >
+          {title}
+        </div>
+      </div>
+
+      <div>
+        {visible.map((outcome) => {
+          const isActive =
+            String(outcome.id ?? '') === activeMarketId;
+          const pct = Math.round(eventOutcomeYesPrice(outcome) * 100);
+          return (
+            <button
+              key={outcome.id || outcome.slug || eventOutcomeLabel(outcome)}
+              onClick={() => onSelect(outcome)}
+              disabled={disabled}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                padding: '11px 18px',
+                border: 'none',
+                borderBottom: `1px solid ${D.hair2}`,
+                background: isActive ? D.posGreenSoft : 'transparent',
+                cursor: disabled ? 'default' : 'pointer',
+                textAlign: 'left',
+                opacity: disabled ? 0.6 : 1,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: isActive ? 700 : 500,
+                  color: D.ink,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {eventOutcomeLabel(outcome)}
+              </span>
+              <span
+                style={{
+                  fontFamily: D.mono,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: isActive ? D.posGreen : D.ink,
+                  flexShrink: 0,
+                }}
+              >
+                {pct}%
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {(hiddenCount > 0 || expanded) && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          style={{
+            width: '100%',
+            padding: '10px 18px',
+            border: 'none',
+            background: D.surface2,
+            fontFamily: D.mono,
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: 0.6,
+            textTransform: 'uppercase',
+            color: D.muted,
+            cursor: 'pointer',
+          }}
+        >
+          {expanded ? 'Show fewer' : `Show all ${outcomes.length}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 type MarketDetailViewProps = {
@@ -4556,6 +4708,9 @@ type MarketDetailViewProps = {
     market: PolymarketMarket,
     selection: SportsOutcomeSelection,
   ) => void;
+  /** Switch the detail view to a sibling outcome market of the same
+   *  multi-outcome event (restash + route replace, like game lines). */
+  onEventOutcomeSelect?: (market: PolymarketMarket) => void;
 };
 
 export default function MarketDetailView({
@@ -4578,6 +4733,7 @@ export default function MarketDetailView({
   outcomeLabels,
   game,
   onGameMarketSelect,
+  onEventOutcomeSelect,
 }: MarketDetailViewProps) {
   const {
     clobClient,
@@ -4608,6 +4764,73 @@ export default function MarketDetailView({
       );
     }
   };
+  // ── Multi-outcome event siblings ──────────────────────────────────────────
+  // Normally delivered on the market by the collapsed feed (eventMarkets).
+  // On deep links / refresh recovery the market comes from /api/polymarket/
+  // market and lacks them — refetch the parent event and rebuild the list.
+  const [fetchedEventOutcomes, setFetchedEventOutcomes] = useState<
+    PolymarketEventOutcome[] | null
+  >(null);
+  const shouldRecoverEventOutcomes = Boolean(
+    !game &&
+      !(market.eventMarkets && market.eventMarkets.length >= 2) &&
+      String(market.groupItemTitle || '').trim() &&
+      (market.eventSlug || market.eventId),
+  );
+  useEffect(() => {
+    if (!shouldRecoverEventOutcomes) return;
+    let cancelled = false;
+    const params = market.eventSlug
+      ? `slug=${encodeURIComponent(String(market.eventSlug))}`
+      : `id=${encodeURIComponent(String(market.eventId))}`;
+    fetch(`/api/polymarket/event-markets?${params}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((markets: PolymarketMarket[]) => {
+        if (cancelled || !Array.isArray(markets)) return;
+        const siblings = markets
+          .filter(
+            (m) =>
+              String(m.groupItemTitle || '').trim() &&
+              m.clobTokenIds &&
+              !m.closed,
+          )
+          .sort((a, b) => eventOutcomeYesPrice(b) - eventOutcomeYesPrice(a));
+        if (siblings.length >= 2) {
+          setFetchedEventOutcomes(siblings as PolymarketEventOutcome[]);
+        }
+      })
+      .catch(() => {
+        /* outcome list is progressive enhancement — ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldRecoverEventOutcomes, market.eventSlug, market.eventId]);
+
+  const eventOutcomes = useMemo<PolymarketEventOutcome[]>(() => {
+    if (market.eventMarkets && market.eventMarkets.length >= 2) {
+      return market.eventMarkets;
+    }
+    return fetchedEventOutcomes ?? [];
+  }, [market.eventMarkets, fetchedEventOutcomes]);
+
+  const handleEventOutcomeSelect = useCallback(
+    (outcome: PolymarketEventOutcome) => {
+      if (!onEventOutcomeSelect) return;
+      if (String(outcome.id ?? '') === String(market.id ?? '')) return;
+      const parentWithSiblings =
+        market.eventMarkets && market.eventMarkets.length >= 2
+          ? market
+          : {
+              ...market,
+              eventMarkets: eventOutcomes,
+              eventMarketCount: eventOutcomes.length,
+            };
+      onEventOutcomeSelect(eventOutcomeToMarket(outcome, parentWithSiblings));
+    },
+    [onEventOutcomeSelect, market, eventOutcomes],
+  );
+
   // ── Derived market data ───────────────────────────────────────────────────
   const outcomes = useMemo(
     () =>
@@ -5421,6 +5644,16 @@ export default function MarketDetailView({
             activeTokenId={activeTokenId}
             disabled={isFinalSportsEvent || isGeoblocked || isCloseOnlyRoot}
             onOutcomeClick={handleGameLineSelect}
+          />
+        )}
+
+        {!game && eventOutcomes.length >= 2 && (
+          <EventOutcomesCard
+            title={market.eventTitle || market.question}
+            outcomes={eventOutcomes}
+            activeMarketId={String(market.id ?? '')}
+            disabled={!onEventOutcomeSelect}
+            onSelect={handleEventOutcomeSelect}
           />
         )}
 
