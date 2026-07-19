@@ -1,10 +1,7 @@
 import { useUser } from "@/lib/UserContext";
 import {
-  ArrowLeftRight,
   Eye,
-  EyeIcon,
   EyeOff,
-  EyeOffIcon,
   Wallet,
 } from "lucide-react";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -26,12 +23,12 @@ import { BsBank2, BsQrCodeScan } from "react-icons/bs";
 import { FaRegListAlt } from "react-icons/fa";
 import SwapButton from "./SwapButton";
 import logger from "../../utils/logger";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { WalletItem } from "@/types/wallet";
-import clsx from "clsx";
 import { useSwapStore } from "@/zustandStore/tokenSwapProps";
 import { apiFetch } from "@/lib/api/apiFetch";
 import { buildSwopApiUrl } from "@/lib/api/apiBaseUrl";
+import { useBalanceVisibilityStore } from "@/zustandStore/useBalanceVisibilityStore";
 
 // Types
 interface BalanceHistoryEntry {
@@ -87,7 +84,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
   const [timeRange, setTimeRange] = useState<TimeRange>(TIME_RANGES.ONE_MONTH);
   const [showPopup, setShowPopup] = useState(false);
   const [bankShow, setBankShow] = useState(false);
-  const [showBalance, setShowBalance] = useState(false);
+  const { showBalance, toggleBalance } = useBalanceVisibilityStore();
 
   const setSwapData = useSwapStore((state) => state.setSwapData);
 
@@ -118,16 +115,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
     onTokenRefresh,
     setSwapData,
   ]);
-
-  // Auto-hide balance after 3 seconds
-  useEffect(() => {
-    if (showBalance) {
-      const timer = setTimeout(() => {
-        setShowBalance(false);
-      }, 5000); // 3 seconds
-      return () => clearTimeout(timer); // cleanup
-    }
-  }, [showBalance]);
 
   const filteredData = useMemo(() => {
     const now = new Date();
@@ -238,7 +225,7 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
           <h2 className="font-bold text-xl text-gray-700">Balance</h2>
           <div className="flex items-center justify-center mt-1">
             <button
-              onClick={() => setShowBalance((prev) => !prev)}
+              onClick={toggleBalance}
               className="group relative flex items-center gap-0 px-3 py-1 rounded-xl bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-300 focus:outline-none"
               aria-label={showBalance ? "Hide balance" : "Show balance"}
             >
@@ -451,9 +438,7 @@ const WalletBalanceChartForWalletPage: React.FC<
 > = ({
   walletData,
   tokens,
-  totalBalance,
   onSelectAsset,
-  onQRClick,
   onTokenRefresh,
 }) => {
   const { user, accessToken } = useUser();
