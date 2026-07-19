@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -1050,9 +1051,50 @@ async function tryPredictionOutcomeClick(client) {
   throw new Error('No clickable prediction outcome button was found.');
 }
 
+function safeGitOutput(execFileSyncImpl, cwd, args) {
+  try {
+    return execFileSyncImpl('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+export function resolveGitMetadata(options = {}) {
+  const env = options.env || process.env;
+  const cwd = options.cwd || process.cwd();
+  const execFileSyncImpl = options.execFileSyncImpl || execFileSync;
+
+  const envRef = env.SWOP_QA_GIT_REF?.trim();
+  const envSha = env.SWOP_QA_GIT_SHA?.trim();
+  if (envRef || envSha) {
+    return {
+      gitRef: envRef || null,
+      gitSha: envSha || null,
+    };
+  }
+
+  const gitSha = safeGitOutput(execFileSyncImpl, cwd, ['rev-parse', 'HEAD']) || null;
+  let gitRef = safeGitOutput(execFileSyncImpl, cwd, ['branch', '--show-current']);
+  if (!gitRef || gitRef === 'HEAD') {
+    gitRef = safeGitOutput(execFileSyncImpl, cwd, ['name-rev', '--name-only', '--no-undefined', 'HEAD'])
+      .replace(/^remotes\//, '')
+      .replace(/\^0$/, '');
+  }
+
+  return {
+    gitRef: gitRef || null,
+    gitSha,
+  };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cardContracts = buildCardCommandContracts(args);
+  const gitMetadata = resolveGitMetadata();
   const report = {
     name: 'astro-card-smoke',
     startedAt: timestamp(),
@@ -1060,8 +1102,8 @@ async function main() {
     url: args.url,
     chromeUrl: args.chromeUrl,
     profileDir: args.profileDir,
-    gitRef: process.env.SWOP_QA_GIT_REF || null,
-    gitSha: process.env.SWOP_QA_GIT_SHA || null,
+    gitRef: gitMetadata.gitRef,
+    gitSha: gitMetadata.gitSha,
     swapQa: {
       inputMint: args.swapInputMint,
       outputMint: args.swapOutputMint,
@@ -1279,7 +1321,12 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+const isDirectRun =
+  process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}
