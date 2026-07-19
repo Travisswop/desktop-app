@@ -439,6 +439,44 @@ export function inferPerpsCloseFillsByCoin(
   );
 }
 
+export function inferPerpsLiquidationFillsByCoin(
+  fills: PerpsFillLike[] = [],
+): Record<string, PerpsLiquidationFillSnapshot> {
+  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
+    (liquidations, fill) => {
+      if (!fill?.liquidation) return liquidations;
+
+      const coin = normalizePerpsCoin(fill.coin);
+      const timeMs = fillTimeMs(fill);
+      if (!coin || !timeMs || timeMs > Date.now() + 5 * 60 * 1000) {
+        return liquidations;
+      }
+
+      const timestamp = new Date(timeMs).toISOString();
+      const existingTime = Date.parse(liquidations[coin]?.timestamp || '');
+      if (Number.isFinite(existingTime) && existingTime >= timeMs) {
+        return liquidations;
+      }
+
+      liquidations[coin] = {
+        coin,
+        px: maybePerpsFeedNumber(fill.px),
+        markPx: maybePerpsFeedNumber(
+          (fill.liquidation as { markPx?: unknown } | null | undefined)
+            ?.markPx || fill.px,
+        ),
+        closedPnl: maybePerpsFeedNumber(fill.closedPnl),
+        feeUsd: maybePerpsFeedNumber(fill.fee),
+        orderId: fillOrderId(fill),
+        timestamp,
+      };
+
+      return liquidations;
+    },
+    {},
+  );
+}
+
 export function inferPerpsPositionRiskPrices(
   position: PerpsPositionLike,
   openOrders: PerpsOpenOrderLike[] = [],
