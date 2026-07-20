@@ -13,7 +13,7 @@ type ResolveTerminalResponse = {
   error?: string;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://app.apiswop.co';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://apps.apiswop.co';
 
 async function resolveTerminal(terminalId: string) {
   const response = await fetch(

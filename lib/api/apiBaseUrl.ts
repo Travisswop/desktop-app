@@ -1,5 +1,5 @@
 const LOCAL_SWOP_API_BASE_URL = 'http://localhost:4000';
-const PRODUCTION_SWOP_API_BASE_URL = 'https://app.apiswop.co';
+const PRODUCTION_SWOP_API_BASE_URL = 'https://apps.apiswop.co';
 
 function normalizeBaseUrl(value: string | undefined) {
   const normalized = value?.trim().replace(/\/+$/, '');

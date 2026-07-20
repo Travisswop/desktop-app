@@ -69,7 +69,7 @@ export default function AssetSelector({
         <div className="flex items-center gap-3">
           {asset.symbol === 'SWOP' ? (
             // <Image
-            //   src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
+            //   src={`https://apps.apiswop.co/public/crypto-icons/SWOP.png`}
             //   alt={asset.symbol || ""}
             //   width={320}
             //   height={320}
@@ -77,7 +77,7 @@ export default function AssetSelector({
             // />
             <div className="relative min-w-max">
               <Image
-                src={`https://app.apiswop.co/public/crypto-icons/SWOP.png`}
+                src={`https://apps.apiswop.co/public/crypto-icons/SWOP.png`}
                 alt={'swop'}
                 width={240}
                 height={240}

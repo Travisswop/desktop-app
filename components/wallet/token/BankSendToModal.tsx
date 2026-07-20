@@ -18,6 +18,7 @@ import { Connection } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { ReceiverData } from '@/types/wallet';
 import { truncateAddress } from '@/lib/utils';
+import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import RedeemModal, { RedeemConfig } from './redeem-modal';
 import { TokenData } from '@/types/token';
 
@@ -50,7 +51,7 @@ async function fetchUserByENS(
   if (!ensName) return null;
 
   if (ensName.endsWith('.swop.id')) {
-    const url = `https://app.apiswop.co/api/v4/wallet/getEnsAddress/${ensName}`;
+    const url = buildSwopApiUrl(`/api/v4/wallet/getEnsAddress/${ensName}`);
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch ENS address');

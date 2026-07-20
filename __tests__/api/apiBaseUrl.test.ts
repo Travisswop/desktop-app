@@ -30,7 +30,7 @@ describe('apiBaseUrl', () => {
     setBrowserHostname('www.swopme.app');
 
     expect(buildSwopApiUrl('/api/v5/wallet/tokens')).toBe(
-      'https://app.apiswop.co/api/v5/wallet/tokens',
+      'https://apps.apiswop.co/api/v5/wallet/tokens',
     );
   });
 

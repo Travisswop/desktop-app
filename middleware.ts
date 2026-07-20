@@ -103,7 +103,7 @@ const cspConfig = {
     "'self'",
     "'unsafe-inline'",
     "'unsafe-eval'",
-    "https://app.apiswop.co",
+    "https://apps.apiswop.co",
     "https://challenges.cloudflare.com",
     "https://swopme.app",
     "https://privy.swopme.app",
@@ -133,7 +133,7 @@ const cspConfig = {
   connectSrc: [
     "'self'",
     ...localConnectSrc,
-    "https://app.apiswop.co",
+    "https://apps.apiswop.co",
     "https://swopme.app",
     "https://privy.swopme.app",
     "https://auth.privy.io",
