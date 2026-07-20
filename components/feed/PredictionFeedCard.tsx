@@ -36,6 +36,8 @@ interface LiveTeam {
   name: string | null;
   abbreviation: string | null;
   score: number | null;
+  logo?: string | null;
+  color?: string | null;
 }
 
 export interface LiveScore {
@@ -109,6 +111,7 @@ export interface PredictionContent {
   btcWindowStart?: number | string;
   btcWindowLabel?: string;
   eventSlug?: string;
+  eventTitle?: string;
   // Sports panel (optional – present only for sports markets)
   yesOutcome?: string; // "yes" outcome label, e.g., "Knicks"
   noOutcome?: string; // "no" outcome label, e.g., "Hawks"
@@ -237,6 +240,196 @@ function toLiveScoreNumber(value: unknown): number | null {
   if (value == null || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+// Map the user's picked `outcome` string to the yes/no side. Robust to
+// spread/total suffixes ("Over 220.5", "Columbia +2.5") and to compound labels
+// like "Moneyline · Argentina" on binary Yes/No markets, which never equal the
+// literal outcome labels. Returns null when it genuinely can't tell.
+export function resolvePickedSide(
+  outcome: string,
+  yesOutcome: string,
+  noOutcome: string,
+): 'yes' | 'no' | null {
+  const p = outcome.trim().toLowerCase();
+  if (!p) return null;
+  const yes = yesOutcome.trim().toLowerCase();
+  const no = noOutcome.trim().toLowerCase();
+  if (p === 'yes' || (yes && p === yes)) return 'yes';
+  if (p === 'no' || (no && p === no)) return 'no';
+  // Strip a trailing spread/total line and re-match ("over 220.5" -> "over").
+  const stripped = p.replace(/\s*[+-]?\d+(?:\.\d+)?\s*$/, '').trim();
+  if (
+    stripped &&
+    yes &&
+    (stripped === yes || yes.startsWith(stripped) || stripped.startsWith(yes))
+  ) {
+    return 'yes';
+  }
+  if (
+    stripped &&
+    no &&
+    (stripped === no || no.startsWith(stripped) || stripped.startsWith(no))
+  ) {
+    return 'no';
+  }
+  if (yes && (p.includes(yes) || yes.includes(p))) return 'yes';
+  if (no && (p.includes(no) || no.includes(p))) return 'no';
+  return null;
+}
+
+// ── Binary-market matchup derivation ─────────────────────────────────────────
+// Binary Yes/No sports markets ("Will Argentina win on 2026-07-19?") name no
+// teams in their outcomes, so the card derives the matchup for display:
+// stored teams → event title → event slug → question parse → live-score teams.
+
+// "USA vs. Brazil" / "Lakers @ Celtics" event titles → the two sides.
+function deriveMatchupFromEventTitle(
+  title: string,
+): { a: string; b: string } | null {
+  const m = title
+    .trim()
+    .match(/^(.+?)\s+(?:vs\.?|@)\s+(.+?)(?:\s*[:(–—-]\s.*)?$/i);
+  if (!m) return null;
+  const a = m[1].trim();
+  const b = m[2].trim();
+  return a && b ? { a, b } : null;
+}
+
+// "columbia-vs-swiss-2026-07-07" -> { a: "Columbia", b: "Swiss" }.
+function deriveMatchupFromSlug(
+  slug: string,
+): { a: string; b: string } | null {
+  const m = slug.match(/^(.+?)-vs-(.+?)(?:-\d{4}-\d{2}-\d{2}.*)?$/i);
+  if (!m) return null;
+  const titleCase = (s: string) =>
+    s
+      .split('-')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  const a = titleCase(m[1]);
+  const b = titleCase(m[2]);
+  return a && b ? { a, b } : null;
+}
+
+// "Will USA beat Brazil on July 18?" names both sides directly.
+function deriveMatchupFromQuestion(
+  question: string,
+): { a: string; b: string } | null {
+  const m = question
+    .trim()
+    .match(
+      /^will\s+(?:the\s+)?(.+?)\s+(?:beat|defeat)\s+(?:the\s+)?(.+?)(?:\s+(?:on|in|at|by)\b.*)?\??$/i,
+    );
+  if (!m) return null;
+  const a = m[1].trim();
+  const b = m[2].trim();
+  return a && b ? { a, b } : null;
+}
+
+// "Will Argentina win on 2026-07-19?" → "Argentina" (the yes-side subject).
+export function deriveBinaryQuestionSubject(question: string): string | null {
+  const m = question
+    .trim()
+    .match(/^will\s+(?:the\s+)?(.+?)\s+(?:win|beat|defeat)\b/i);
+  return m ? m[1].trim() : null;
+}
+
+// Match the question's subject against the live-score teams to recover the
+// opponent — covers legacy posts whose slug has no "-vs-" and whose question
+// only names one side ("Will Argentina win…?").
+function deriveMatchupFromLiveTeams(
+  subject: string | null,
+  teams: LiveTeam[] | undefined,
+): { a: string; b: string } | null {
+  if (!subject || !teams || teams.length < 2) return null;
+  const s = subject.toLowerCase();
+  const idx = teams.findIndex((team) => {
+    const name = String(team.name || '').toLowerCase();
+    const abbr = String(team.abbreviation || '').toLowerCase();
+    return (
+      (name && (name.includes(s) || s.includes(name))) ||
+      (abbr && abbr === s)
+    );
+  });
+  if (idx < 0) return null;
+  const opponent = teams.find((_, i) => i !== idx);
+  const a = firstText(teams[idx]?.name) ?? subject;
+  const b = firstText(opponent?.name, opponent?.abbreviation);
+  return b ? { a, b } : null;
+}
+
+// Event titles/slugs list the sides in event order, not question order — flip
+// the pair when side B (not A) is the question's subject, so `a` is always the
+// yes side and scores/labels can't invert.
+function orientMatchupToSubject(
+  matchup: { a: string; b: string } | null,
+  subject: string | null,
+): { a: string; b: string } | null {
+  if (!matchup || !subject) return matchup;
+  const s = subject.toLowerCase();
+  const contains = (side: string) => {
+    const lower = side.toLowerCase();
+    return lower.includes(s) || s.includes(lower);
+  };
+  if (!contains(matchup.a) && contains(matchup.b)) {
+    return { a: matchup.b, b: matchup.a };
+  }
+  return matchup;
+}
+
+export function derivePredictionMatchup(
+  content: PredictionContent,
+  eventSlug: string | undefined,
+  liveTeams?: LiveTeam[],
+): { a: string; b: string } | null {
+  const storedA = firstText(content.yesTeam?.name);
+  const storedB = firstText(content.noTeam?.name);
+  if (storedA && storedB) return { a: storedA, b: storedB };
+
+  const subject = deriveBinaryQuestionSubject(content.marketTitle);
+  return (
+    orientMatchupToSubject(
+      deriveMatchupFromEventTitle(firstText(content.eventTitle) ?? '') ??
+        deriveMatchupFromSlug(eventSlug ?? ''),
+      subject,
+    ) ??
+    deriveMatchupFromQuestion(content.marketTitle) ??
+    deriveMatchupFromLiveTeams(subject, liveTeams)
+  );
+}
+
+// Fill in badge meta (logo/color/abbr) for a derived matchup side from the
+// live-score teams — binary posts store no team objects of their own.
+export function liveTeamMetaForSide(
+  side: string | undefined,
+  liveTeams: LiveTeam[] | undefined,
+): TeamMeta | undefined {
+  if (!side || !liveTeams?.length) return undefined;
+  const s = side.toLowerCase();
+  const team = liveTeams.find((t) => {
+    const name = String(t.name || '').toLowerCase();
+    const abbr = String(t.abbreviation || '').toLowerCase();
+    return (
+      (name && (name.includes(s) || s.includes(name))) ||
+      (abbr && abbr === s)
+    );
+  });
+  if (!team) return undefined;
+  return {
+    name: firstText(team.name) ?? side,
+    abbreviation: firstText(team.abbreviation)?.toUpperCase(),
+    logo: firstText(team.logo),
+    color: firstText(team.color),
+  };
+}
+
+export function isYesNoBinaryPrediction(content: PredictionContent): boolean {
+  return (
+    String(content.yesOutcome ?? '').toLowerCase() === 'yes' &&
+    String(content.noOutcome ?? '').toLowerCase() === 'no'
+  );
 }
 
 function slugifySportsToken(value: unknown): string {
@@ -607,12 +800,9 @@ export function resolveSportsScorePickedWon({
     return undefined;
   }
 
-  const pickedLower = pickedOutcome.trim().toLowerCase();
-  const pickedIsYes =
-    pickedLower === 'yes' || pickedLower === yesOutcome.toLowerCase();
-  const pickedIsNo =
-    pickedLower === 'no' || pickedLower === noOutcome.toLowerCase();
-  if (!pickedIsYes && !pickedIsNo) return undefined;
+  const pickedSide = resolvePickedSide(pickedOutcome, yesOutcome, noOutcome);
+  if (!pickedSide) return undefined;
+  const pickedIsYes = pickedSide === 'yes';
 
   const spreadLine = spreadLineForOutcome({
     marketTitle,
@@ -744,10 +934,7 @@ function resolveInitialOutcome(
   yesOutcome: string,
   noOutcome: string,
 ): 'yes' | 'no' | undefined {
-  const outcome = content.outcome.toLowerCase();
-  if (outcome === 'yes' || outcome === yesOutcome.toLowerCase()) return 'yes';
-  if (outcome === 'no' || outcome === noOutcome.toLowerCase()) return 'no';
-  return undefined;
+  return resolvePickedSide(content.outcome, yesOutcome, noOutcome) ?? undefined;
 }
 
 function usePredictionMarketNavigation(
@@ -943,7 +1130,7 @@ export function resolveBtcSettledWinner({
   );
 }
 
-function resolveMarketState(
+export function resolveMarketState(
   content: PredictionContent,
   liveScore: LiveScore | null,
 ): ResolvedMarketState {
@@ -987,16 +1174,20 @@ function resolveMarketState(
     noIdx >= 0
       ? outcomePrices[noIdx]
       : (outcomePrices[1] ?? undefined);
+  // Unknown side defaults to yes: binary sports picks ("Moneyline · Argentina"
+  // on "Will Argentina win…?") back the question's subject, never the opponent.
+  const pickedSide =
+    resolvePickedSide(
+      content.outcome,
+      content.yesOutcome || 'Yes',
+      content.noOutcome || 'No',
+    ) ?? 'yes';
   const pickedPrice =
     pickedIdx >= 0
       ? outcomePrices[pickedIdx]
-      : content.outcome.toLowerCase() ===
-          content.yesOutcome?.toLowerCase()
+      : pickedSide === 'yes'
         ? yesPrice
-        : content.outcome.toLowerCase() ===
-            content.noOutcome?.toLowerCase()
-          ? noPrice
-          : undefined;
+        : noPrice;
   const scoreForOutcome = (
     outcomeLabel: string | undefined,
     fallbackIdx: number,
@@ -1014,13 +1205,28 @@ function resolveMarketState(
     const score = (found ?? liveScore.teams[fallbackIdx])?.score;
     return score == null ? undefined : score;
   };
-  const yesScore = scoreForOutcome(content.yesOutcome, 0);
-  const noScore = scoreForOutcome(content.noOutcome, 1);
+  // Binary Yes/No markets carry no team names in their outcomes, so score
+  // matching (and the picked-side check inside resolveSportsScorePickedWon)
+  // runs against the derived matchup instead. Without a matchup the scores are
+  // skipped entirely — the settled outcome prices below are the ground truth,
+  // and index-fallback score assignment could invert the result.
+  const isBinary = isYesNoBinaryPrediction(content);
+  const matchup = isBinary
+    ? derivePredictionMatchup(
+        content,
+        resolvePredictionLiveEventSlug(content),
+        liveScore?.teams,
+      )
+    : null;
+  const scoreYesLabel = isBinary ? matchup?.a : content.yesOutcome;
+  const scoreNoLabel = isBinary ? matchup?.b : content.noOutcome;
+  const yesScore = scoreForOutcome(scoreYesLabel, 0);
+  const noScore = scoreForOutcome(scoreNoLabel, 1);
   const pickedWon = resolveSportsScorePickedWon({
     marketTitle: content.marketTitle,
-    pickedOutcome: content.outcome,
-    yesOutcome: content.yesOutcome,
-    noOutcome: content.noOutcome,
+    pickedOutcome: isBinary ? pickedSide : content.outcome,
+    yesOutcome: scoreYesLabel,
+    noOutcome: scoreNoLabel,
     yesScore,
     noScore,
   });
@@ -2012,6 +2218,8 @@ function SportsMiniPanel({
   noTokenId,
   liveScore,
   pickedOutcome,
+  binary,
+  pickedIsYes,
   userName,
   side,
   cost,
@@ -2037,6 +2245,10 @@ function SportsMiniPanel({
   noTokenId?: string;
   liveScore: LiveScore | null;
   pickedOutcome: string;
+  // Binary Yes/No market rendered as a matchup: yesOutcome/noOutcome carry the
+  // derived team names, so side resolution/labels can't lean on them.
+  binary?: boolean;
+  pickedIsYes: boolean;
   userName?: string;
   side: 'BUY' | 'SELL';
   cost: number;
@@ -2113,8 +2325,6 @@ function SportsMiniPanel({
     };
   }, [yesHistory, noHistory, yP, nP, seed]);
 
-  const pickedIsYes =
-    pickedOutcome.toLowerCase() === yesOutcome.toLowerCase();
   const pickedSeries = pickedIsYes ? yesSeries : noSeries;
   const chartPath = historyToPath(
     pickedSeries,
@@ -2170,6 +2380,11 @@ function SportsMiniPanel({
   const yesScore = matchScore(yesOutcome, yesAbbr, 0);
   const noScore = matchScore(noOutcome, noAbbr, 1);
   const hasScores = yesScore != null && noScore != null;
+  // Binary Yes/No prices are the subject team's win probability and its
+  // complement — labeling the split with both team abbrs would misread the
+  // "no" side as the opponent's own odds (wrong for 3-way soccer with draws).
+  const splitYesLabel = binary ? 'YES' : yesAbbr;
+  const splitNoLabel = binary ? 'NO' : noAbbr;
   const gameClockLabel = formatSportsGameClockLabel({
     hasScores,
     yesScore,
@@ -2420,7 +2635,7 @@ function SportsMiniPanel({
         <div className="absolute inset-y-0 left-0 flex items-center px-4 text-white">
           <div>
             <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {yesAbbr}
+              {splitYesLabel}
             </p>
             <p className="font-mono text-[26px] font-black leading-none">
               {formatPercent(yP)}
@@ -2430,7 +2645,7 @@ function SportsMiniPanel({
         <div className="absolute inset-y-0 right-0 flex items-center px-4 text-right text-white">
           <div>
             <p className="font-mono text-[10px] font-black uppercase text-white/70">
-              {noAbbr}
+              {splitNoLabel}
             </p>
             <p className="font-mono text-[26px] font-black leading-none">
               {formatPercent(nP)}
@@ -2557,8 +2772,18 @@ function SportsMiniPanel({
       <div className="mt-4 grid grid-cols-2 gap-3">
         {open ? (
           <>
-            {buttonForOutcome(displayYesOutcome, yP, pickedIsYes, 'yes')}
-            {buttonForOutcome(displayNoOutcome, nP, !pickedIsYes, 'no')}
+            {buttonForOutcome(
+              binary ? 'Yes' : displayYesOutcome,
+              yP,
+              pickedIsYes,
+              'yes',
+            )}
+            {buttonForOutcome(
+              binary ? 'No' : displayNoOutcome,
+              nP,
+              !pickedIsYes,
+              'no',
+            )}
           </>
         ) : (
           <>
@@ -2671,10 +2896,9 @@ function PredictionPositionPanel({
   const status = predictionStatusPill(tradeState);
   const yesLabel = yesOutcome || 'Yes';
   const noLabel = noOutcome || 'No';
-  const normalizedOutcome = outcome.toLowerCase();
+  // Unknown side defaults to yes — binary picks back the question's subject.
   const pickedIsYes =
-    normalizedOutcome === yesLabel.toLowerCase() ||
-    normalizedOutcome === 'yes';
+    (resolvePickedSide(outcome, yesLabel, noLabel) ?? 'yes') === 'yes';
   const resolvedYesPrice = clampProbability(
     yesPrice ?? (pickedIsYes ? currentPrice : 1 - currentPrice),
   );
@@ -3146,15 +3370,33 @@ function RegularPredictionFeedCard({
   });
 
   // Show sports panel when at least yesOutcome + noOutcome + some sports signal present
-  const isYesNoBinary =
-    yesOutcome?.toLowerCase() === 'yes' &&
-    noOutcome?.toLowerCase() === 'no';
-  const isSports = Boolean(
-    yesOutcome &&
-    noOutcome &&
-    !isYesNoBinary &&
-    (yesTeam || noTeam || liveScore?.teams?.length),
+  const isYesNoBinary = isYesNoBinaryPrediction(content);
+  // Binary Yes/No sports markets (soccer/MMA split moneylines) name no teams in
+  // their outcomes — derive the matchup so the card can show "Argentina vs
+  // France" instead of the raw "Will Argentina win…?" question.
+  const binaryMatchup = useMemo(
+    () =>
+      isYesNoBinary
+        ? derivePredictionMatchup(content, liveEventSlug, liveScore?.teams)
+        : null,
+    [content, isYesNoBinary, liveEventSlug, liveScore],
   );
+  const isSports =
+    Boolean(
+      yesOutcome &&
+        noOutcome &&
+        !isYesNoBinary &&
+        (yesTeam || noTeam || liveScore?.teams?.length),
+    ) ||
+    Boolean(
+      isYesNoBinary &&
+        binaryMatchup &&
+        (yesTeam ||
+          noTeam ||
+          liveEventSlug ||
+          gameStartTime ||
+          liveScore?.teams?.length),
+    );
 
   const marketState = resolveMarketState(content, liveScore);
   const livePrices = useLivePredictionPrices(
@@ -3162,9 +3404,10 @@ function RegularPredictionFeedCard({
     noTokenId,
     !marketState.closed,
   );
+  // Unknown side defaults to yes — binary picks back the question's subject.
   const pickedIsYes =
-    outcome.toLowerCase() === yesOutcome?.toLowerCase() ||
-    outcome.toLowerCase() === 'yes';
+    (resolvePickedSide(outcome, yesOutcome || 'Yes', noOutcome || 'No') ??
+      'yes') === 'yes';
   const livePickedPrice = pickedIsYes
     ? livePrices.yesPrice
     : livePrices.noPrice;
@@ -3214,12 +3457,28 @@ function RegularPredictionFeedCard({
         <SportsMiniPanel
           marketTitle={content.marketTitle}
           eventSlug={liveEventSlug ?? eventSlug}
-          yesOutcome={yesOutcome!}
-          noOutcome={noOutcome!}
+          yesOutcome={
+            isYesNoBinary ? binaryMatchup?.a ?? yesOutcome! : yesOutcome!
+          }
+          noOutcome={
+            isYesNoBinary ? binaryMatchup?.b ?? noOutcome! : noOutcome!
+          }
+          binary={isYesNoBinary}
+          pickedIsYes={pickedIsYes}
           yesPrice={resolvedYesPrice}
           noPrice={resolvedNoPrice}
-          yesTeam={yesTeam}
-          noTeam={noTeam}
+          yesTeam={
+            yesTeam ??
+            (isYesNoBinary
+              ? liveTeamMetaForSide(binaryMatchup?.a, liveScore?.teams)
+              : undefined)
+          }
+          noTeam={
+            noTeam ??
+            (isYesNoBinary
+              ? liveTeamMetaForSide(binaryMatchup?.b, liveScore?.teams)
+              : undefined)
+          }
           gameStartTime={gameStartTime}
           yesTokenId={yesTokenId}
           noTokenId={noTokenId}
