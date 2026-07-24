@@ -7222,8 +7222,16 @@ export default function SwapTokenModal({
                       </div>
                     )}
                   </div>
-                  <span className="text-[12.5px] font-semibold">
-                    {payToken ? payToken.symbol : 'Select'}
+                  <span className="flex items-baseline gap-1 min-w-0">
+                    <span className="text-[12.5px] font-semibold">
+                      {payToken ? payToken.symbol : 'Select'}
+                    </span>
+                    {payToken?.chain && (
+                      <span className="text-[10.5px] font-medium text-[#6e6e76] truncate">
+                        {payToken.chain.charAt(0).toUpperCase() +
+                          payToken.chain.slice(1).toLowerCase()}
+                      </span>
+                    )}
                   </span>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -7397,8 +7405,19 @@ export default function SwapTokenModal({
                         );
                       })()}
                     </div>
-                    <span className="text-[12.5px] font-semibold">
-                      {receiveToken.symbol}
+                    <span className="flex items-baseline gap-1 min-w-0">
+                      <span className="text-[12.5px] font-semibold">
+                        {receiveToken.symbol}
+                      </span>
+                      {(() => {
+                        const n = getNetworkByChainId(receiverChainId);
+                        return n ? (
+                          <span className="text-[10.5px] font-medium text-[#6e6e76] truncate">
+                            {n.charAt(0).toUpperCase() +
+                              n.slice(1).toLowerCase()}
+                          </span>
+                        ) : null;
+                      })()}
                     </span>
                   </>
                 ) : (
