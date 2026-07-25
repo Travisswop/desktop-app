@@ -283,6 +283,7 @@ interface CompactGameCardProps {
   onOutcomeClick: BrowseMarketsBentoProps['onSportsOutcomeClick'];
   onGameClick?: BrowseMarketsBentoProps['onSportsGameClick'];
   withRightBorder?: boolean;
+  withBottomBorder?: boolean;
 }
 
 /**
@@ -295,6 +296,7 @@ function CompactGameCard({
   onOutcomeClick,
   onGameClick,
   withRightBorder,
+  withBottomBorder,
 }: CompactGameCardProps) {
   const { label: scheduledLabel, isLive: scheduledLive } = gameTimeLabel(game.startDate);
   const eventPeriod = game.eventPeriod ?? null;
@@ -377,11 +379,10 @@ function CompactGameCard({
   return (
     <div
       className="px-4 pt-3.5 pb-4"
-      style={
-        withRightBorder
-          ? { borderRight: `1px solid ${HAIR}` }
-          : undefined
-      }
+      style={{
+        ...(withRightBorder ? { borderRight: `1px solid ${HAIR}` } : {}),
+        ...(withBottomBorder ? { borderBottom: `1px solid ${HAIR}` } : {}),
+      }}
     >
       <div className="flex items-center justify-between mb-2.5">
         {isLive ? (
@@ -622,7 +623,7 @@ function SportsHeroCard({
   });
 
   const games = useMemo(() => {
-    // Feed order (live first, then soonest kickoff) so the hero's two slots
+    // Feed order (live first, then soonest kickoff) so the hero's slots
     // show the most relevant games instead of the highest-volume ones.
     const flat = orderSportsMarkets(sportsData?.pages.flat() ?? []);
     const grouped =
@@ -630,7 +631,7 @@ function SportsHeroCard({
     const enriched = teamsData
       ? enrichGamesWithTeamLogos(grouped, teamsData)
       : grouped;
-    return enriched.slice(0, 2);
+    return enriched.slice(0, 6);
   }, [sportsData, teamsData]);
 
   // Derive aggregate stats from the meta endpoint when we have one. The
@@ -714,7 +715,7 @@ function SportsHeroCard({
           tab; standalone sports render as themselves. Alphabetical, wrapped
           into two fixed rows instead of one scrolling row. */}
       <div className="border-b" style={{ borderColor: HAIR }}>
-        <div className="px-3 pt-2.5 pb-1 flex flex-wrap gap-1">
+        <div className="px-3 pt-2.5 pb-1 flex flex-wrap justify-center gap-1">
           <button
             onClick={() => onChangeSub('all')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
@@ -734,7 +735,7 @@ function SportsHeroCard({
             />
           ))}
         </div>
-        <div className="px-3 pt-1 pb-2.5 flex flex-wrap gap-1">
+        <div className="px-3 pt-1 pb-2.5 flex flex-wrap justify-center gap-1">
           {sportGroupRows[1].map((group) => (
             <SportGroupTabButton
               key={group.id}
@@ -772,16 +773,16 @@ function SportsHeroCard({
         </div>
       )}
 
-      {/* 2-col game preview */}
+      {/* 2-col x 3-row game preview (6 games) */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2">
-          {[0, 1].map((i) => (
+          {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
               className="px-4 py-5 animate-pulse"
               style={{
-                borderRight:
-                  i === 0 ? `1px solid ${HAIR}` : undefined,
+                borderRight: i % 2 === 0 ? `1px solid ${HAIR}` : undefined,
+                borderBottom: i < 4 ? `1px solid ${HAIR}` : undefined,
               }}
             >
               <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
@@ -801,15 +802,20 @@ function SportsHeroCard({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2">
-          {games.map((g, i) => (
-            <CompactGameCard
-              key={g.eventId}
-              game={g}
-              onOutcomeClick={onSportsOutcomeClick}
-              onGameClick={onSportsGameClick}
-              withRightBorder={i === 0 && games.length > 1}
-            />
-          ))}
+          {games.map((g, i) => {
+            const isLeftCol = i % 2 === 0;
+            const lastRowStart = games.length - (games.length % 2 === 0 ? 2 : 1);
+            return (
+              <CompactGameCard
+                key={g.eventId}
+                game={g}
+                onOutcomeClick={onSportsOutcomeClick}
+                onGameClick={onSportsGameClick}
+                withRightBorder={isLeftCol && i + 1 < games.length}
+                withBottomBorder={i < lastRowStart}
+              />
+            );
+          })}
         </div>
       )}
     </div>

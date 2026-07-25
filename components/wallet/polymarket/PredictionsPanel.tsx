@@ -4339,7 +4339,7 @@ function BentoHero({
               : `${liveGames.length} ${liveGames.length === 1 ? 'game' : 'games'}`}
           </span>
         </div>
-        <div className="max-h-[510px] overflow-y-auto px-5 py-2">
+        <div className="max-h-[255px] overflow-y-auto px-5 py-2">
           {isLoadingLiveGames ? (
             <div className="space-y-2 py-2">
               {[0, 1, 2].map((index) => (
