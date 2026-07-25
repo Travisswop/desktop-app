@@ -22,7 +22,9 @@ jest.mock('@/components/feed/useLivePerpsMarkPrice', () => ({
 }));
 
 import {
+  hasCrossedLimitPrice,
   inferPerpsRiskPriceHitFromBars,
+  perpsLimitActiveSinceMs,
   perpsRiskActiveSinceMs,
   type PerpsRiskDetectionBar,
 } from '@/components/feed/PerpsPositionFeedCard';
@@ -207,5 +209,109 @@ describe('perpsRiskActiveSinceMs', () => {
   it('returns null when no timestamp is available (disables candle scanning)', () => {
     expect(perpsRiskActiveSinceMs({})).toBeNull();
     expect(perpsRiskActiveSinceMs({ updatedAt: 'not-a-date' })).toBeNull();
+  });
+});
+
+describe('perpsLimitActiveSinceMs', () => {
+  it('anchors on limitPlacedAt, never updatedAt', () => {
+    // Real incident: the backend reconciler rewrites `updatedAt` to "now" on
+    // every poll while a limit order rests on-exchange, so using it here
+    // (like perpsRiskActiveSinceMs does for TP/SL) would shrink the lookback
+    // window toward "now" and hide a cross that already happened.
+    expect(
+      perpsLimitActiveSinceMs({
+        limitPlacedAt: '2026-07-01T09:00:00.000Z',
+        updatedAt: '2026-07-24T16:00:00.000Z',
+      }),
+    ).toBe(Date.parse('2026-07-01T09:00:00.000Z'));
+  });
+
+  it('falls back to the feed createdAt when limitPlacedAt is missing', () => {
+    expect(
+      perpsLimitActiveSinceMs({}, '2026-06-30T00:00:00.000Z'),
+    ).toBe(Date.parse('2026-06-30T00:00:00.000Z'));
+  });
+
+  it('returns null when neither timestamp is available', () => {
+    expect(perpsLimitActiveSinceMs({})).toBeNull();
+  });
+});
+
+describe('hasCrossedLimitPrice', () => {
+  const placedAtMs = Date.parse('2026-07-24T00:00:00.000Z');
+  const placedAtS = placedAtMs / 1000;
+
+  it('detects a fill when a post-placement candle trades through the limit price', () => {
+    // Matches the reported bug: an ETH long limit at $1,860.50 whose 1-week
+    // chart clearly crosses that level, but the stored status never flips.
+    expect(
+      hasCrossedLimitPrice({
+        bars: [
+          bar(placedAtS + HOUR_S, 1850, 1900), // low..high straddles 1860.50
+        ],
+        sinceMs: placedAtMs,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(true);
+  });
+
+  it('detects a fill regardless of which side price approaches from', () => {
+    expect(
+      hasCrossedLimitPrice({
+        bars: [
+          bar(placedAtS + HOUR_S, 1950, 2000), // starts above
+          bar(placedAtS + 2 * HOUR_S, 1850, 1865), // dips down through 1860.50
+        ],
+        sinceMs: placedAtMs,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(true);
+
+    expect(
+      hasCrossedLimitPrice({
+        bars: [
+          bar(placedAtS + HOUR_S, 1700, 1750), // starts below
+          bar(placedAtS + 2 * HOUR_S, 1855, 1900), // rises up through 1860.50
+        ],
+        sinceMs: placedAtMs,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(true);
+
+    expect(
+      hasCrossedLimitPrice({
+        bars: [bar(placedAtS + HOUR_S, 1700, 1800)], // never reaches 1860.50
+        sinceMs: placedAtMs,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(false);
+  });
+
+  it('ignores candles from before the limit was placed', () => {
+    expect(
+      hasCrossedLimitPrice({
+        bars: [bar(placedAtS - HOUR_S, 1850, 1900)],
+        sinceMs: placedAtMs,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when the limit price or activation time is unknown', () => {
+    expect(
+      hasCrossedLimitPrice({
+        bars: [bar(placedAtS + HOUR_S, 1850, 1900)],
+        sinceMs: null,
+        limitPrice: 1860.5,
+      }),
+    ).toBe(false);
+
+    expect(
+      hasCrossedLimitPrice({
+        bars: [bar(placedAtS + HOUR_S, 1850, 1900)],
+        sinceMs: placedAtMs,
+        limitPrice: null,
+      }),
+    ).toBe(false);
   });
 });

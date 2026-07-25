@@ -288,6 +288,37 @@ function hasCrossedLiquidationPrice({
   return side === 'long' ? mark <= liquidation : mark >= liquidation;
 }
 
+export function perpsLimitActiveSinceMs(
+  content: Partial<PerpsPositionFeedContent>,
+  feedCreatedAt?: string,
+) {
+  // Anchor on limitPlacedAt (immutable), never updatedAt — the backend
+  // reconciler rewrites updatedAt on every poll while a limit order rests,
+  // which would shrink this window toward "now" and hide a cross that
+  // already happened.
+  return dateMs(content.limitPlacedAt) ?? dateMs(feedCreatedAt);
+}
+
+export function hasCrossedLimitPrice({
+  bars,
+  sinceMs,
+  limitPrice,
+}: {
+  bars: PerpsRiskDetectionBar[];
+  sinceMs: number | null;
+  limitPrice: unknown;
+}) {
+  const limit = maybeFiniteNumber(limitPrice);
+  if (limit === null || limit <= 0 || sinceMs === null) return false;
+
+  // A resting limit order fills whenever the market trades through its
+  // price, regardless of which side price approaches from.
+  return bars.some(
+    (bar) =>
+      bar.time * 1000 >= sinceMs && bar.low <= limit && bar.high >= limit,
+  );
+}
+
 export function inferPerpsRiskPriceHit({
   side,
   markPrice,
@@ -516,8 +547,6 @@ export default function PerpsPositionFeedCard({
   const storedStatus = terminalTimestampPredatesOpen(content, rawStoredStatus)
     ? 'open'
     : rawStoredStatus;
-  const isLimitLifecycleStatus =
-    storedStatus === 'limit' || storedStatus === 'cancelled';
   const hasStoredTerminalStatus =
     storedStatus === 'closed' ||
     storedStatus === 'liquidated' ||
@@ -565,6 +594,24 @@ export default function PerpsPositionFeedCard({
   const { mids } = useAllMids(
     !hasStoredTerminalStatus && !isBuilderDexCoin && Boolean(liveMarketCoin),
   );
+  const limitActiveSinceMs = useMemo(
+    () => perpsLimitActiveSinceMs(content, feed.createdAt),
+    [content, feed.createdAt],
+  );
+  const hasCrossedLimit =
+    storedStatus === 'limit' &&
+    hasCrossedLimitPrice({
+      bars,
+      sinceMs: limitActiveSinceMs,
+      limitPrice: content.limitPrice,
+    });
+  // A resting limit order that the chart shows crossing its price has
+  // filled on-exchange even if the feed post's stored status never got
+  // updated (that only happens via the post owner's own client) — display
+  // it as an open position rather than stuck on "Limit".
+  const effectiveStatus = hasCrossedLimit ? 'open' : storedStatus;
+  const isLimitLifecycleStatus =
+    effectiveStatus === 'limit' || effectiveStatus === 'cancelled';
   const liveMarkPrice = useMemo(
     () =>
       hasStoredTerminalStatus
@@ -623,7 +670,11 @@ export default function PerpsPositionFeedCard({
     !hasStoredTerminalStatus
       ? liveMarkPrice || points[points.length - 1]?.price || storedMarkPrice
       : storedMarkPrice;
-  const entryPrice = firstFiniteNumber([content.entryPrice, currentMarkPrice]);
+  const entryPrice = firstFiniteNumber([
+    content.entryPrice,
+    hasCrossedLimit ? content.limitPrice : null,
+    currentMarkPrice,
+  ]);
   const { takeProfitPrice, stopLossPrice } =
     normalizePerpsRiskPricesForDisplay({
       side,
@@ -632,7 +683,7 @@ export default function PerpsPositionFeedCard({
       stopLossPrice: content.stopLossPrice,
     });
   const hasInferredLiquidation =
-    storedStatus === 'open' &&
+    effectiveStatus === 'open' &&
     hasCrossedLiquidationPrice({
       side,
       markPrice: currentMarkPrice,
@@ -644,7 +695,7 @@ export default function PerpsPositionFeedCard({
   );
   const inferredRiskPriceHit = useMemo(
     () =>
-      storedStatus === 'open' && !hasInferredLiquidation
+      effectiveStatus === 'open' && !hasInferredLiquidation
         ? inferPerpsRiskPriceHitFromBars({
             side,
             bars,
@@ -660,12 +711,12 @@ export default function PerpsPositionFeedCard({
       bars,
       content.markPrice,
       currentMarkPrice,
+      effectiveStatus,
       hasInferredLiquidation,
       riskActiveSinceMs,
       side,
       stopLossPrice,
       storedMarkPrice,
-      storedStatus,
       takeProfitPrice,
     ],
   );
@@ -681,7 +732,7 @@ export default function PerpsPositionFeedCard({
       ? 'liquidated'
       : inferredRiskPriceHit
       ? 'closed'
-      : storedStatus;
+      : effectiveStatus;
 
   const entries = useMemo(() => {
     const rawEntries = Array.isArray(content.entries) ? content.entries : [];

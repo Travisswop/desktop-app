@@ -206,4 +206,49 @@ describe('PerpsPositionFeedCard rendering', () => {
     expect(returnCell()).toHaveTextContent('-');
     expect(returnCell()).not.toHaveTextContent('%');
   });
+
+  it('flips a stale "Limit" post to open once the chart shows price crossed the limit (viewer is not the post owner)', () => {
+    // Reported bug: a limit order's chart clearly crosses its limit price,
+    // but the feed post's stored status stays 'limit' forever because the
+    // only writer that flips it is the post owner's own client-side backfill
+    // — which never runs for anyone just viewing the post in their feed.
+    const now = Date.now();
+    const placedAt = now - 21 * HOUR_MS;
+    mockUseHyperliquidCandles.mockReturnValue({
+      bars: [
+        bar(placedAt + HOUR_MS, 1855, 2013.1), // crosses 1860.50 on the way up
+        bar(now - HOUR_MS, 1780, 1870),
+      ],
+      isLoading: false,
+    });
+    mockUseAllMids.mockReturnValue({ mids: { ETH: '1864.55' } });
+
+    render(
+      <PerpsPositionFeedCard
+        feed={{
+          content: {
+            coin: 'ETH',
+            side: 'long',
+            status: 'limit',
+            leverage: 25,
+            limitPrice: 1860.5,
+            takeProfitPrice: 2013.1,
+            stopLossPrice: 1801,
+            limitPlacedAt: iso(placedAt),
+            // Stale-status bug: the backend reconciler keeps bumping
+            // updatedAt forward while the order rests, well after the cross.
+            updatedAt: iso(now - 5 * 60 * 1000),
+          },
+          createdAt: iso(placedAt),
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/Limit/)).not.toBeInTheDocument();
+    expect(screen.getByText('long 25x')).toBeInTheDocument();
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(displayedPrice('ETH')).toHaveTextContent('$1,864.55');
+    expect(returnCell()).toHaveTextContent('%');
+    expect(returnCell()).not.toHaveTextContent('-');
+  });
 });
