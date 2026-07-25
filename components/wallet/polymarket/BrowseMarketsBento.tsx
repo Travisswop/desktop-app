@@ -11,6 +11,7 @@ import {
   getSportSubcategoryById,
   getSportGroups,
   getGroupIdForSport,
+  type SportGroup,
 } from '@/constants/polymarket';
 import {
   useMarkets,
@@ -78,24 +79,6 @@ const BENTO_CATEGORIES: {
   { id: 'culture', tone: '#e15d9f' },
   { id: 'weather', tone: '#348fce' },
   { id: 'science', tone: '#4f8f41' },
-];
-
-// Sport-group ids shown inside the sports hero card's top tab row (curated —
-// the full group list is longer, see getSportGroups() / CategoryTabs.tsx for
-// the exhaustive drill-down used on the full "View all sports" page).
-// Multi-member groups (basketball, football, combat) collapse to one tab
-// here and reveal their members in a second row on selection, same as the
-// full browse view.
-export const SPORT_GROUP_TABS: string[] = [
-  'basketball',
-  'football',
-  'baseball',
-  'hockey',
-  'soccer',
-  'tennis',
-  'combat',
-  'motorsports',
-  'golf',
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -564,6 +547,29 @@ function compactTotalLine(label: string): string {
 
 // ─── Sports hero card ───────────────────────────────────────────────
 
+function SportGroupTabButton({
+  group,
+  isActive,
+  onChangeSub,
+}: {
+  group: SportGroup;
+  isActive: boolean;
+  onChangeSub: (sub: SportSubcategoryId) => void;
+}) {
+  return (
+    <button
+      onClick={() => onChangeSub(group.members[0].id)}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
+      style={{
+        background: isActive ? '#0a0a0c' : 'transparent',
+        color: isActive ? '#fff' : '#0a0a0c',
+      }}
+    >
+      {group.label}
+    </button>
+  );
+}
+
 interface SportsHeroProps {
   activeSub: SportSubcategoryId;
   onChangeSub: (sub: SportSubcategoryId) => void;
@@ -582,20 +588,18 @@ function SportsHeroCard({
   const { data: sportsMeta } = useSportsMeta();
   const { data: teamsData } = usePolymarketTeams();
 
-  // Every sport group, same as the full "View all sports" page — multi-
-  // member groups (basketball, football, combat) reveal their members in a
-  // second row. SPORT_GROUP_TABS above no longer curates this list down;
-  // it's kept only to pin the featured groups first (the rest follow in
-  // getSportGroups()'s definition order).
-  const sportGroups = useMemo(() => {
-    const all = getSportGroups();
-    const featured = SPORT_GROUP_TABS.map((id) =>
-      all.find((g) => g.id === id),
-    ).filter((g): g is NonNullable<typeof g> => Boolean(g));
-    const featuredIds = new Set(featured.map((g) => g.id));
-    const rest = all.filter((g) => !featuredIds.has(g.id));
-    return [...featured, ...rest];
-  }, []);
+  // Every sport group, alphabetical by label, same as the full "View all
+  // sports" page — multi-member groups (basketball, football, combat)
+  // reveal their members in a second row. Rendered as two fixed rows (see
+  // sportGroupRows below) instead of one scrolling row.
+  const sportGroups = useMemo(
+    () => [...getSportGroups()].sort((a, b) => a.label.localeCompare(b.label)),
+    [],
+  );
+  const sportGroupRows = useMemo(() => {
+    const mid = Math.ceil(sportGroups.length / 2);
+    return [sportGroups.slice(0, mid), sportGroups.slice(mid)];
+  }, [sportGroups]);
   const activeGroupId =
     activeSub === 'all' ? 'all' : (getGroupIdForSport(activeSub) ?? activeSub);
   const activeGroup = sportGroups.find((g) => g.id === activeGroupId);
@@ -707,37 +711,39 @@ function SportsHeroCard({
 
       {/* Sport-group tabs — Basketball/Football/Combat collapse their
           members (NBA/WNBA/..., NFL/CFB, MMA/Boxing/Power Slap) into one
-          tab; standalone sports render as themselves. */}
-      <div
-        className="px-3 py-2.5 flex gap-1 overflow-x-auto border-b"
-        style={{ borderColor: HAIR }}
-      >
-        <button
-          onClick={() => onChangeSub('all')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
-          style={{
-            background: activeSub === 'all' ? '#0a0a0c' : 'transparent',
-            color: activeSub === 'all' ? '#fff' : '#0a0a0c',
-          }}
-        >
-          All
-        </button>
-        {sportGroups.map((group) => {
-          const isActive = activeGroupId === group.id;
-          return (
-            <button
+          tab; standalone sports render as themselves. Alphabetical, wrapped
+          into two fixed rows instead of one scrolling row. */}
+      <div className="border-b" style={{ borderColor: HAIR }}>
+        <div className="px-3 pt-2.5 pb-1 flex flex-wrap gap-1">
+          <button
+            onClick={() => onChangeSub('all')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
+            style={{
+              background: activeSub === 'all' ? '#0a0a0c' : 'transparent',
+              color: activeSub === 'all' ? '#fff' : '#0a0a0c',
+            }}
+          >
+            All
+          </button>
+          {sportGroupRows[0].map((group) => (
+            <SportGroupTabButton
               key={group.id}
-              onClick={() => onChangeSub(group.members[0].id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
-              style={{
-                background: isActive ? '#0a0a0c' : 'transparent',
-                color: isActive ? '#fff' : '#0a0a0c',
-              }}
-            >
-              {group.label}
-            </button>
-          );
-        })}
+              group={group}
+              isActive={activeGroupId === group.id}
+              onChangeSub={onChangeSub}
+            />
+          ))}
+        </div>
+        <div className="px-3 pt-1 pb-2.5 flex flex-wrap gap-1">
+          {sportGroupRows[1].map((group) => (
+            <SportGroupTabButton
+              key={group.id}
+              group={group}
+              isActive={activeGroupId === group.id}
+              onChangeSub={onChangeSub}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Sports within the active group — only when it has more than one

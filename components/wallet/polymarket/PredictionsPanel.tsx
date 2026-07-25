@@ -3770,7 +3770,6 @@ function useLiveSportsGames() {
         limit: '90',
         offset: '0',
         tag_id: String(getCategoryById('sports')?.tagId ?? 100639),
-        live: 'true',
         kind: 'gamelines',
       });
       const response = await fetch(
@@ -3779,12 +3778,16 @@ function useLiveSportsGames() {
       if (!response.ok) throw new Error('Failed to load live games');
 
       const markets = (await response.json()) as PolymarketMarket[];
+      // No `live: 'true'` filter — compareSportsGames already tiers live
+      // games first, then soonest upcoming. Previously this card only ever
+      // showed strictly-live games, so on a quiet minute with just one live
+      // game it rendered a single sparse row instead of backfilling with
+      // upcoming games the way a real sportsbook would.
       const grouped = groupFlatMarketsIntoGames(markets)
         .filter(isValidGameCard)
         .sort(compareSportsGames);
 
-      const liveOnly = grouped.filter(isPolymarketLiveGame);
-      const games = (liveOnly.length > 0 ? liveOnly : grouped).slice(0, 20);
+      const games = grouped.slice(0, 20);
       return enrichLiveSportsGames(games);
     },
     staleTime: 15_000,
@@ -4015,6 +4018,26 @@ function formatLiveGameClock(
   return [period, elapsed].filter(Boolean).join(' ') || 'In play';
 }
 
+/** Short kickoff label for a backfilled (non-live) upcoming game — mirrors
+ *  BrowseMarketsBento's gameTimeLabel but this card already knows it isn't
+ *  live, so there's no LIVE branch to handle. */
+function formatKickoffLabel(gameStartTime: string | null | undefined): string {
+  if (!gameStartTime) return 'Upcoming';
+  const d = new Date(gameStartTime);
+  if (Number.isNaN(d.getTime())) return 'Upcoming';
+  const ms = d.getTime() - Date.now();
+  if (ms <= 0) return 'Starting';
+  const hrs = ms / 3_600_000;
+  if (hrs < 1) return `${Math.max(1, Math.round(ms / 60_000))}m`;
+  if (hrs < 24)
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function LiveGameRow({
   game,
   isFirst,
@@ -4025,11 +4048,14 @@ function LiveGameRow({
   onClick: (market: PolymarketMarket) => void;
 }) {
   const primaryMarket = getGamePrimaryMarket(game);
+  // This card backfills with upcoming (non-live) games once live games run
+  // out, so each row must honestly label whether it's actually live.
+  const isLive = isPolymarketLiveGame(game);
   const eventSlug = getMarketLiveEventSlug(primaryMarket);
-  const liveScore = useLiveEventScore(eventSlug, Boolean(eventSlug));
+  const liveScore = useLiveEventScore(eventSlug, isLive && Boolean(eventSlug));
   const embeddedScore = useMemo(
-    () => getEmbeddedLiveScore(primaryMarket),
-    [primaryMarket],
+    () => (isLive ? getEmbeddedLiveScore(primaryMarket) : EMPTY_LIVE_SCORE),
+    [isLive, primaryMarket],
   );
   const scoreState = useMemo(
     () => mergeLiveScoreStates(liveScore, embeddedScore),
@@ -4047,8 +4073,9 @@ function LiveGameRow({
     scoreState.teams,
     1,
   );
-  const hasScore = scoreA != null && scoreB != null;
-  const clock = formatLiveGameClock(scoreState, primaryMarket);
+  const hasScore = isLive && scoreA != null && scoreB != null;
+  const clock = isLive ? formatLiveGameClock(scoreState, primaryMarket) : null;
+  const kickoff = formatKickoffLabel(primaryMarket?.gameStartTime);
 
   return (
     <button
@@ -4067,19 +4094,32 @@ function LiveGameRow({
             <span className="truncate text-[13px] font-semibold tracking-tight">
               {game.teamA} vs. {game.teamB}
             </span>
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400"
-              style={{ boxShadow: '0 0 0 3px rgba(255,90,95,0.16)' }}
-            />
+            {isLive && (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400"
+                style={{ boxShadow: '0 0 0 3px rgba(255,90,95,0.16)' }}
+              />
+            )}
           </div>
           <div
             className="mt-0.5 flex min-w-0 items-center gap-2 text-[10.5px] font-semibold uppercase tracking-wide"
             style={{ color: 'rgba(255,255,255,0.55)', fontFamily: MONO }}
           >
-            <span className="shrink-0 tabular-nums text-red-300">
-              {clock}
-            </span>
-            <span style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+            {isLive ? (
+              <>
+                <span className="shrink-0 tabular-nums text-red-300">
+                  {clock}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+              </>
+            ) : (
+              <>
+                <span className="shrink-0 tabular-nums text-white/50">
+                  {kickoff}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+              </>
+            )}
             <span className="truncate">
               {game.moneyline ? 'moneyline' : game.spread ? 'spread' : 'total'}
             </span>
@@ -4095,11 +4135,20 @@ function LiveGameRow({
                 score
               </div>
             </>
-          ) : (
+          ) : isLive ? (
             <>
               <div className="text-[12px] font-bold text-red-300">LIVE</div>
               <div className="mt-0.5 text-[10px] font-semibold text-white/45">
                 odds live
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[12px] font-bold text-white/70">
+                {kickoff}
+              </div>
+              <div className="mt-0.5 text-[10px] font-semibold text-white/45">
+                kickoff
               </div>
             </>
           )}
