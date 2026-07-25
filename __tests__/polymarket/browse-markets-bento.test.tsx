@@ -38,7 +38,7 @@ describe('BrowseMarketsBento sports hero', () => {
       />,
     );
 
-    expect(html).toContain('No upcoming games for');
+    expect(html).toContain('No markets for');
     expect(html).toContain('All Sports');
     // Group tabs (Basketball, Football, Combat), not the flat NBA/WNBA/NFL/
     // CFB/MMA/Boxing list they collapse. Also covers a couple of the

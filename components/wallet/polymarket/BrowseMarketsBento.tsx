@@ -27,6 +27,10 @@ import {
   type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
 import { orderSportsMarkets } from '@/lib/polymarket/sports-ordering';
+import {
+  groupFuturesMarkets,
+  FuturesMarketGroupRows,
+} from '@/lib/polymarket/futures-preview';
 
 interface BrowseMarketsBentoProps {
   /** Click any market title or non-sports outcome → opens detail modal */
@@ -634,6 +638,25 @@ function SportsHeroCard({
     return enriched.slice(0, 6);
   }, [sportsData, teamsData]);
 
+  // Some sports (e.g. F1, or a league between seasons) have no game-line
+  // matchups at all, only futures/props — this card used to just say "No
+  // upcoming games" even though the sport has real markets. Mirror the full
+  // "Sports markets" page's Game lines -> Futures fallback: once the
+  // primary fetch settles empty, fetch futures for the same tag instead.
+  const shouldLoadFutures = !isLoading && games.length === 0;
+  const { data: futuresData, isLoading: isLoadingFutures } = useSportsEvents({
+    tagId,
+    enabled: shouldLoadFutures,
+    kind: 'futures',
+    includeRealtimePrices: true,
+    refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
+    refetchOnWindowFocus: false,
+  });
+  const futuresGroups = useMemo(
+    () => groupFuturesMarkets(futuresData?.pages.flat() ?? []).slice(0, 3),
+    [futuresData],
+  );
+
   // Derive aggregate stats from the meta endpoint when we have one. The
   // wireframe shows total markets + 24h volume + LIVE count for the
   // selected sport.
@@ -791,9 +814,27 @@ function SportsHeroCard({
             </div>
           ))}
         </div>
+      ) : games.length === 0 && isLoadingFutures ? (
+        <div className="px-4 py-5 animate-pulse">
+          <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
+          <div className="h-4 w-full bg-gray-200 rounded mb-2" />
+          <div className="h-4 w-full bg-gray-100 rounded" />
+        </div>
+      ) : games.length === 0 && futuresGroups.length > 0 ? (
+        <div>
+          {futuresGroups.map((group, i) => (
+            <FuturesMarketGroupRows
+              key={group.id}
+              group={group}
+              firstGroup={i === 0}
+              disabled={false}
+              onOutcomeClick={onSportsOutcomeClick}
+            />
+          ))}
+        </div>
       ) : games.length === 0 ? (
         <div className="px-5 py-8 text-center text-[12.5px] text-gray-500">
-          No upcoming games for{' '}
+          No markets for{' '}
           <span className="font-semibold text-gray-900">
             {getSportSubcategoryById(activeSub)?.label ??
               'this league'}
