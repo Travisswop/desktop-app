@@ -5106,8 +5106,12 @@ export default function MarketDetailView({
   const noAsk = noQuote?.askPrice;
   const yesMid = yesQuote?.midPrice;
   const noMid = noQuote?.midPrice;
-  const yesPrice = yesBid ?? staticPrices[0] ?? 0.5;
-  const noPrice = noBid ?? staticPrices[1] ?? 0.5;
+  // Prefer the bid/ask midpoint over the raw bid — thin, freshly-listed
+  // markets often quote a wide, non-complementary bid on each side, which
+  // reads as nonsensical (two-team odds not summing to ~100%). See the
+  // matching fix in lib/polymarket/sports-grouping.ts.
+  const yesPrice = yesMid ?? yesBid ?? staticPrices[0] ?? 0.5;
+  const noPrice = noMid ?? noBid ?? staticPrices[1] ?? 0.5;
 
   const yesOutcomeName = outcomes[0] || 'Yes';
   const noOutcomeName = outcomes[1] || 'No';
@@ -5193,9 +5197,15 @@ export default function MarketDetailView({
   const scoreboardOutcomeATokenId = moneylineOutcomeA?.tokenId || yesTokenId;
   const scoreboardOutcomeBTokenId = moneylineOutcomeB?.tokenId || noTokenId;
   const scoreboardOutcomeAPrice =
-    moneylineQuoteA?.bidPrice ?? moneylineOutcomeA?.price ?? yesPrice;
+    moneylineQuoteA?.midPrice ??
+    moneylineQuoteA?.bidPrice ??
+    moneylineOutcomeA?.price ??
+    yesPrice;
   const scoreboardOutcomeBPrice =
-    moneylineQuoteB?.bidPrice ?? moneylineOutcomeB?.price ?? noPrice;
+    moneylineQuoteB?.midPrice ??
+    moneylineQuoteB?.bidPrice ??
+    moneylineOutcomeB?.price ??
+    noPrice;
   const scoreboardTeamA = useMemo(
     () => matchTeamMeta(scoreboardOutcomeAName, market.eventTeams, 0),
     [scoreboardOutcomeAName, market.eventTeams],

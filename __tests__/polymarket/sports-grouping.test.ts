@@ -92,6 +92,47 @@ describe('sports grouping', () => {
       'U 2.5',
     ]);
   });
+
+  it('prefers the bid/ask midpoint over a raw bid so two-team moneylines sum to ~100%', () => {
+    // Real-world case (2026-07-25): Polymarket's own CLOB returned a raw bid
+    // of 0.26 for BOTH outcome tokens of a thin, freshly-listed game, which
+    // rendered as two unrelated teams each showing "26%". The midpoint (bid
+    // + ask) / 2 sums correctly even when the raw bid doesn't.
+    const lionsVsBengals = [
+      { name: 'Lions', abbreviation: 'DET' },
+      { name: 'Bengals', abbreviation: 'CIN' },
+    ];
+    const games = groupFlatMarketsIntoGames([
+      market({
+        id: 'ml-lions',
+        eventId: 'e1',
+        eventTitle: 'Lions vs. Bengals',
+        question: 'Will Lions win?',
+        outcomePrices: '["0.5","0.5"]',
+        clobTokenIds: '["lions-yes","lions-no"]',
+        eventTeams: lionsVsBengals,
+        realtimePrices: {
+          'lions-yes': { bidPrice: 0.26, askPrice: 0.74, midPrice: 0.5 },
+        },
+      }),
+      market({
+        id: 'ml-bengals',
+        eventId: 'e1',
+        eventTitle: 'Lions vs. Bengals',
+        question: 'Will Bengals win?',
+        outcomePrices: '["0.5","0.5"]',
+        clobTokenIds: '["bengals-yes","bengals-no"]',
+        eventTeams: lionsVsBengals,
+        realtimePrices: {
+          'bengals-yes': { bidPrice: 0.26, askPrice: 0.74, midPrice: 0.5 },
+        },
+      }),
+    ]).filter(isValidGameCard);
+
+    expect(games).toHaveLength(1);
+    const outcomes = games[0].moneyline?.outcomes ?? [];
+    expect(outcomes.map((o) => o.price)).toEqual([0.5, 0.5]);
+  });
 });
 
 function eventMarket(

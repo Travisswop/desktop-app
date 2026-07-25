@@ -379,7 +379,14 @@ function buildParsedOutcomes(
 
   return outcomes.map((label, i) => {
     const tokenId = tokenIds[i] ?? '';
-    const realtimePrice = tokenId ? realtimePrices?.[tokenId]?.bidPrice : undefined;
+    const entry = tokenId ? realtimePrices?.[tokenId] : undefined;
+    // Prefer the bid/ask midpoint over the raw bid — in thin, freshly-listed
+    // markets Polymarket's own CLOB often quotes a wide, non-complementary
+    // bid on each side (e.g. both teams' bids independently at 26%), which
+    // reads as nonsensical (two-team odds not summing to ~100%). The
+    // midpoint tracks Gamma's own outcomePrices methodology and sums
+    // correctly even when the raw bid doesn't.
+    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[i] ?? 0;
     const displayLabel =
       type === 'total'
@@ -702,9 +709,9 @@ function buildBinaryMoneylineGroup(
     ).map(Number);
     const tokenIds = safeParseJson<string[]>(market.clobTokenIds, []);
     const tokenId = tokenIds[0] ?? '';
-    const realtimePrice = tokenId
-      ? market.realtimePrices?.[tokenId]?.bidPrice
-      : undefined;
+    const entry = tokenId ? market.realtimePrices?.[tokenId] : undefined;
+    // See buildParsedOutcomes above — prefer midPrice over raw bid.
+    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[0] ?? 0;
     rows.push({ label, price, tokenId, market });
   }
@@ -745,9 +752,9 @@ function buildGroupFromMarket(
 
   const parsedOutcomes: ParsedOutcome[] = outcomes.map((label, i) => {
     const tokenId = tokenIds[i] ?? '';
-    const realtimePrice = tokenId
-      ? market.realtimePrices?.[tokenId]?.bidPrice
-      : undefined;
+    const entry = tokenId ? market.realtimePrices?.[tokenId] : undefined;
+    // See buildParsedOutcomes above — prefer midPrice over raw bid.
+    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[i] ?? 0;
     const displayLabel =
       type === 'total'

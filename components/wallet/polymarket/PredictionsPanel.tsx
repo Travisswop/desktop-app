@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -4290,7 +4290,7 @@ function BentoHero({
               : `${liveGames.length} ${liveGames.length === 1 ? 'game' : 'games'}`}
           </span>
         </div>
-        <div className="max-h-[255px] overflow-y-auto px-5 py-2">
+        <div className="max-h-[510px] overflow-y-auto px-5 py-2">
           {isLoadingLiveGames ? (
             <div className="space-y-2 py-2">
               {[0, 1, 2].map((index) => (
@@ -4441,6 +4441,19 @@ function CategoryDetailView({
   useEffect(() => {
     setActiveLeague(null);
   }, [drillDown]);
+
+  // Some sports (e.g. F1) have no game-line matchups at all, only futures —
+  // "Game lines" would otherwise always render empty. The first time a
+  // sport/league selection's Game lines comes back empty, auto-switch to
+  // Futures once; re-keyed per selection so it doesn't fight a manual pick.
+  const autoFallbackKey = `${drillDown.kind === 'sports' ? drillDown.sub : drillDown.id}|${activeLeague ?? ''}`;
+  const triedFallbackFor = useRef<string | null>(null);
+  const handleGameLinesEmpty = useCallback(() => {
+    if (filterIdx === 0 && triedFallbackFor.current !== autoFallbackKey) {
+      triedFallbackFor.current = autoFallbackKey;
+      setFilterIdx(1);
+    }
+  }, [filterIdx, autoFallbackKey]);
 
   // Resolve the live Polymarket tag ID for the active sport sub. Falls back
   // to the static constant when the live /sports endpoint hasn't responded.
@@ -4686,6 +4699,7 @@ function CategoryDetailView({
             kind={kind}
             dateFrom={showDateStrip ? activeDate.fromIso : undefined}
             dateTo={showDateStrip ? activeDate.toIso : undefined}
+            onEmpty={filterIdx === 0 ? handleGameLinesEmpty : undefined}
           />
         ) : (
           <div className="p-4 sm:p-5">

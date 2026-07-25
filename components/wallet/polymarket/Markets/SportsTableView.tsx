@@ -142,6 +142,10 @@ interface SportsTableViewProps {
   dateFrom?: string;
   /** ISO timestamp from the next date strip cell (exclusive upper bound). */
   dateTo?: string;
+  /** Fires once loading settles with zero results — lets the parent fall
+   *  back to a filter that actually has markets (e.g. F1 has no game-line
+   *  matchups, only futures). */
+  onEmpty?: () => void;
 }
 
 /**
@@ -159,6 +163,7 @@ export default function SportsTableView({
   kind,
   dateFrom,
   dateTo,
+  onEmpty,
 }: SportsTableViewProps) {
   const isFutures = kind === 'futures';
   const { isGeoblocked, safeAddress, portfolioAddresses } = useTrading();
@@ -285,6 +290,14 @@ export default function SportsTableView({
   // ── Render ──────────────────────────────────────────────────────────────
 
   const visibleItemCount = isFutures ? allMarkets.length : games.length;
+
+  const onEmptyRef = useRef(onEmpty);
+  onEmptyRef.current = onEmpty;
+  useEffect(() => {
+    if (!isLoading && !error && visibleItemCount === 0) {
+      onEmptyRef.current?.();
+    }
+  }, [isLoading, error, visibleItemCount]);
 
   if (isLoading && visibleItemCount === 0) {
     return (

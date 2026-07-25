@@ -582,13 +582,19 @@ function SportsHeroCard({
   const { data: sportsMeta } = useSportsMeta();
   const { data: teamsData } = usePolymarketTeams();
 
-  // Curated group row — see SPORT_GROUP_TABS above. Multi-member groups
-  // (basketball, football, combat) reveal their members in a second row.
+  // Every sport group, same as the full "View all sports" page — multi-
+  // member groups (basketball, football, combat) reveal their members in a
+  // second row. SPORT_GROUP_TABS above no longer curates this list down;
+  // it's kept only to pin the featured groups first (the rest follow in
+  // getSportGroups()'s definition order).
   const sportGroups = useMemo(() => {
     const all = getSportGroups();
-    return SPORT_GROUP_TABS.map((id) => all.find((g) => g.id === id)).filter(
-      (g): g is NonNullable<typeof g> => Boolean(g),
-    );
+    const featured = SPORT_GROUP_TABS.map((id) =>
+      all.find((g) => g.id === id),
+    ).filter((g): g is NonNullable<typeof g> => Boolean(g));
+    const featuredIds = new Set(featured.map((g) => g.id));
+    const rest = all.filter((g) => !featuredIds.has(g.id));
+    return [...featured, ...rest];
   }, []);
   const activeGroupId =
     activeSub === 'all' ? 'all' : (getGroupIdForSport(activeSub) ?? activeSub);
