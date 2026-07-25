@@ -36,7 +36,12 @@ const PREFERRED_TAG_BY_SPORT: Record<string, number> = {
   wnba: 100254,
   nfl: 450,
   cfb: 100351,
-  ncaab: 100149,
+  // Matches the NCAAB tagId used everywhere else (constants/polymarket/categories.ts,
+  // polymarket-backend's taxonomy) — was 100149 here, which is a different tag Gamma
+  // also lists for NCAAB entries, causing this live-metadata lookup to silently
+  // disagree with the app's static NCAAB tab whenever Gamma's /sports response
+  // includes both tags for the same entry.
+  ncaab: 101178,
   mlb: 100381,
   nhl: 899,
   tennis: 864,
