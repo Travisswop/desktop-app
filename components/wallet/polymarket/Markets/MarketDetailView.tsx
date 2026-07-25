@@ -11,11 +11,13 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useUser } from '@/lib/UserContext';
 import { postFeed } from '@/actions/postFeed';
 import type { PolymarketMarket } from '@/hooks/polymarket';
-import type {
-  GroupedMarket,
-  ParsedOutcome,
-  ResolvedTeamMeta,
-  SportsGameGroup,
+import {
+  groupEventMarkets,
+  type GammaEventMarket,
+  type GroupedMarket,
+  type ParsedOutcome,
+  type ResolvedTeamMeta,
+  type SportsGameGroup,
 } from '@/lib/polymarket/sports-grouping';
 import {
   getSportsGameMarketOutcomes,
@@ -2190,6 +2192,186 @@ function marketForParsedOutcome(
 ): PolymarketMarket | null {
   if (!group || !outcome) return null;
   return outcome.market ?? group.market;
+}
+
+// ── Player props (Home Runs, Points, Strikeouts, …) ──────────────────────────
+
+const PROP_STAT_KEYWORDS = [
+  'points',
+  'assists',
+  'rebounds',
+  'threes',
+  'blocks',
+  'steals',
+  'goals',
+  'hits',
+  'strikeouts',
+  'yards',
+  'touchdowns',
+  'tackles',
+  'saves',
+  'kills',
+  'deaths',
+  'passing',
+  'rushing',
+  'receiving',
+  'shots',
+];
+
+/**
+ * Groups player-prop markets by stat type (e.g. "Home Runs", "Points"),
+ * mirroring how Polymarket's own game-detail page tabs props by category
+ * instead of one flat list. Companion markets that aren't true player props
+ * (corners, halves, "1st 5 innings", etc.) fall into a generic "More Markets"
+ * bucket, same as mobile's equivalent view.
+ */
+function detectPropCategory(question: string): string {
+  const lower = question.toLowerCase();
+  const match = PROP_STAT_KEYWORDS.find((keyword) =>
+    new RegExp(`:\\s*${keyword}\\b`).test(lower),
+  );
+  if (match) {
+    return match.charAt(0).toUpperCase() + match.slice(1);
+  }
+  return 'More Markets';
+}
+
+function extractPropSubjectLabel(question: string): string {
+  const [subject] = question.split(':');
+  return subject?.trim() || question;
+}
+
+function PlayerPropsCard({
+  eventTitle,
+  props,
+  activeMarket,
+  activeTokenId,
+  disabled,
+  onOutcomeClick,
+}: {
+  eventTitle: string;
+  props: GroupedMarket[];
+  activeMarket: PolymarketMarket;
+  activeTokenId: string;
+  disabled: boolean;
+  onOutcomeClick: SportsGameLineClick;
+}) {
+  const categories = useMemo(() => {
+    const byCategory = new Map<string, GroupedMarket[]>();
+    for (const prop of props) {
+      if (!prop.outcomes.some((outcome) => outcome.tokenId)) continue;
+      const category = detectPropCategory(prop.market.question || '');
+      if (!byCategory.has(category)) byCategory.set(category, []);
+      byCategory.get(category)!.push(prop);
+    }
+    // "More Markets" (period/companion markets) last — stat props first.
+    return Array.from(byCategory.entries()).sort(([a], [b]) => {
+      if (a === 'More Markets') return 1;
+      if (b === 'More Markets') return -1;
+      return a.localeCompare(b);
+    });
+  }, [props]);
+
+  if (categories.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: `1px solid ${D.hair}`,
+        borderRadius: 18,
+        overflow: 'hidden',
+        boxShadow:
+          '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
+        marginTop: 12,
+      }}
+    >
+      <div
+        style={{
+          padding: '16px 18px 12px',
+          borderBottom: `1px solid ${D.hair}`,
+          fontFamily: D.mono,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: 0.8,
+          color: D.muted,
+          textTransform: 'uppercase',
+        }}
+      >
+        Props
+      </div>
+      <div style={{ padding: '14px 18px 16px' }}>
+        {categories.map(([category, rows], sectionIndex) => (
+          <div
+            key={category}
+            style={{ marginTop: sectionIndex === 0 ? 0 : 18 }}
+          >
+            <div
+              style={{
+                fontFamily: D.mono,
+                fontSize: 10.5,
+                fontWeight: 800,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: D.muted,
+                marginBottom: 8,
+              }}
+            >
+              {category}
+            </div>
+            {rows.map((prop) => (
+              <div
+                key={prop.market.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'minmax(0, 1fr) minmax(78px, 108px) minmax(78px, 108px)',
+                  columnGap: 10,
+                  alignItems: 'center',
+                  paddingTop: 8,
+                  paddingBottom: 8,
+                  borderTop: `1px solid ${D.hair2}`,
+                }}
+              >
+                <span
+                  style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: D.ink,
+                  }}
+                  title={prop.market.question}
+                >
+                  {extractPropSubjectLabel(prop.market.question || eventTitle)}
+                </span>
+                <GameLineButton
+                  kind={prop.type}
+                  outcome={prop.outcomes[0]}
+                  market={marketForParsedOutcome(prop, prop.outcomes[0])}
+                  activeMarket={activeMarket}
+                  activeTokenId={activeTokenId}
+                  disabled={disabled}
+                  onOutcomeClick={onOutcomeClick}
+                />
+                <GameLineButton
+                  kind={prop.type}
+                  outcome={prop.outcomes[1]}
+                  market={marketForParsedOutcome(prop, prop.outcomes[1])}
+                  activeMarket={activeMarket}
+                  activeTokenId={activeTokenId}
+                  disabled={disabled}
+                  onOutcomeClick={onOutcomeClick}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 type AltLineEntry = {
@@ -4955,6 +5137,39 @@ export default function MarketDetailView({
     return !looksBinary;
   }, [game, market.eventTeams, market.gameStartTime, outcomes]);
 
+  // ── Player props / period markets ─────────────────────────────────────────
+  // The sportsbook grid feed omits these (groupPolymarketMarketsForEvent
+  // drops them so the grid stays to Moneyline/Spread/Total), so fetch the
+  // full event once the detail view opens on a sports market — mirrors
+  // mobile's detailQuery in Expo-Moon-App/src/app/(app)/predictions.tsx.
+  const [propMarkets, setPropMarkets] = useState<GroupedMarket[]>([]);
+  const propsEventKey = market.eventSlug ?? game?.eventId ?? market.eventId;
+  useEffect(() => {
+    if (!isSports || !propsEventKey) {
+      setPropMarkets([]);
+      return;
+    }
+    let cancelled = false;
+    const params = market.eventSlug
+      ? `slug=${encodeURIComponent(String(market.eventSlug))}`
+      : `id=${encodeURIComponent(String(propsEventKey))}`;
+    fetch(`/api/polymarket/event-markets?${params}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((markets: GammaEventMarket[]) => {
+        if (cancelled || !Array.isArray(markets) || markets.length === 0)
+          return;
+        const eventTitle = markets[0]?.eventTitle as string | undefined;
+        const grouped = groupEventMarkets(markets, undefined, eventTitle);
+        setPropMarkets(grouped.other ?? []);
+      })
+      .catch(() => {
+        /* props are progressive enhancement — ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSports, propsEventKey, market.eventSlug]);
+
   const yesTeamMeta = useMemo(
     () => matchTeamMeta(yesOutcomeName, market.eventTeams, 0),
     [yesOutcomeName, market.eventTeams],
@@ -5640,6 +5855,17 @@ export default function MarketDetailView({
         {isSports && game && (
           <SportsGameLinesCard
             game={game}
+            activeMarket={market}
+            activeTokenId={activeTokenId}
+            disabled={isFinalSportsEvent || isGeoblocked || isCloseOnlyRoot}
+            onOutcomeClick={handleGameLineSelect}
+          />
+        )}
+
+        {isSports && game && propMarkets.length > 0 && (
+          <PlayerPropsCard
+            eventTitle={game.title}
+            props={propMarkets}
             activeMarket={market}
             activeTokenId={activeTokenId}
             disabled={isFinalSportsEvent || isGeoblocked || isCloseOnlyRoot}

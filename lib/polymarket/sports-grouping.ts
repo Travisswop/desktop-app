@@ -98,6 +98,14 @@ export interface SportsGameGroup {
   spreadLines?: GroupedMarket[];
   /** Additional total lines for events that expose alternate totals. */
   totalLines?: GroupedMarket[];
+  /**
+   * Non game-line markets for the event — player props, period/half markets,
+   * corners, etc. Only populated by groupEventMarkets() (the game-detail
+   * view, fed from the full unfiltered event fetch); the sportsbook grid
+   * feed's groupPolymarketMarketsForEvent() drops these instead, so this
+   * stays empty there.
+   */
+  other?: GroupedMarket[];
 }
 
 // ─── Raw Gamma API shapes ─────────────────────────────────────────────────────
@@ -176,8 +184,28 @@ function extractSignedLine(value: string): string | null {
 }
 
 function isCompanionSportsMarket(question = '', eventTitle = ''): boolean {
-  return /\b(exact score|first team|first to score|score first|first corner|total corners|corner|cards?|booking|player props?|both teams to score|half|halftime|period|quarter)\b/.test(
-    normalizeText(`${eventTitle} ${question}`),
+  const text = normalizeText(`${eventTitle} ${question}`);
+  return (
+    /\b(exact score|first team|first to score|score first|first corner|total corners|corner|cards?|booking|player props?|both teams to score|half|halftime|period|quarter)\b/.test(
+      text,
+    ) ||
+    // Period/segment lines (baseball innings, tennis sets, esports maps, darts
+    // frames) are their own markets, not the full-game spread/total.
+    /\binnings?\b|\bset \d|\bmap \d|\bframe \d|\bfirst \d+ (innings?|sets?|maps?)\b/.test(
+      text,
+    )
+  );
+}
+
+/**
+ * Player-prop markets ("LeBron James: Points O/U 26.5") — distinguished from a
+ * game total by the "<name>: <stat>" colon prefix, so a real game total like
+ * "Total points O/U 220.5" is NOT misrouted. Mirrors mobile's classifier
+ * (Expo-Moon-App/src/lib/predictionSports.ts).
+ */
+function isPlayerPropMarket(question = ''): boolean {
+  return /:\s*(points|assists|rebounds|goals|hits|strikeouts|yards|touchdowns|tackles|saves|kills|deaths|threes|blocks|steals|passing|rushing|receiving|shots)\b/i.test(
+    question,
   );
 }
 
@@ -366,26 +394,29 @@ function buildParsedOutcomes(
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Group the raw markets of a single event into moneyline / spread / total.
- * Skips closed or inactive markets. Picks the first matching market for each
+ * Group the raw markets of a single event into moneyline / spread / total,
+ * plus `other` for player props and period/companion markets. Skips closed
+ * or inactive markets. Picks the first matching market for each game-line
  * type so duplicate lines don't create extra rows.
  */
 export function groupEventMarkets(
   markets: GammaEventMarket[],
   realtimePrices?: RealtimePriceMap,
+  eventTitle?: string,
 ): Pick<
   SportsGameGroup,
-  'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+  'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines' | 'other'
 > {
   const result: Pick<
     SportsGameGroup,
-    'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines'
+    'moneyline' | 'spread' | 'total' | 'spreadLines' | 'totalLines' | 'other'
   > = {
     moneyline: null,
     spread: null,
     total: null,
     spreadLines: [],
     totalLines: [],
+    other: [],
   };
 
   for (const raw of markets) {
@@ -397,6 +428,20 @@ export function groupEventMarkets(
     const market = toPolymarketMarket(raw, realtimePrices);
     const parsedOutcomes = buildParsedOutcomes(raw, type, realtimePrices);
     const group = { type, market, outcomes: parsedOutcomes };
+
+    // Player props / period / corner markets aren't game lines — collect
+    // them in `other` instead of letting them pollute the spread/total
+    // alt-line lists (they often share the same Over/Under outcome shape as
+    // a real game total).
+    const rawEventTitle =
+      eventTitle ?? (raw.eventTitle as string | undefined) ?? '';
+    if (
+      isPlayerPropMarket(raw.question) ||
+      isCompanionSportsMarket(raw.question, rawEventTitle)
+    ) {
+      result.other?.push(group);
+      continue;
+    }
 
     if (type === 'spread') {
       result.spreadLines?.push(group);
@@ -1004,7 +1049,7 @@ export function toSportsGameGroup(
   realtimePrices?: RealtimePriceMap,
 ): SportsGameGroup {
   const title = (event.title as string) ?? 'Unknown Event';
-  const grouped = groupEventMarkets(event.markets ?? [], realtimePrices);
+  const grouped = groupEventMarkets(event.markets ?? [], realtimePrices, title);
   const [teamA, teamB] = resolveTeamNames(title, grouped.moneyline);
 
   // Align spread outcomes to match the moneyline row order

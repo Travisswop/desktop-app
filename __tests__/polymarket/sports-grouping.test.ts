@@ -1,6 +1,8 @@
 import {
+  groupEventMarkets,
   groupFlatMarketsIntoGames,
   isValidGameCard,
+  type GammaEventMarket,
 } from '@/lib/polymarket/sports-grouping';
 import type { PolymarketMarket } from '@/hooks/polymarket';
 
@@ -89,5 +91,69 @@ describe('sports grouping', () => {
       'O 2.5',
       'U 2.5',
     ]);
+  });
+});
+
+function eventMarket(
+  overrides: Partial<GammaEventMarket>,
+): GammaEventMarket {
+  return {
+    id: 'market',
+    question: 'Question',
+    active: true,
+    closed: false,
+    outcomes: '["Over","Under"]',
+    outcomePrices: '["0.5","0.5"]',
+    clobTokenIds: '["over-token","under-token"]',
+    ...overrides,
+  };
+}
+
+describe('groupEventMarkets', () => {
+  it('routes player props and period markets into `other`, not the total alt-lines', () => {
+    const grouped = groupEventMarkets(
+      [
+        eventMarket({
+          id: 'game-total',
+          question: 'Royals vs. Tigers: O/U 7.5',
+        }),
+        eventMarket({
+          id: 'player-prop',
+          question: 'Bobby Witt Jr.: Hits O/U 1.5',
+        }),
+        eventMarket({
+          id: 'period-market',
+          question: '1st 5 Innings: Total Runs O/U 2.5',
+        }),
+      ],
+      undefined,
+      'Kansas City Royals vs. Detroit Tigers',
+    );
+
+    expect(grouped.total?.market.id).toBe('game-total');
+    expect(grouped.totalLines?.map((line) => line.market.id)).toEqual([
+      'game-total',
+    ]);
+    expect(grouped.other?.map((entry) => entry.market.id).sort()).toEqual([
+      'period-market',
+      'player-prop',
+    ]);
+  });
+
+  it('does not misroute a real game total that happens to share Over/Under outcomes with a prop', () => {
+    const grouped = groupEventMarkets([
+      eventMarket({
+        id: 'moneyline',
+        question: 'Will the Royals win?',
+        outcomes: '["Yes","No"]',
+      }),
+      eventMarket({
+        id: 'game-total',
+        question: 'Royals vs. Tigers: Total runs O/U 7.5',
+      }),
+    ]);
+
+    expect(grouped.total?.market.id).toBe('game-total');
+    expect(grouped.other ?? []).toHaveLength(0);
   });
 });
