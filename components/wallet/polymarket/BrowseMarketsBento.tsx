@@ -652,10 +652,20 @@ function SportsHeroCard({
     refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: false,
   });
-  const futuresGroups = useMemo(
-    () => groupFuturesMarkets(futuresData?.pages.flat() ?? []).slice(0, 3),
+  const allFuturesGroups = useMemo(
+    () => groupFuturesMarkets(futuresData?.pages.flat() ?? []),
     [futuresData],
   );
+  // Collapsed to a 3-group preview by default — "Show more" extends the
+  // view in place, same idea as the full "View all sports" page rather
+  // than forcing a navigation just to see the rest of this sport's markets.
+  const [futuresExpanded, setFuturesExpanded] = useState(false);
+  useEffect(() => {
+    setFuturesExpanded(false);
+  }, [activeSub]);
+  const futuresGroups = futuresExpanded
+    ? allFuturesGroups
+    : allFuturesGroups.slice(0, 3);
 
   // Derive aggregate stats from the meta endpoint when we have one. The
   // wireframe shows total markets + 24h volume + LIVE count for the
@@ -831,6 +841,23 @@ function SportsHeroCard({
               onOutcomeClick={onSportsOutcomeClick}
             />
           ))}
+          {allFuturesGroups.length > 3 && (
+            <div
+              className="px-4 sm:px-[18px] py-3 flex justify-center"
+              style={{ borderTop: `1px solid ${HAIR}` }}
+            >
+              <button
+                onClick={() => setFuturesExpanded((v) => !v)}
+                className="text-[12.5px] font-semibold text-gray-900 hover:text-gray-600 transition"
+              >
+                {futuresExpanded
+                  ? 'Show less'
+                  : `Show ${allFuturesGroups.length - 3} more market${
+                      allFuturesGroups.length - 3 === 1 ? '' : 's'
+                    }`}
+              </button>
+            </div>
+          )}
         </div>
       ) : games.length === 0 ? (
         <div className="px-5 py-8 text-center text-[12.5px] text-gray-500">
