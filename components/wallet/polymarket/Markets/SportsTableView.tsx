@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTrading } from '@/providers/polymarket';
@@ -726,7 +726,12 @@ function TeamBadge({
   abbrev: string;
   color: string;
 }) {
-  if (logoUrl) {
+  // Combat-sport fighter photos come from Polymarket's per-event `logo`
+  // field (not the stable global team-logo table), which 404s for some
+  // fighters (e.g. many Boxing cards) — fall back to the initials badge
+  // instead of rendering a broken image.
+  const [failed, setFailed] = useState(false);
+  if (logoUrl && !failed) {
     return (
       <div className="w-8 h-8 rounded-md overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
         <Image
@@ -736,6 +741,7 @@ function TeamBadge({
           height={32}
           className="w-7 h-7 object-contain"
           unoptimized
+          onError={() => setFailed(true)}
         />
       </div>
     );

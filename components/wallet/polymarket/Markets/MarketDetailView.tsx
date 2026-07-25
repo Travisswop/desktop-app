@@ -1532,6 +1532,10 @@ function TeamBadgeBlock({
   const logo = team?.logo;
   const displayAbbr = team?.abbreviation || abbr;
   const displayName = team?.name || name;
+  // Per-event fighter/team photos can 404 (common for Boxing) — fall back
+  // to the initials badge instead of a broken image.
+  const [logoFailed, setLogoFailed] = useState(false);
+  const showLogo = Boolean(logo) && !logoFailed;
   return (
     <div
       className={`flex flex-col items-center ${
@@ -1540,14 +1544,15 @@ function TeamBadgeBlock({
     >
       <div
         className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 "
-        style={{ backgroundColor: !logo ? color : undefined }}
+        style={{ backgroundColor: !showLogo ? color : undefined }}
       >
-        {logo ? (
+        {showLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logo}
             alt={displayAbbr}
             className="w-10 h-10 object-contain rounded-lg"
+            onError={() => setLogoFailed(true)}
           />
         ) : (
           <span className="text-xs font-extrabold tracking-wide text-white">
@@ -1825,6 +1830,10 @@ function SportsGameLinesRow({
 function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
   const abbr = row.meta?.abbrev || getAbbr(row.name);
   const color = row.meta?.color || '#374151';
+  // Per-event fighter/team photos can 404 (common for Boxing) — fall back
+  // to the initials badge instead of a broken image.
+  const [logoFailed, setLogoFailed] = useState(false);
+  const showLogo = Boolean(row.logoUrl) && !logoFailed;
 
   return (
     <div
@@ -1840,8 +1849,8 @@ function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
           width: 34,
           height: 34,
           borderRadius: 9,
-          background: row.logoUrl ? '#fff' : color,
-          border: row.logoUrl ? `1px solid ${D.hair}` : 'none',
+          background: showLogo ? '#fff' : color,
+          border: showLogo ? `1px solid ${D.hair}` : 'none',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1849,7 +1858,7 @@ function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
           flexShrink: 0,
         }}
       >
-        {row.logoUrl ? (
+        {showLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={row.logoUrl}
@@ -1857,6 +1866,7 @@ function GameLineTeamCell({ row }: { row: SportsGameLineRow }) {
             width={32}
             height={32}
             style={{ objectFit: 'contain' }}
+            onError={() => setLogoFailed(true)}
           />
         ) : (
           <span
@@ -3894,10 +3904,11 @@ function LiveScoreboardCard({
       >
         <div
           style={{
+            position: 'relative',
             width: 36,
             height: 36,
             borderRadius: '50%',
-            background: !logo ? color : '#fff',
+            background: color,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -3905,27 +3916,40 @@ function LiveScoreboardCard({
             flexShrink: 0,
           }}
         >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#fff',
+              letterSpacing: 0.4,
+            }}
+          >
+            {(team?.abbreviation || abbr).slice(0, 4)}
+          </span>
           {logo ? (
+            // Fighter/team photos can 404 (common for Boxing) — the
+            // initials badge above is a permanent fallback layer; on error
+            // this image just hides, revealing it. No React state needed
+            // since renderTeam is a plain closure, not a component.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logo}
               alt={team?.abbreviation || abbr}
               width={36}
               height={36}
-              style={{ objectFit: 'contain' }}
-            />
-          ) : (
-            <span
               style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#fff',
-                letterSpacing: 0.4,
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                background: '#fff',
               }}
-            >
-              {(team?.abbreviation || abbr).slice(0, 4)}
-            </span>
-          )}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
         </div>
         <div
           style={{
