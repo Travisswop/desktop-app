@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import BrowseMarketsBento, {
-  SPORT_TABS,
+  SPORT_GROUP_TABS,
   getCompactSportsOutcomeSelection,
 } from '@/components/wallet/polymarket/BrowseMarketsBento';
 import type { PolymarketMarket } from '@/hooks/polymarket';
@@ -39,9 +39,17 @@ describe('BrowseMarketsBento sports hero', () => {
       />,
     );
 
-    expect(SPORT_TABS[0]).toBe('all');
+    expect(SPORT_GROUP_TABS[0]).toBe('basketball');
     expect(html).toContain('No upcoming games for');
     expect(html).toContain('All Sports');
+    // Group tabs (Basketball, Football, Combat), not the flat NBA/WNBA/NFL/
+    // CFB/MMA/Boxing list they collapse.
+    expect(html).toContain('Basketball');
+    expect(html).toContain('Football');
+    expect(html).toContain('Combat');
+    // No group is expanded until one is clicked, so NBA shouldn't appear on
+    // first render (it's folded inside the unexpanded Basketball tab).
+    expect(html).not.toContain('>NBA<');
   });
 
   it('maps compact sports odds clicks to the clicked market outcome', () => {

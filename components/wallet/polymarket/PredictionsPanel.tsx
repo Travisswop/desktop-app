@@ -47,11 +47,12 @@ import {
   POLLING_INTERVAL,
   USDC_E_DECIMALS,
   CATEGORIES,
-  SPORT_SUBCATEGORIES,
   type CategoryId,
   type SportSubcategoryId,
   getCategoryById,
   getSportSubcategoryById,
+  getSportGroups,
+  getGroupIdForSport,
 } from '@/constants/polymarket';
 import { createPollingInterval } from '@/lib/polymarket/polling';
 import { formatPolymarketError } from '@/lib/polymarket';
@@ -4403,6 +4404,21 @@ function CategoryDetailView({
     ? (getSportSubcategoryById(drillDown.sub)?.label ?? 'Sports')
     : (getCategoryById(drillDown.id)?.label ?? 'Markets');
 
+  // Sport-group hierarchy for Row 1 — see constants/polymarket/categories.ts.
+  const sportGroups = useMemo(
+    () => (isSports ? getSportGroups() : []),
+    [isSports],
+  );
+  const activeGroupId = isSports
+    ? drillDown.sub === 'all'
+      ? 'all'
+      : (getGroupIdForSport(drillDown.sub) ?? drillDown.sub)
+    : undefined;
+  const activeGroup = sportGroups.find((g) => g.id === activeGroupId);
+  const activeLeagues = isSports
+    ? getSportSubcategoryById(drillDown.sub)?.leagues
+    : undefined;
+
   // Filter state — wired to the backend through SportsTableView (sports)
   // or HighVolumeMarkets (other categories).
   // 0 → Game lines / All markets   (default — no extra filter)
@@ -4412,6 +4428,14 @@ function CategoryDetailView({
   const dateStrip = useMemo(() => buildDateStrip(5), []);
   // Default to "Today" — matches the A2 wireframe's active tile.
   const [activeDateIdx, setActiveDateIdx] = useState(0);
+
+  // Selected competition within the active sport (e.g. 'epl' under Soccer).
+  // Reset whenever the sport changes so switching sports doesn't leave a
+  // stale league filter — mirrors Markets/index.tsx's activeLeague.
+  const [activeLeague, setActiveLeague] = useState<string | null>(null);
+  useEffect(() => {
+    setActiveLeague(null);
+  }, [drillDown]);
 
   // Resolve the live Polymarket tag ID for the active sport sub. Falls back
   // to the static constant when the live /sports endpoint hasn't responded.
@@ -4425,16 +4449,24 @@ function CategoryDetailView({
         100639
       );
     }
+    const sub = getSportSubcategoryById(drillDown.sub);
+    // A specific competition is selected (e.g. EPL under Soccer) — its tag
+    // takes priority. League tags aren't in the live /sports metadata
+    // (that's keyed by sport slug, not competition), so always static.
+    if (activeLeague) {
+      const league = sub?.leagues?.find((l) => l.id === activeLeague);
+      if (league) return league.tagId;
+    }
     const liveTagId = sportsMeta?.tagIdBySlug.get(
       drillDown.sub.toLowerCase(),
     );
     if (liveTagId != null) return liveTagId;
     return (
-      getSportSubcategoryById(drillDown.sub)?.tagId ??
+      sub?.tagId ??
       getCategoryById('sports')?.tagId ??
       undefined
     );
-  }, [isSports, drillDown, sportsMeta]);
+  }, [isSports, drillDown, sportsMeta, activeLeague]);
 
   // Filter chip → backend params. Default ("Game lines") sends no kind so
   // the backend's market-level team detection handles every event. We only
@@ -4493,22 +4525,38 @@ function CategoryDetailView({
             '0 1px 2px rgba(10,10,12,0.04), 0 8px 28px -12px rgba(10,10,12,0.10)',
         }}
       >
-        {/* Row 1 — League / category pill tabs */}
+        {/* Row 1 — sport-group / category pill tabs. Groups (Basketball,
+            Football, Combat, ...) collapse their members into one tab;
+            standalone sports (Soccer, Tennis, Cricket, ...) render as
+            themselves since they have no siblings. */}
         <div
           className="flex gap-1 px-2.5 py-2 overflow-x-auto border-b"
           style={{ borderColor: HAIR }}
         >
           {isSports
-            ? SPORT_SUBCATEGORIES.map((s) => (
+            ? [
                 <LeaguePill
-                  key={s.id}
-                  active={drillDown.sub === s.id}
-                  label={s.label === 'All Sports' ? 'All' : s.label}
+                  key="all"
+                  active={drillDown.sub === 'all'}
+                  label="All"
                   onClick={() =>
-                    onChangeDrillDown({ kind: 'sports', sub: s.id })
+                    onChangeDrillDown({ kind: 'sports', sub: 'all' })
                   }
-                />
-              ))
+                />,
+                ...sportGroups.map((group) => (
+                  <LeaguePill
+                    key={group.id}
+                    active={activeGroupId === group.id}
+                    label={group.label}
+                    onClick={() =>
+                      onChangeDrillDown({
+                        kind: 'sports',
+                        sub: group.members[0].id,
+                      })
+                    }
+                  />
+                )),
+              ]
             : CATEGORIES.filter((c) => c.id !== 'sports').map((c) => (
                 <LeaguePill
                   key={c.id}
@@ -4523,6 +4571,51 @@ function CategoryDetailView({
                 />
               ))}
         </div>
+
+        {/* Row 1b — sports within the active group (only shown when that
+            group has more than one member, e.g. Basketball's NBA/WNBA/Summer
+            League/NCAAB/NCAAW). */}
+        {isSports && activeGroup && activeGroup.members.length > 1 && (
+          <div
+            className="flex gap-1 px-2.5 py-2 overflow-x-auto border-b"
+            style={{ borderColor: HAIR, background: '#fafafa' }}
+          >
+            {activeGroup.members.map((sub) => (
+              <LeaguePill
+                key={sub.id}
+                active={drillDown.sub === sub.id}
+                label={sub.label}
+                onClick={() =>
+                  onChangeDrillDown({ kind: 'sports', sub: sub.id })
+                }
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Row 1c — competitions/leagues within the active sport (EPL/La
+            Liga/... for Soccer, ATP/WTA for Tennis, Rugby's competitions,
+            etc.) — only for sports that have a leagues list. */}
+        {isSports && activeLeagues && activeLeagues.length > 0 && (
+          <div
+            className="flex gap-1 px-2.5 py-2 overflow-x-auto border-b"
+            style={{ borderColor: HAIR, background: '#fafafa' }}
+          >
+            <LeaguePill
+              active={activeLeague === null}
+              label="All"
+              onClick={() => setActiveLeague(null)}
+            />
+            {activeLeagues.map((leagueOption) => (
+              <LeaguePill
+                key={leagueOption.id}
+                active={activeLeague === leagueOption.id}
+                label={leagueOption.label}
+                onClick={() => setActiveLeague(leagueOption.id)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Row 2 — Sub-filter row (#fafafa bg) */}
         <div

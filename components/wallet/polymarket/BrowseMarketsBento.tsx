@@ -9,6 +9,8 @@ import {
   type SportSubcategoryId,
   getCategoryById,
   getSportSubcategoryById,
+  getSportGroups,
+  getGroupIdForSport,
 } from '@/constants/polymarket';
 import {
   useMarkets,
@@ -78,20 +80,21 @@ const BENTO_CATEGORIES: {
   { id: 'science', tone: '#4f8f41' },
 ];
 
-// Sport tabs shown inside the sports hero card.
-export const SPORT_TABS: SportSubcategoryId[] = [
-  'all',
-  'nba',
-  'wnba',
-  'nfl',
-  'cfb',
-  'mlb',
-  'nhl',
+// Sport-group ids shown inside the sports hero card's top tab row (curated —
+// the full group list is longer, see getSportGroups() / CategoryTabs.tsx for
+// the exhaustive drill-down used on the full "View all sports" page).
+// Multi-member groups (basketball, football, combat) collapse to one tab
+// here and reveal their members in a second row on selection, same as the
+// full browse view.
+export const SPORT_GROUP_TABS: string[] = [
+  'basketball',
+  'football',
+  'baseball',
+  'hockey',
   'soccer',
-  'f1',
-  'mma',
   'tennis',
-  'boxing',
+  'combat',
+  'motorsports',
   'golf',
 ];
 
@@ -579,6 +582,18 @@ function SportsHeroCard({
   const { data: sportsMeta } = useSportsMeta();
   const { data: teamsData } = usePolymarketTeams();
 
+  // Curated group row — see SPORT_GROUP_TABS above. Multi-member groups
+  // (basketball, football, combat) reveal their members in a second row.
+  const sportGroups = useMemo(() => {
+    const all = getSportGroups();
+    return SPORT_GROUP_TABS.map((id) => all.find((g) => g.id === id)).filter(
+      (g): g is NonNullable<typeof g> => Boolean(g),
+    );
+  }, []);
+  const activeGroupId =
+    activeSub === 'all' ? 'all' : (getGroupIdForSport(activeSub) ?? activeSub);
+  const activeGroup = sportGroups.find((g) => g.id === activeGroupId);
+
   const tagId = useMemo(() => {
     const sub = getSportSubcategoryById(activeSub);
     if (!sub) return undefined;
@@ -684,30 +699,66 @@ function SportsHeroCard({
         </div>
       </div>
 
-      {/* Sport sub-tabs */}
+      {/* Sport-group tabs — Basketball/Football/Combat collapse their
+          members (NBA/WNBA/..., NFL/CFB, MMA/Boxing/Power Slap) into one
+          tab; standalone sports render as themselves. */}
       <div
         className="px-3 py-2.5 flex gap-1 overflow-x-auto border-b"
         style={{ borderColor: HAIR }}
       >
-        {SPORT_TABS.map((id) => {
-          const sub = getSportSubcategoryById(id);
-          if (!sub) return null;
-          const isActive = activeSub === id;
+        <button
+          onClick={() => onChangeSub('all')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
+          style={{
+            background: activeSub === 'all' ? '#0a0a0c' : 'transparent',
+            color: activeSub === 'all' ? '#fff' : '#0a0a0c',
+          }}
+        >
+          All
+        </button>
+        {sportGroups.map((group) => {
+          const isActive = activeGroupId === group.id;
           return (
             <button
-              key={id}
-              onClick={() => onChangeSub(id)}
+              key={group.id}
+              onClick={() => onChangeSub(group.members[0].id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold whitespace-nowrap transition"
               style={{
                 background: isActive ? '#0a0a0c' : 'transparent',
                 color: isActive ? '#fff' : '#0a0a0c',
               }}
             >
-              {sub.label === 'All Sports' ? 'All' : sub.label}
+              {group.label}
             </button>
           );
         })}
       </div>
+
+      {/* Sports within the active group — only when it has more than one
+          member (e.g. Basketball: NBA/WNBA/Summer League/NCAAB/NCAAW). */}
+      {activeGroup && activeGroup.members.length > 1 && (
+        <div
+          className="px-3 py-2 flex gap-1 overflow-x-auto border-b"
+          style={{ borderColor: HAIR, background: '#fafafa' }}
+        >
+          {activeGroup.members.map((sub) => {
+            const isActive = activeSub === sub.id;
+            return (
+              <button
+                key={sub.id}
+                onClick={() => onChangeSub(sub.id)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-semibold whitespace-nowrap transition"
+                style={{
+                  background: isActive ? '#0a0a0c' : 'transparent',
+                  color: isActive ? '#fff' : '#0a0a0c',
+                }}
+              >
+                {sub.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 2-col game preview */}
       {isLoading ? (
