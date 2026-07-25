@@ -108,6 +108,10 @@ export default function HighVolumeMarkets({
   const [activeSportSub, setActiveSportSub] = useState<SportSubcategoryId>(
     initialSportSub ?? DEFAULT_SPORT_SUBCATEGORY,
   );
+  // Selected competition within activeSportSub (e.g. 'epl' under 'soccer').
+  // Only sports with a `leagues` list use this — reset whenever the sport
+  // sub-tab changes so switching sports doesn't leave a stale league filter.
+  const [activeLeague, setActiveLeague] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -147,13 +151,23 @@ export default function HighVolumeMarkets({
       );
     }
 
+    const sub = getSportSubcategoryById(activeSportSub);
+
+    // A specific competition is selected (e.g. EPL under Soccer) — its tag
+    // takes priority over the sport-wide tag. League tags aren't in the
+    // live /sports metadata (that's keyed by sport slug, not competition),
+    // so this always uses the static constant.
+    if (activeLeague) {
+      const league = sub?.leagues?.find((l) => l.id === activeLeague);
+      if (league) return league.tagId;
+    }
+
     // Prefer live tag ID from /sports API, fall back to static constant
     const liveTagId = sportsMeta?.tagIdBySlug.get(activeSportSub.toLowerCase());
     if (liveTagId != null) return liveTagId;
 
-    const sub = getSportSubcategoryById(activeSportSub);
     return sub?.tagId ?? getCategoryById('sports')?.tagId ?? undefined;
-  }, [isSportsActive, activeSportSub, sportsMeta]);
+  }, [isSportsActive, activeSportSub, activeLeague, sportsMeta]);
 
   // ── Non-sports flat markets ───────────────────────────────────────────────
   const {
@@ -236,8 +250,12 @@ export default function HighVolumeMarkets({
   const sectionLabel = useMemo(() => {
     if (!isSportsActive) return `${categoryLabel} Markets`;
     const sub = getSportSubcategoryById(activeSportSub);
-    return sub?.id === 'all' ? 'Sports Markets' : `${sub?.label ?? ''} Markets`;
-  }, [isSportsActive, activeSportSub, categoryLabel]);
+    if (sub?.id === 'all') return 'Sports Markets';
+    const league = activeLeague
+      ? sub?.leagues?.find((l) => l.id === activeLeague)
+      : undefined;
+    return `${league?.label ?? sub?.label ?? ''} Markets`;
+  }, [isSportsActive, activeSportSub, activeLeague, categoryLabel]);
 
   /**
    * Computes the user's YES/NO share count for a market. Pulled out of the
@@ -346,6 +364,7 @@ export default function HighVolumeMarkets({
 
   const handleSportSubChange = (subId: SportSubcategoryId) => {
     setActiveSportSub(subId);
+    setActiveLeague(null);
   };
 
   // ─── Shared sub-components ───────────────────────────────────────────────
@@ -379,6 +398,8 @@ export default function HighVolumeMarkets({
       onSportSubChange={handleSportSubChange}
       hideMainTabs={hideMainCategoryTabs}
       hideSportSubTabs={hideSportSubTabs}
+      activeLeagueId={activeLeague}
+      onLeagueChange={setActiveLeague}
     />
   );
 
@@ -621,6 +642,8 @@ export default function HighVolumeMarkets({
             onSportSubChange={handleSportSubChange}
             hideMainTabs={hideMainCategoryTabs}
             hideSportSubTabs={hideSportSubTabs}
+            activeLeagueId={activeLeague}
+            onLeagueChange={setActiveLeague}
           />
         ) : null}
 

@@ -3,6 +3,7 @@
 import {
   CATEGORIES,
   SPORT_SUBCATEGORIES,
+  getSportSubcategoryById,
   type CategoryId,
   type SportSubcategoryId,
 } from '@/constants/polymarket';
@@ -18,6 +19,10 @@ interface CategoryTabsProps {
   /** Also hide the sports sub-tab row — used by the A2 drill-down view
    *  in PredictionsPanel which renders its own A2-styled league tabs. */
   hideSportSubTabs?: boolean;
+  /** Selected league id within the active sport (e.g. 'epl'), or null for
+   *  "All" leagues. Only sports with a `leagues` list render this row. */
+  activeLeagueId?: string | null;
+  onLeagueChange?: (leagueId: string | null) => void;
 }
 
 export default function CategoryTabs({
@@ -27,7 +32,10 @@ export default function CategoryTabs({
   onSportSubChange,
   hideMainTabs = false,
   hideSportSubTabs = false,
+  activeLeagueId = null,
+  onLeagueChange,
 }: CategoryTabsProps) {
+  const leagues = getSportSubcategoryById(activeSportSub)?.leagues;
   return (
     <div className="w-full min-w-0 space-y-2">
       {/* Main category tabs */}
@@ -124,6 +132,47 @@ export default function CategoryTabs({
           </div>
         </div>
       )}
+
+      {/* League pills — only when the active sport has a leagues list */}
+      {activeCategory === 'sports' &&
+        !hideSportSubTabs &&
+        leagues &&
+        leagues.length > 0 &&
+        onLeagueChange && (
+          <div className="relative w-full min-w-0">
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-white to-transparent z-10" />
+            <div className="overflow-x-scroll scrollbar-x touch-pan-x pb-2">
+              <div className="flex gap-1.5 pr-8 w-max">
+                <button
+                  onClick={() => onLeagueChange(null)}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap flex-shrink-0 transition-all duration-200 border active:scale-95 ${
+                    activeLeagueId === null
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'text-gray-500 border-gray-200 hover:text-gray-800 hover:border-gray-400'
+                  }`}
+                >
+                  All
+                </button>
+                {leagues.map((league) => {
+                  const isActive = activeLeagueId === league.id;
+                  return (
+                    <button
+                      key={league.id}
+                      onClick={() => onLeagueChange(league.id)}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap flex-shrink-0 transition-all duration-200 border active:scale-95 ${
+                        isActive
+                          ? 'bg-gray-900 text-white border-gray-900'
+                          : 'text-gray-500 border-gray-200 hover:text-gray-800 hover:border-gray-400'
+                      }`}
+                    >
+                      {league.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
