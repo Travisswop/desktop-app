@@ -136,7 +136,13 @@ export type SportSubcategoryId =
   | 'powerslap'
   | 'golf'
   | 'table-tennis'
-  | 'volleyball';
+  | 'volleyball'
+  | 'rugby'
+  | 'lacrosse'
+  | 'pickleball'
+  | 'cycling'
+  | 'chess'
+  | 'ncaaw';
 
 export interface SportLeague {
   id: string;
@@ -218,6 +224,37 @@ export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
   { id: 'golf', label: 'Golf', tagId: 100219, emoji: '⛳' },
   { id: 'table-tennis', label: 'Table Tennis', tagId: 103767, emoji: '🏓' },
   { id: 'volleyball', label: 'Volleyball', tagId: 102883, emoji: '🏐' },
+  // Added after a full 351-entry verification pass against Gamma's /sports
+  // catalog (2026-07-25) — sports Swop had no tab for at all.
+  {
+    id: 'rugby',
+    label: 'Rugby',
+    tagId: 102193,
+    emoji: '🏉',
+    leagues: [
+      { id: 'top14', label: 'Top 14', tagId: 103055 },
+      { id: 'premiership', label: 'Premiership', tagId: 103054 },
+      { id: 'sixnations', label: 'Six Nations', tagId: 103111 },
+      { id: 'championscup', label: 'Champions Cup', tagId: 103113 },
+      { id: 'urc', label: 'United Rugby Championship', tagId: 103112 },
+      { id: 'superrugbypacific', label: 'Super Rugby Pacific', tagId: 103114 },
+      { id: 'rugbychampionship', label: 'The Rugby Championship', tagId: 103115 },
+    ],
+  },
+  {
+    id: 'lacrosse',
+    label: 'Lacrosse',
+    tagId: 102393,
+    emoji: '🥍',
+    leagues: [
+      { id: 'pll', label: 'Premier Lacrosse League', tagId: 102391 },
+      { id: 'wll', label: 'WLL', tagId: 103911 },
+    ],
+  },
+  { id: 'pickleball', label: 'Pickleball', tagId: 102471, emoji: '🏓' },
+  { id: 'cycling', label: 'Cycling', tagId: 102142, emoji: '🚴' },
+  { id: 'chess', label: 'Chess', tagId: 256, emoji: '♟️' },
+  { id: 'ncaaw', label: 'NCAAW', tagId: 102003, emoji: '🏀' },
 ];
 
 export const DEFAULT_SPORT_SUBCATEGORY: SportSubcategoryId = 'all';
