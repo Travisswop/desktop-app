@@ -380,13 +380,15 @@ function buildParsedOutcomes(
   return outcomes.map((label, i) => {
     const tokenId = tokenIds[i] ?? '';
     const entry = tokenId ? realtimePrices?.[tokenId] : undefined;
-    // Prefer the bid/ask midpoint over the raw bid — in thin, freshly-listed
-    // markets Polymarket's own CLOB often quotes a wide, non-complementary
-    // bid on each side (e.g. both teams' bids independently at 26%), which
-    // reads as nonsensical (two-team odds not summing to ~100%). The
-    // midpoint tracks Gamma's own outcomePrices methodology and sums
-    // correctly even when the raw bid doesn't.
-    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
+    // Show the live ASK — the real, executable price a buyer pays right
+    // now — not the raw bid (what a seller would receive) and not a bid/ask
+    // midpoint. Verified directly against a thin NFL alt-total market
+    // (2026-07-25): displaying the midpoint showed 43¢ while the actual
+    // live book had no bids worth mentioning and the cheapest real ask was
+    // 83¢ — the order failed at submission because the shown price was
+    // never tradeable. The ask can't be gamed the same way: it's exactly
+    // what you'll be charged.
+    const realtimePrice = entry?.askPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[i] ?? 0;
     const displayLabel =
       type === 'total'
@@ -710,8 +712,8 @@ function buildBinaryMoneylineGroup(
     const tokenIds = safeParseJson<string[]>(market.clobTokenIds, []);
     const tokenId = tokenIds[0] ?? '';
     const entry = tokenId ? market.realtimePrices?.[tokenId] : undefined;
-    // See buildParsedOutcomes above — prefer midPrice over raw bid.
-    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
+    // See buildParsedOutcomes above — show the live ask, the real price.
+    const realtimePrice = entry?.askPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[0] ?? 0;
     rows.push({ label, price, tokenId, market });
   }
@@ -753,8 +755,8 @@ function buildGroupFromMarket(
   const parsedOutcomes: ParsedOutcome[] = outcomes.map((label, i) => {
     const tokenId = tokenIds[i] ?? '';
     const entry = tokenId ? market.realtimePrices?.[tokenId] : undefined;
-    // See buildParsedOutcomes above — prefer midPrice over raw bid.
-    const realtimePrice = entry?.midPrice ?? entry?.bidPrice;
+    // See buildParsedOutcomes above — show the live ask, the real price.
+    const realtimePrice = entry?.askPrice ?? entry?.bidPrice;
     const price = realtimePrice ?? staticPrices[i] ?? 0;
     const displayLabel =
       type === 'total'

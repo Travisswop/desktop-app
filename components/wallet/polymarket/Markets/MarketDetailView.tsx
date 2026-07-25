@@ -5130,12 +5130,14 @@ export default function MarketDetailView({
   const noAsk = noQuote?.askPrice;
   const yesMid = yesQuote?.midPrice;
   const noMid = noQuote?.midPrice;
-  // Prefer the bid/ask midpoint over the raw bid — thin, freshly-listed
-  // markets often quote a wide, non-complementary bid on each side, which
-  // reads as nonsensical (two-team odds not summing to ~100%). See the
-  // matching fix in lib/polymarket/sports-grouping.ts.
-  const yesPrice = yesMid ?? yesBid ?? staticPrices[0] ?? 0.5;
-  const noPrice = noMid ?? noBid ?? staticPrices[1] ?? 0.5;
+  // Show the live ASK — the real, executable price a buyer pays right now.
+  // A bid/ask midpoint looks like a tidy "fair value" but can be wildly
+  // wrong on a thin book (verified 2026-07-25: a midpoint showed 43c on an
+  // NFL alt-total with no real bids and the cheapest real ask at 83c — the
+  // order failed at submission because the shown price was never
+  // tradeable). See the matching fix in lib/polymarket/sports-grouping.ts.
+  const yesPrice = yesAsk ?? yesBid ?? staticPrices[0] ?? 0.5;
+  const noPrice = noAsk ?? noBid ?? staticPrices[1] ?? 0.5;
 
   const yesOutcomeName = outcomes[0] || 'Yes';
   const noOutcomeName = outcomes[1] || 'No';
@@ -5221,12 +5223,12 @@ export default function MarketDetailView({
   const scoreboardOutcomeATokenId = moneylineOutcomeA?.tokenId || yesTokenId;
   const scoreboardOutcomeBTokenId = moneylineOutcomeB?.tokenId || noTokenId;
   const scoreboardOutcomeAPrice =
-    moneylineQuoteA?.midPrice ??
+    moneylineQuoteA?.askPrice ??
     moneylineQuoteA?.bidPrice ??
     moneylineOutcomeA?.price ??
     yesPrice;
   const scoreboardOutcomeBPrice =
-    moneylineQuoteB?.midPrice ??
+    moneylineQuoteB?.askPrice ??
     moneylineQuoteB?.bidPrice ??
     moneylineOutcomeB?.price ??
     noPrice;

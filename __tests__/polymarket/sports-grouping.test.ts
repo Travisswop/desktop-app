@@ -93,11 +93,13 @@ describe('sports grouping', () => {
     ]);
   });
 
-  it('prefers the bid/ask midpoint over a raw bid so two-team moneylines sum to ~100%', () => {
-    // Real-world case (2026-07-25): Polymarket's own CLOB returned a raw bid
-    // of 0.26 for BOTH outcome tokens of a thin, freshly-listed game, which
-    // rendered as two unrelated teams each showing "26%". The midpoint (bid
-    // + ask) / 2 sums correctly even when the raw bid doesn't.
+  it('shows the live ask, not a bid/ask midpoint or the raw bid', () => {
+    // Real-world case (2026-07-25): an NFL alt-total (O/U 35.5) two weeks out
+    // had almost no bid-side interest (real book: bids only at 1-3c) but a
+    // real, fillable ask at 83c. A bid/ask midpoint displayed ~43c — looked
+    // like a reasonable "fair value" but was never actually tradeable, so
+    // the order failed at submission ("price moved from 43c to 83c"). The
+    // ask is the one number that's always the real, executable buy price.
     const lionsVsBengals = [
       { name: 'Lions', abbreviation: 'DET' },
       { name: 'Bengals', abbreviation: 'CIN' },
@@ -112,7 +114,7 @@ describe('sports grouping', () => {
         clobTokenIds: '["lions-yes","lions-no"]',
         eventTeams: lionsVsBengals,
         realtimePrices: {
-          'lions-yes': { bidPrice: 0.26, askPrice: 0.74, midPrice: 0.5 },
+          'lions-yes': { bidPrice: 0.03, askPrice: 0.83, midPrice: 0.43 },
         },
       }),
       market({
@@ -124,14 +126,14 @@ describe('sports grouping', () => {
         clobTokenIds: '["bengals-yes","bengals-no"]',
         eventTeams: lionsVsBengals,
         realtimePrices: {
-          'bengals-yes': { bidPrice: 0.26, askPrice: 0.74, midPrice: 0.5 },
+          'bengals-yes': { bidPrice: 0.17, askPrice: 0.97, midPrice: 0.57 },
         },
       }),
     ]).filter(isValidGameCard);
 
     expect(games).toHaveLength(1);
     const outcomes = games[0].moneyline?.outcomes ?? [];
-    expect(outcomes.map((o) => o.price)).toEqual([0.5, 0.5]);
+    expect(outcomes.map((o) => o.price)).toEqual([0.83, 0.97]);
   });
 });
 
