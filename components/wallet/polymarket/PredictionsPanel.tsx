@@ -4357,22 +4357,25 @@ interface CategoryDetailViewProps {
   onChangeDrillDown: (next: DrillDown) => void;
 }
 
-/** Five rolling weekday tiles starting at "Today". Each tile carries the
- *  inclusive [start, end) ISO range so the backend can filter events whose
- *  startDate falls inside it. */
+/** "All" tile plus five rolling weekday tiles starting at "Today". Dated
+ *  tiles carry the inclusive [start, end) ISO range so the backend can
+ *  filter events whose startDate falls inside it; the "All" tile carries no
+ *  range so every upcoming game shows, sorted chronologically — this is the
+ *  default so leagues without games today (e.g. NFL a few weeks out) aren't
+ *  hidden behind an empty "Today" view. */
 interface DateTileSpec {
   label: string;
   sub: string;
-  /** Inclusive lower bound (ISO timestamp) — start of local day. */
-  fromIso: string;
-  /** Exclusive upper bound (ISO timestamp) — start of next local day. */
-  toIso: string;
+  /** Inclusive lower bound (ISO timestamp) — start of local day. Omitted for the "All" tile. */
+  fromIso?: string;
+  /** Exclusive upper bound (ISO timestamp) — start of next local day. Omitted for the "All" tile. */
+  toIso?: string;
 }
 
 function buildDateStrip(count = 5): DateTileSpec[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Array.from({ length: count }, (_, i) => {
+  const dated = Array.from({ length: count }, (_, i) => {
     const start = new Date(today);
     start.setDate(today.getDate() + i);
     const end = new Date(start);
@@ -4392,6 +4395,7 @@ function buildDateStrip(count = 5): DateTileSpec[] {
       toIso: end.toISOString(),
     };
   });
+  return [{ label: 'All', sub: 'Upcoming' }, ...dated];
 }
 
 function CategoryDetailView({
@@ -4426,7 +4430,8 @@ function CategoryDetailView({
   // 2 → Live / Closing soon        (live=true for sports)
   const [filterIdx, setFilterIdx] = useState(0);
   const dateStrip = useMemo(() => buildDateStrip(5), []);
-  // Default to "Today" — matches the A2 wireframe's active tile.
+  // Default to "All" (index 0) — leagues with no games today (e.g. NFL
+  // between weeks) would otherwise show a false "No games" empty state.
   const [activeDateIdx, setActiveDateIdx] = useState(0);
 
   // Selected competition within the active sport (e.g. 'epl' under Soccer).

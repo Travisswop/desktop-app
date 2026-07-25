@@ -11,11 +11,13 @@ describe('sport groups (top-level tab hierarchy)', () => {
     expect(basketball).toBeTruthy();
     expect(basketball!.label).toBe('Basketball');
     expect(basketball!.members.map((m) => m.id).sort()).toEqual(
-      ['nba', 'nbasl', 'ncaab', 'ncaaw', 'wnba'].sort(),
+      ['basketball-intl', 'nba', 'nbasl', 'ncaab', 'ncaaw', 'wnba'].sort(),
     );
 
     const football = groups.find((g) => g.id === 'football');
-    expect(football!.members.map((m) => m.id).sort()).toEqual(['cfb', 'nfl']);
+    expect(football!.members.map((m) => m.id).sort()).toEqual(
+      ['cfb', 'cfl', 'nfl'].sort(),
+    );
 
     const combat = groups.find((g) => g.id === 'combat');
     expect(combat!.members.map((m) => m.id).sort()).toEqual(
