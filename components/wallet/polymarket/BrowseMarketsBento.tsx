@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import {
@@ -575,6 +575,32 @@ function SportGroupTabButton({
   );
 }
 
+/** Compact "Game lines / Futures / Live" pill — matches the full "Sports
+ *  markets" page's SubFilterChip. */
+function SubFilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap transition-colors border ${
+        active
+          ? 'bg-black text-white border-black'
+          : 'bg-white text-gray-900 hover:bg-gray-100'
+      }`}
+      style={!active ? { borderColor: HAIR } : undefined}
+    >
+      {children}
+    </button>
+  );
+}
+
 interface SportsHeroProps {
   activeSub: SportSubcategoryId;
   onChangeSub: (sub: SportSubcategoryId) => void;
@@ -618,8 +644,21 @@ function SportsHeroCard({
     return liveTag ?? sub.tagId ?? undefined;
   }, [activeSub, sportsMeta]);
 
+  // Game lines / Futures / Live sub-filter — matches the full "Sports
+  // markets" page's SubFilterChip row instead of only auto-falling back to
+  // futures silently. Resets whenever the sport changes.
+  const [filterIdx, setFilterIdx] = useState(0);
+  useEffect(() => {
+    setFilterIdx(0);
+  }, [activeSub]);
+  const liveOnly = filterIdx === 2;
+  const kind: 'futures' | undefined = filterIdx === 1 ? 'futures' : undefined;
+  const isFuturesTab = filterIdx === 1;
+
   const { data: sportsData, isLoading } = useSportsEvents({
     tagId,
+    live: liveOnly,
+    kind,
     enabled: true,
     includeRealtimePrices: true,
     refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
@@ -627,6 +666,7 @@ function SportsHeroCard({
   });
 
   const games = useMemo(() => {
+    if (isFuturesTab) return [];
     // Feed order (live first, then soonest kickoff) so the hero's slots
     // show the most relevant games instead of the highest-volume ones.
     const flat = orderSportsMarkets(sportsData?.pages.flat() ?? []);
@@ -636,33 +676,38 @@ function SportsHeroCard({
       ? enrichGamesWithTeamLogos(grouped, teamsData)
       : grouped;
     return enriched.slice(0, 6);
-  }, [sportsData, teamsData]);
+  }, [sportsData, teamsData, isFuturesTab]);
+
+  const allFuturesGroups = useMemo(() => {
+    if (!isFuturesTab) return [];
+    return groupFuturesMarkets(sportsData?.pages.flat() ?? []);
+  }, [sportsData, isFuturesTab]);
 
   // Some sports (e.g. F1, or a league between seasons) have no game-line
   // matchups at all, only futures/props — this card used to just say "No
   // upcoming games" even though the sport has real markets. Mirror the full
-  // "Sports markets" page's Game lines -> Futures fallback: once the
-  // primary fetch settles empty, fetch futures for the same tag instead.
-  const shouldLoadFutures = !isLoading && games.length === 0;
-  const { data: futuresData, isLoading: isLoadingFutures } = useSportsEvents({
-    tagId,
-    enabled: shouldLoadFutures,
-    kind: 'futures',
-    includeRealtimePrices: true,
-    refetchIntervalMs: BENTO_REFETCH_INTERVAL_MS,
-    refetchOnWindowFocus: false,
-  });
-  const allFuturesGroups = useMemo(
-    () => groupFuturesMarkets(futuresData?.pages.flat() ?? []),
-    [futuresData],
-  );
+  // "Sports markets" page's Game lines -> Futures auto-fallback: once the
+  // Game lines tab settles empty, switch to the Futures tab once per sport.
+  const triedFallbackFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      filterIdx === 0 &&
+      !isLoading &&
+      games.length === 0 &&
+      triedFallbackFor.current !== activeSub
+    ) {
+      triedFallbackFor.current = activeSub;
+      setFilterIdx(1);
+    }
+  }, [filterIdx, isLoading, games.length, activeSub]);
+
   // Collapsed to a 3-group preview by default — "Show more" extends the
   // view in place, same idea as the full "View all sports" page rather
   // than forcing a navigation just to see the rest of this sport's markets.
   const [futuresExpanded, setFuturesExpanded] = useState(false);
   useEffect(() => {
     setFuturesExpanded(false);
-  }, [activeSub]);
+  }, [activeSub, filterIdx]);
   const futuresGroups = futuresExpanded
     ? allFuturesGroups
     : allFuturesGroups.slice(0, 3);
@@ -806,67 +851,103 @@ function SportsHeroCard({
         </div>
       )}
 
-      {/* 2-col x 3-row game preview (6 games) */}
+      {/* Game lines / Futures / Live — matches the full "Sports markets"
+          page's sub-filter row instead of only silently falling back to
+          futures. */}
+      <div
+        className="px-3.5 py-2.5 flex items-center gap-1.5 border-b"
+        style={{ borderColor: HAIR, background: '#fafafa' }}
+      >
+        <SubFilterChip active={filterIdx === 0} onClick={() => setFilterIdx(0)}>
+          Game lines
+        </SubFilterChip>
+        <SubFilterChip active={filterIdx === 1} onClick={() => setFilterIdx(1)}>
+          Futures
+        </SubFilterChip>
+        <SubFilterChip active={filterIdx === 2} onClick={() => setFilterIdx(2)}>
+          Live
+        </SubFilterChip>
+      </div>
+
+      {/* 2-col x 3-row game preview (6 games), or the futures list on the
+          Futures tab. */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="px-4 py-5 animate-pulse"
-              style={{
-                borderRight: i % 2 === 0 ? `1px solid ${HAIR}` : undefined,
-                borderBottom: i < 4 ? `1px solid ${HAIR}` : undefined,
-              }}
-            >
-              <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
-              <div className="h-4 w-full bg-gray-200 rounded mb-2" />
-              <div className="h-4 w-full bg-gray-100 rounded" />
-            </div>
-          ))}
-        </div>
-      ) : games.length === 0 && isLoadingFutures ? (
-        <div className="px-4 py-5 animate-pulse">
-          <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
-          <div className="h-4 w-full bg-gray-200 rounded mb-2" />
-          <div className="h-4 w-full bg-gray-100 rounded" />
-        </div>
-      ) : games.length === 0 && futuresGroups.length > 0 ? (
-        <div>
-          {futuresGroups.map((group, i) => (
-            <FuturesMarketGroupRows
-              key={group.id}
-              group={group}
-              firstGroup={i === 0}
-              disabled={false}
-              onOutcomeClick={onSportsOutcomeClick}
-            />
-          ))}
-          {allFuturesGroups.length > 3 && (
-            <div
-              className="px-4 sm:px-[18px] py-3 flex justify-center"
-              style={{ borderTop: `1px solid ${HAIR}` }}
-            >
-              <button
-                onClick={() => setFuturesExpanded((v) => !v)}
-                className="text-[12.5px] font-semibold text-gray-900 hover:text-gray-600 transition"
+        isFuturesTab ? (
+          <div className="px-4 py-5 animate-pulse">
+            <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
+            <div className="h-4 w-full bg-gray-200 rounded mb-2" />
+            <div className="h-4 w-full bg-gray-100 rounded" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="px-4 py-5 animate-pulse"
+                style={{
+                  borderRight: i % 2 === 0 ? `1px solid ${HAIR}` : undefined,
+                  borderBottom: i < 4 ? `1px solid ${HAIR}` : undefined,
+                }}
               >
-                {futuresExpanded
-                  ? 'Show less'
-                  : `Show ${allFuturesGroups.length - 3} more market${
-                      allFuturesGroups.length - 3 === 1 ? '' : 's'
-                    }`}
-              </button>
-            </div>
-          )}
-        </div>
+                <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
+                <div className="h-4 w-full bg-gray-200 rounded mb-2" />
+                <div className="h-4 w-full bg-gray-100 rounded" />
+              </div>
+            ))}
+          </div>
+        )
+      ) : isFuturesTab ? (
+        futuresGroups.length === 0 ? (
+          <div className="px-5 py-8 text-center text-[12.5px] text-gray-500">
+            No futures markets for{' '}
+            <span className="font-semibold text-gray-900">
+              {getSportSubcategoryById(activeSub)?.label ?? 'this league'}
+            </span>{' '}
+            right now.
+          </div>
+        ) : (
+          <div>
+            {futuresGroups.map((group, i) => (
+              <FuturesMarketGroupRows
+                key={group.id}
+                group={group}
+                firstGroup={i === 0}
+                disabled={false}
+                onOutcomeClick={onSportsOutcomeClick}
+              />
+            ))}
+            {allFuturesGroups.length > 3 && (
+              <div
+                className="px-4 sm:px-[18px] py-3 flex justify-center"
+                style={{ borderTop: `1px solid ${HAIR}` }}
+              >
+                <button
+                  onClick={() => setFuturesExpanded((v) => !v)}
+                  className="text-[12.5px] font-semibold text-gray-900 hover:text-gray-600 transition"
+                >
+                  {futuresExpanded
+                    ? 'Show less'
+                    : `Show ${allFuturesGroups.length - 3} more market${
+                        allFuturesGroups.length - 3 === 1 ? '' : 's'
+                      }`}
+                </button>
+              </div>
+            )}
+          </div>
+        )
       ) : games.length === 0 ? (
         <div className="px-5 py-8 text-center text-[12.5px] text-gray-500">
-          No markets for{' '}
-          <span className="font-semibold text-gray-900">
-            {getSportSubcategoryById(activeSub)?.label ??
-              'this league'}
-          </span>{' '}
-          right now.
+          {liveOnly ? (
+            'No games are live right now.'
+          ) : (
+            <>
+              No markets for{' '}
+              <span className="font-semibold text-gray-900">
+                {getSportSubcategoryById(activeSub)?.label ?? 'this league'}
+              </span>{' '}
+              right now.
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2">
