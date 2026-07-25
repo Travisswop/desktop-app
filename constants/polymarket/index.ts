@@ -37,8 +37,12 @@ export {
   SPORT_SUBCATEGORIES,
   DEFAULT_SPORT_SUBCATEGORY,
   getSportSubcategoryById,
+  getSportGroups,
+  getGroupIdForSport,
   type SportSubcategoryId,
   type SportSubcategory,
+  type SportLeague,
+  type SportGroup,
 } from "./categories";
 
 // Re-export query constants
