@@ -91,6 +91,8 @@ export const SPORT_TABS: SportSubcategoryId[] = [
   'f1',
   'mma',
   'tennis',
+  'boxing',
+  'golf',
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────

@@ -131,7 +131,12 @@ export type SportSubcategoryId =
   | 'f1'
   | 'cfb'
   | 'ncaa'
-  | 'ncaab';
+  | 'ncaab'
+  | 'boxing'
+  | 'powerslap'
+  | 'golf'
+  | 'table-tennis'
+  | 'volleyball';
 
 export interface SportSubcategory {
   id: SportSubcategoryId;
@@ -162,6 +167,13 @@ export const SPORT_SUBCATEGORIES: SportSubcategory[] = [
   { id: 'f1', label: 'F1', tagId: 435, emoji: '🏎️' },
   { id: 'cricket', label: 'Cricket', tagId: 517, emoji: '🏏' },
   { id: 'esports', label: 'Esports', tagId: 64, emoji: '🎮' },
+  // Added after live review of polymarket.com/sports (2026-07-25) — verified
+  // against Gamma directly (label + live active-events check).
+  { id: 'boxing', label: 'Boxing', tagId: 683, emoji: '🥊' },
+  { id: 'powerslap', label: 'Power Slap', tagId: 104084, emoji: '🖐️' },
+  { id: 'golf', label: 'Golf', tagId: 100219, emoji: '⛳' },
+  { id: 'table-tennis', label: 'Table Tennis', tagId: 103767, emoji: '🏓' },
+  { id: 'volleyball', label: 'Volleyball', tagId: 102883, emoji: '🏐' },
 ];
 
 export const DEFAULT_SPORT_SUBCATEGORY: SportSubcategoryId = 'all';
