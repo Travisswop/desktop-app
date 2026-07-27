@@ -40,6 +40,33 @@ const MODE_COPY: Record<
 const PERCENT_STEPS = [25, 50, 75, 100];
 const SLIPPAGE_BPS = 100;
 
+// Which collateral asset to open the collateral stage on. Prefer one the user
+// can actually fund from what they hold — the wrapped-native reserve when they
+// hold the native coin (ETH is the usual answer), else a reserve matching a
+// token already in the wallet, else the highest-LTV asset on the chain.
+function pickDefaultCollateral(
+  collateralReserves: AaveReserve[],
+  chain: AaveChain,
+  payTokens: AavePayToken[],
+  chainId: number,
+): AaveReserve | null {
+  if (collateralReserves.length === 0) return null;
+  const onChain = payTokens.filter((token) => token.chainId === chainId);
+  if (onChain.some((token) => token.isNative)) {
+    const wrapped = collateralReserves.find((entry) =>
+      reserveIsWrappedNative(chain, entry),
+    );
+    if (wrapped) return wrapped;
+  }
+  const held = collateralReserves.find((entry) =>
+    onChain.some(
+      (token) => token.address.toLowerCase() === entry.asset.toLowerCase(),
+    ),
+  );
+  if (held) return held;
+  return [...collateralReserves].sort((a, b) => b.ltv - a.ltv)[0] ?? null;
+}
+
 type Step = 'idle' | 'working' | 'success';
 
 export interface AaveActionSuccessDetails {
@@ -83,15 +110,15 @@ const trimZeros = (value: string) =>
   value.includes('.') ? value.replace(/\.?0+$/, '') : value;
 
 export function AaveActionModal({
-  mode,
+  mode: openMode,
   chain,
   poolAddress,
-  reserve,
+  reserve: openReserve,
   reserves,
   payTokens,
   userAddress,
   account,
-  position,
+  position: openPosition,
   onSelectReserve,
   onClose,
   onSuccess,
@@ -99,10 +126,48 @@ export function AaveActionModal({
   const { execute, fetchBalanceAndAllowance } = useAaveActions();
   const { executeFunded } = useAaveFunding();
 
+  const targetChainId = CHAIN_ID[chain];
+
+  // Borrowing is gated on collateral, and a wallet with none had no way to add
+  // any from here — Borrow just showed "Max 0" with no explanation. The modal
+  // therefore has two stages: `collateral` runs a supply of a collateral-
+  // eligible asset, `action` runs the mode the user actually opened.
+  const [stage, setStage] = useState<'action' | 'collateral'>('action');
+  const [collateralReserve, setCollateralReserve] =
+    useState<AaveReserve | null>(null);
+  const [collateralDone, setCollateralDone] = useState(false);
+
+  // Assets Aave will actually lend against.
+  const collateralReserves = useMemo(
+    () => reserves.filter((entry) => entry.ltv > 0),
+    [reserves],
+  );
+  const borrowPowerUsd = account?.availableBorrowsUsd ?? 0;
+  const hasCollateral = (account?.totalCollateralUsd ?? 0) > 0;
+
+  const mode: AaveActionMode = stage === 'collateral' ? 'supply' : openMode;
+  const reserve =
+    stage === 'collateral' ? (collateralReserve ?? openReserve) : openReserve;
+  const position = stage === 'collateral' ? null : openPosition;
+
   // Supply and repay take funds IN, so they can be paid with any token and
   // converted. Borrow and withdraw pay funds OUT — no conversion involved.
   const converting = mode === 'supply' || mode === 'repay';
-  const targetChainId = CHAIN_ID[chain];
+
+  // Opening Borrow with no borrowing power drops straight into the collateral
+  // stage — that is the step the user is actually missing.
+  const openKey = `${openMode}:${openReserve.asset}`;
+  useEffect(() => {
+    const needsCollateral = openMode === 'borrow' && borrowPowerUsd <= 0;
+    setStage(needsCollateral ? 'collateral' : 'action');
+    setCollateralDone(false);
+    setCollateralReserve(
+      pickDefaultCollateral(collateralReserves, chain, payTokens, targetChainId),
+    );
+    // Deliberately keyed on the open only: a mid-flow borrowPower change must
+    // not yank the user back to the collateral stage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey]);
 
   const [amount, setAmount] = useState('');
   const [payTokenId, setPayTokenId] = useState<string | null>(null);
@@ -119,7 +184,7 @@ export function AaveActionModal({
   const quoteRequestRef = useRef(0);
   const busy = step === 'working';
 
-  // Reset when the modal switches asset or mode.
+  // Reset when the stage, asset or mode changes.
   useEffect(() => {
     setAmount('');
     setQuote(null);
@@ -129,7 +194,7 @@ export function AaveActionModal({
     // Re-default the pay token per asset — supplying WETH should preselect the
     // user's ETH, not whatever they paid with on the previous asset.
     setPayTokenId(null);
-  }, [mode, reserve.asset]);
+  }, [stage, mode, reserve.asset]);
 
   // Default the pay token: the reserve asset itself if held, then the native
   // coin for a wrapped-native reserve, then the largest holding on the chain.
@@ -326,6 +391,7 @@ export function AaveActionModal({
           isMax: isFullAmount,
           onStatus: setStatus,
         });
+        if (stage === 'collateral') setCollateralDone(true);
         setStep('success');
         onSuccess(hash, {
           mode,
@@ -383,12 +449,15 @@ export function AaveActionModal({
 
   const pickableReserves = useMemo(() => {
     const base =
-      mode === 'borrow'
-        ? reserves.filter((entry) => entry.borrowingEnabled)
-        : // Drop reserves that neither earn nor collateralise (expired Pendle
-          // PTs and the like); keep 0%-APY collateral assets, which is exactly
-          // what people supply when they want to borrow against a holding.
-          reserves.filter((entry) => entry.supplyApy > 0 || entry.ltv > 0);
+      // The collateral stage may only offer assets Aave lends against.
+      stage === 'collateral'
+        ? collateralReserves
+        : mode === 'borrow'
+          ? reserves.filter((entry) => entry.borrowingEnabled)
+          : // Drop reserves that neither earn nor collateralise (expired Pendle
+            // PTs and the like); keep 0%-APY collateral assets, which is exactly
+            // what people supply when they want to borrow against a holding.
+            reserves.filter((entry) => entry.supplyApy > 0 || entry.ltv > 0);
     const query = assetSearch.trim().toLowerCase();
     if (!query) return base;
     return base.filter(
@@ -396,7 +465,7 @@ export function AaveActionModal({
         entry.symbol.toLowerCase().includes(query) ||
         entry.name.toLowerCase().includes(query),
     );
-  }, [reserves, mode, assetSearch]);
+  }, [reserves, mode, assetSearch, stage, collateralReserves]);
 
   const canSubmit =
     amountValid && !overMax && !busy && (!converting || (!!quote && !quoting));
@@ -411,9 +480,16 @@ export function AaveActionModal({
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-base font-semibold text-gray-800">
-              {copy.title}
-            </h2>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">
+                {stage === 'collateral' ? 'Add collateral' : copy.title}
+              </h2>
+              {stage === 'collateral' && (
+                <p className="text-[11px] text-gray-400 font-mono">
+                  Step 1 of 2 · then borrow {openReserve.symbol}
+                </p>
+              )}
+            </div>
             <button
               onClick={() => setAssetPickerOpen(true)}
               disabled={busy}
@@ -440,20 +516,63 @@ export function AaveActionModal({
           <div className="px-5 pb-6 pt-2 flex flex-col items-center text-center gap-2">
             <CheckCircle2 className="w-10 h-10 text-emerald-500" />
             <p className="text-sm font-semibold text-gray-800">
-              {copy.title} submitted
+              {collateralDone ? 'Collateral supplied' : `${copy.title} submitted`}
             </p>
             <p className="text-xs text-gray-500">
-              Your position will refresh shortly.
+              {collateralDone
+                ? `Your borrowing power updates in a few seconds. You can then borrow ${openReserve.symbol} against it.`
+                : 'Your position will refresh shortly.'}
             </p>
+            {collateralDone && (
+              <button
+                onClick={() => {
+                  setCollateralDone(false);
+                  setStep('idle');
+                  setStage('action');
+                }}
+                className="mt-3 w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Continue to borrow
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="mt-3 w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+              className={`mt-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                collateralDone
+                  ? 'border border-black/[0.08] text-gray-700 hover:bg-gray-50'
+                  : 'mt-3 bg-gray-900 text-white hover:bg-gray-800'
+              }`}
             >
               Done
             </button>
           </div>
         ) : (
           <div className="px-5 pb-5 space-y-3">
+            {stage === 'collateral' && (
+              <p className="rounded-xl bg-violet-50 px-3 py-2.5 text-[12px] leading-4 text-violet-900">
+                Aave lends against collateral, so you supply an asset first and
+                borrow against it. Pay with anything in your wallet — it converts
+                to {reserve.symbol} automatically.
+              </p>
+            )}
+
+            {/* No borrowing power — say why the max is zero, and offer the way out. */}
+            {stage === 'action' && mode === 'borrow' && maxAmount <= 0 && (
+              <div className="rounded-xl bg-violet-50 px-3 py-2.5 space-y-2">
+                <p className="text-[12px] leading-4 text-violet-900">
+                  {hasCollateral
+                    ? `Your collateral on ${chain} is fully borrowed against. Supply more to borrow ${reserve.symbol}.`
+                    : `You have no collateral on ${chain} yet. Supply an asset first — Aave lends against it.`}
+                </p>
+                <button
+                  onClick={() => setStage('collateral')}
+                  className="rounded-full bg-gray-900 px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-gray-800 transition-colors"
+                >
+                  Add collateral
+                </button>
+              </div>
+            )}
+
             {/* Pay with (supply / repay) */}
             {converting && (
               <button
@@ -619,8 +738,29 @@ export function AaveActionModal({
                 ? status || 'Working…'
                 : quoting
                   ? 'Quoting…'
-                  : `${copy.cta} ${reserve.symbol}`}
+                  : stage === 'collateral'
+                    ? `Supply ${reserve.symbol} as collateral`
+                    : `${copy.cta} ${reserve.symbol}`}
             </button>
+
+            {/* Escape hatches between the two stages. */}
+            {stage === 'collateral' ? (
+              <button
+                onClick={() => setStage('action')}
+                disabled={busy}
+                className="w-full text-center text-[12px] font-semibold text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-40"
+              >
+                Skip — I already have collateral
+              </button>
+            ) : mode === 'borrow' && maxAmount > 0 ? (
+              <button
+                onClick={() => setStage('collateral')}
+                disabled={busy}
+                className="w-full text-center text-[12px] font-semibold text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-40"
+              >
+                Add more collateral
+              </button>
+            ) : null}
           </div>
         )}
 
@@ -629,7 +769,11 @@ export function AaveActionModal({
           <div className="absolute inset-0 bg-white flex flex-col">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <h3 className="text-base font-semibold text-gray-800">
-                {mode === 'borrow' ? 'Borrow which asset?' : 'Which asset?'}
+                {stage === 'collateral'
+                  ? 'Which asset as collateral?'
+                  : mode === 'borrow'
+                    ? 'Borrow which asset?'
+                    : 'Which asset?'}
               </h3>
               <button
                 onClick={() => setAssetPickerOpen(false)}
@@ -657,7 +801,10 @@ export function AaveActionModal({
                   onClick={() => {
                     setAssetPickerOpen(false);
                     setAssetSearch('');
-                    onSelectReserve(entry);
+                    // The collateral stage owns its own asset — changing it
+                    // must not rewrite the borrow the user came here for.
+                    if (stage === 'collateral') setCollateralReserve(entry);
+                    else onSelectReserve(entry);
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
                 >
