@@ -158,6 +158,85 @@ class TransactionAPI {
     }
   }
 
+  /**
+   * Internal (trace-level) native-coin transfers.
+   *
+   * The Privy embedded wallet is EIP-7702 delegated, so a sponsored/relayed
+   * send executes as an inner call inside the bundler's `handleOps` tx — the
+   * outer tx's from/to are the bundler and the ERC-4337 EntryPoint, so the
+   * user's address never appears in `txlist`. A native transfer also emits no
+   * ERC-20 Transfer log, so `tokentx` misses it too. Only `txlistinternal`
+   * has these, which is why relayed native sends were invisible while ERC-20
+   * sends (whose Transfer log lands in `tokentx`) always showed up.
+   */
+  static async getInternalTransactions(
+    chain: keyof typeof CHAINS,
+    address: string
+  ): Promise<Transaction[]> {
+    try {
+      if (!isSupportedChain(chain)) return [];
+      if (CHAINS[chain].type === 'solana') return [];
+
+      const url = `${CHAINS[chain].transactionApiUrl}/api?address=${address}&apikey=${CHAINS[chain].accessToken}&chainid=${CHAINS[chain].chainId}&module=account&action=txlistinternal&startblock=0&endblock=99999999&sort=asc`;
+
+      const options = {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+
+      const response = await this.fetchEtherscanAccountResponse(
+        url,
+        options
+      );
+
+      if (
+        response.status === '0' &&
+        response.message === 'No transactions found'
+      ) {
+        return [];
+      }
+      if (response.status === '0') {
+        console.warn(
+          `API returned error for ${chain} internal transactions:`,
+          response.message
+        );
+        // Return empty array instead of throwing to prevent breaking the entire UI
+        return [];
+      }
+
+      const rows = Array.isArray(response.result) ? response.result : [];
+      const nativeToken = CHAINS[chain].nativeToken;
+
+      return rows
+        .filter((tx) => {
+          // Reverted traces carry a value that never moved.
+          if (tx.isError !== '0') return false;
+          // Non-value internal calls (contract-to-contract plumbing) aren't transfers.
+          return Boolean(tx.value) && tx.value !== '0';
+        })
+        .map((tx) => ({
+          ...tx,
+          // The fee belongs to the outer bundler tx, not to this inner call —
+          // the trace's own `gas`/`gasUsed` would render a fee the user never paid.
+          gas: '0',
+          gasPrice: '0',
+          networkFee: '0',
+          tokenName: nativeToken.name,
+          tokenSymbol: nativeToken.symbol,
+          tokenDecimal: nativeToken.decimals,
+        }));
+    } catch (error) {
+      console.error(
+        `Error fetching internal transactions for ${chain}:`,
+        error
+      );
+      // Return empty array instead of throwing to prevent breaking the entire UI
+      return [];
+    }
+  }
+
   static async getERC20Transactions(
     chain: keyof typeof CHAINS,
     address: string
@@ -500,8 +579,14 @@ export const useMultiChainTransactionData = (
           return TransactionAPI.getSolanaTransactions(address);
         }
 
-        const [nativeTxs, erc20Txs] = await Promise.all([
+        // These run through the shared Etherscan queue, so they are spaced
+        // out rather than actually issued in parallel.
+        const [nativeTxs, internalTxs, erc20Txs] = await Promise.all([
           TransactionAPI.getNativeTransactions(
+            chain,
+            address
+          ),
+          TransactionAPI.getInternalTransactions(
             chain,
             address
           ),
@@ -511,7 +596,7 @@ export const useMultiChainTransactionData = (
           ),
         ]);
 
-        return [...nativeTxs, ...erc20Txs]
+        return [...nativeTxs, ...internalTxs, ...erc20Txs]
           .sort(
             (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
           )

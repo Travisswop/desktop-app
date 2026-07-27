@@ -10,6 +10,8 @@ export interface Transaction {
   txreceipt_status?: string;
   contractAddress?: string;
   status?: string;
+  /** Etherscan `txlistinternal` flag: '0' succeeded, '1' the trace reverted. */
+  isError?: string;
   tokenName?: string;
   tokenDecimal?: number;
   tokenSymbol?: string;
