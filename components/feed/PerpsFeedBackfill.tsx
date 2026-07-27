@@ -278,6 +278,11 @@ export default function PerpsFeedBackfill() {
             position,
             recentFills,
           );
+          // Only the real opening fill may be reported as `openedAt` — the
+          // server uses it to tell one position instance from the next, and
+          // stamping "now" when the fill has rolled out of the userFills window
+          // makes a long-standing position look like a brand new one.
+          const openedAtTimestamp = openedFill?.timestamp || undefined;
           const eventTimestamp =
             openedFill?.timestamp || new Date().toISOString();
           const snapshotKey = [
@@ -324,7 +329,7 @@ export default function PerpsFeedBackfill() {
               stopLossPrice: riskPrices.stopLossPrice,
               orderId: openedFill?.orderId,
               masterAddress,
-              openedAt: eventTimestamp,
+              openedAt: openedAtTimestamp,
               updatedAt: eventTimestamp,
             },
           }).catch((error) => {
