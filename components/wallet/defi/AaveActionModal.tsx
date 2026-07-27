@@ -123,7 +123,8 @@ export function AaveActionModal({
   onClose,
   onSuccess,
 }: AaveActionModalProps) {
-  const { execute, fetchBalanceAndAllowance } = useAaveActions();
+  const { execute, fetchBalanceAndAllowance, fetchVariableDebt } =
+    useAaveActions();
   const { executeFunded } = useAaveFunding();
 
   const targetChainId = CHAIN_ID[chain];
@@ -177,7 +178,11 @@ export function AaveActionModal({
   const [step, setStep] = useState<Step>('idle');
   const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  /** Live raw balance + variable debt for the reserve (repay only). */
+  const [onchain, setOnchain] = useState<{
+    balance: bigint;
+    debt: bigint;
+  } | null>(null);
   const [quote, setQuote] = useState<AaveFundingQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState('');
@@ -190,7 +195,7 @@ export function AaveActionModal({
     setQuote(null);
     setQuoteError('');
     setError(null);
-    setWalletBalance(null);
+    setOnchain(null);
     // Re-default the pay token per asset — supplying WETH should preselect the
     // user's ETH, not whatever they paid with on the previous asset.
     setPayTokenId(null);
@@ -222,20 +227,22 @@ export function AaveActionModal({
     [payTokens, payTokenId],
   );
 
-  // Live on-chain debt-token balance for repay (the cached token list lags).
+  // Repay reads BOTH sides live and in RAW units. The debt token accrues every
+  // block, so a wallet holding exactly what it borrowed is always a few units
+  // short of its own debt — deciding max/isMax off cached float amounts is how
+  // a "100%" repay ends up demanding more than the wallet holds and reverting.
   useEffect(() => {
     let cancelled = false;
     if (mode !== 'repay') return undefined;
-    fetchBalanceAndAllowance(chain, reserve.asset, userAddress, poolAddress)
-      .then(({ balance }) => {
-        if (!cancelled) {
-          setWalletBalance(
-            Number(ethers.formatUnits(balance, reserve.decimals)),
-          );
-        }
+    Promise.all([
+      fetchBalanceAndAllowance(chain, reserve.asset, userAddress, poolAddress),
+      fetchVariableDebt(chain, reserve.variableDebtTokenAddress, userAddress),
+    ])
+      .then(([{ balance }, debt]) => {
+        if (!cancelled) setOnchain({ balance, debt });
       })
       .catch(() => {
-        if (!cancelled) setWalletBalance(null);
+        if (!cancelled) setOnchain(null);
       });
     return () => {
       cancelled = true;
@@ -244,10 +251,11 @@ export function AaveActionModal({
     mode,
     chain,
     reserve.asset,
-    reserve.decimals,
+    reserve.variableDebtTokenAddress,
     userAddress,
     poolAddress,
     fetchBalanceAndAllowance,
+    fetchVariableDebt,
   ]);
 
   // The unit the amount is denominated in: the pay token for supply/repay, the
@@ -258,19 +266,29 @@ export function AaveActionModal({
   const unitDecimals = converting ? (payToken?.decimals ?? 18) : reserve.decimals;
   const unitPrice = converting ? (payToken?.priceUsd ?? 0) : reserve.priceUsd;
 
+  // True when the pay token IS the asset owed — the only case where the debt
+  // can be cleared outright rather than converted into first.
+  const isDebtToken =
+    !!payToken &&
+    payToken.chainId === targetChainId &&
+    payToken.address.toLowerCase() === reserve.asset.toLowerCase();
+
   const maxAmount = useMemo(() => {
     switch (mode) {
       case 'supply':
         return payToken?.balance ?? 0;
       case 'repay': {
         if (!payToken) return 0;
-        const isDebtToken =
-          payToken.chainId === targetChainId &&
-          payToken.address.toLowerCase() === reserve.asset.toLowerCase();
-        const debt = position?.amount ?? walletBalance ?? 0;
-        return isDebtToken
-          ? Math.min(payToken.balance, debt || payToken.balance)
-          : payToken.balance;
+        // Paying the debt token directly caps at the smaller of what's held and
+        // what's owed, both read live on-chain. Converting can't be capped
+        // up-front — the output is only known after the quote.
+        if (isDebtToken) {
+          if (!onchain) return 0;
+          const cap =
+            onchain.balance < onchain.debt ? onchain.balance : onchain.debt;
+          return Number(ethers.formatUnits(cap, reserve.decimals));
+        }
+        return payToken.balance;
       }
       case 'withdraw':
         return position?.amount ?? 0;
@@ -288,9 +306,9 @@ export function AaveActionModal({
     position,
     account,
     reserve.priceUsd,
-    reserve.asset,
-    walletBalance,
-    targetChainId,
+    reserve.decimals,
+    onchain,
+    isDebtToken,
   ]);
 
   const amountNumber = Number(amount);
@@ -299,6 +317,12 @@ export function AaveActionModal({
   const overMax = amountValid && amountNumber > maxAmount * 1.000001;
   const usdEstimate = amountValid ? amountNumber * unitPrice : null;
   const isFullAmount = amountValid && amountNumber >= maxAmount * 0.999999;
+  // A uint256-max repay tells Aave "take my whole debt", which fails outright
+  // if the wallet is even one unit short — and it always is when the borrowed
+  // amount is still sitting there, because interest has accrued on top since.
+  // Only claim MAX when the balance genuinely covers the live debt.
+  const coversDebt = !!onchain && onchain.balance >= onchain.debt;
+  const repayIsMax = isFullAmount && isDebtToken && coversDebt;
 
   const setPercent = useCallback(
     (percent: number) => {
@@ -388,7 +412,7 @@ export function AaveActionModal({
           poolAddress,
           reserve,
           userAddress,
-          isMax: isFullAmount,
+          isMax: mode === 'repay' ? repayIsMax : isFullAmount,
           onStatus: setStatus,
         });
         if (stage === 'collateral') setCollateralDone(true);
@@ -706,6 +730,28 @@ export function AaveActionModal({
               )}
             </div>
 
+            {/* Interest accrues from the block you borrow in, so the borrowed
+                amount alone never quite clears the loan. Say so rather than
+                letting a "Max" repay revert. */}
+            {mode === 'repay' &&
+              isDebtToken &&
+              onchain &&
+              onchain.balance < onchain.debt && (
+                <p className="text-[11px] leading-4 text-gray-400">
+                  Your {reserve.symbol} balance is{' '}
+                  {formatAmount(
+                    Number(
+                      ethers.formatUnits(
+                        onchain.debt - onchain.balance,
+                        reserve.decimals,
+                      ),
+                    ),
+                  )}{' '}
+                  short of the accrued debt, so this repays everything you hold
+                  and leaves a trace of the loan open. Add a little{' '}
+                  {reserve.symbol} to close it out entirely.
+                </p>
+              )}
             {showWrapHint && wrapped && (
               <p className="text-[11px] leading-4 text-gray-400">
                 Aave lends {wrapped.wrapped}, not {wrapped.native} — paying with{' '}

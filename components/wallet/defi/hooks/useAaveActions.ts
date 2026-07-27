@@ -76,6 +76,29 @@ export function useAaveActions() {
     [],
   );
 
+  /**
+   * Live variable debt for a reserve, in base units. Aave's debt token accrues
+   * every block, so this is ALWAYS a little above what was borrowed — which is
+   * why a wallet holding exactly the borrowed amount can never clear the loan
+   * with a uint256-max repay.
+   */
+  const fetchVariableDebt = useCallback(
+    async (
+      chain: AaveChain,
+      variableDebtTokenAddress: string,
+      owner: string,
+    ): Promise<bigint> => {
+      const provider = getAaveReadProvider(chain);
+      const token = new ethers.Contract(
+        variableDebtTokenAddress,
+        ERC20_IFACE.fragments,
+        provider,
+      );
+      return token.balanceOf(owner);
+    },
+    [],
+  );
+
   /** Ensure the Aave Pool can pull `amount` of `asset` from the user. */
   const ensureAllowance = useCallback(
     async (params: AaveTxParams, onProgress?: AaveTxProgress) => {
@@ -180,5 +203,5 @@ export function useAaveActions() {
     [ensureAllowance, sendTransaction],
   );
 
-  return { execute, fetchBalanceAndAllowance };
+  return { execute, fetchBalanceAndAllowance, fetchVariableDebt };
 }
