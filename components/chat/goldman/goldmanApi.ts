@@ -335,3 +335,49 @@ export async function closeGoldmanPosition({
   if (!closed?.coin) throw new Error(`Could not close ${coin}.`);
   return closed;
 }
+
+export type GoldmanClosedPrediction = {
+  tokenId: string;
+  title?: string | null;
+  outcome?: string | null;
+  shares?: number | null;
+  price?: number | null;
+  proceedsUsd?: number | null;
+};
+
+/**
+ * Owner-initiated close of ONE open prediction position: sells the full share
+ * balance at the live price through the vault's own signing path. A resolved
+ * market is rejected by the backend — those are redeemed, not sold.
+ */
+export async function closeGoldmanPredictionPosition({
+  groupId,
+  accessToken,
+  tokenId,
+}: {
+  groupId: string;
+  accessToken: string;
+  tokenId: string;
+}): Promise<GoldmanClosedPrediction> {
+  const response = await apiFetch(goldmanAgentUrl(groupId, '/positions/close'), {
+    method: 'POST',
+    headers: {
+      ...authHeaders(accessToken),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ venue: 'predictions', tokenId }),
+  });
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Could not close that position (${response.status})`
+    );
+  }
+
+  const closed = (body as { data?: { closed?: GoldmanClosedPrediction } } | null)
+    ?.data?.closed;
+  if (!closed?.tokenId) throw new Error('Could not close that position.');
+  return closed;
+}

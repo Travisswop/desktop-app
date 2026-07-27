@@ -196,7 +196,10 @@ import { AUTONOMY_GATE_EXPLAINER } from '@/components/chat/goldman/goldmanAutono
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
-import { closeGoldmanPosition } from '@/components/chat/goldman/goldmanApi';
+import {
+  closeGoldmanPosition,
+  closeGoldmanPredictionPosition,
+} from '@/components/chat/goldman/goldmanApi';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8957,14 +8960,20 @@ function GoldmanAccessStation({
   const perpsQueryClient = useQueryClient();
   const [closingCoin, setClosingCoin] = useState<string | null>(null);
   const [closeTarget, setCloseTarget] = useState<{
-    coin: string;
+    coin: string | null;
+    tokenId: string | null;
     label: string;
     notional: number;
   } | null>(null);
 
   const handleClosePosition = useCallback(
-    (coin: string, label: string, notional: number) => {
-      setCloseTarget({ coin, label, notional });
+    (
+      coin: string | null,
+      tokenId: string | null,
+      label: string,
+      notional: number
+    ) => {
+      setCloseTarget({ coin, tokenId, label, notional });
     },
     []
   );
@@ -8975,20 +8984,35 @@ function GoldmanAccessStation({
       toast.error('Closing is not available from this panel.');
       return;
     }
+    const key = target.coin || target.tokenId;
+    if (!key) return;
     setCloseTarget(null);
-    setClosingCoin(target.coin);
+    setClosingCoin(key);
     try {
-      const closed = await closeGoldmanPosition({
-        groupId,
-        accessToken,
-        coin: target.coin,
-      });
-      const pnl = toFiniteNumber(closed.pnlUsd);
-      toast.success(
-        `${displayPerpsCoin(closed.coin)} closed at market${
-          pnl ? ` · ${formatSignedUsd(pnl)} realized` : ''
-        }.`
-      );
+      if (target.coin) {
+        const closed = await closeGoldmanPosition({
+          groupId,
+          accessToken,
+          coin: target.coin,
+        });
+        const pnl = toFiniteNumber(closed.pnlUsd);
+        toast.success(
+          `${displayPerpsCoin(closed.coin)} closed at market${
+            pnl ? ` · ${formatSignedUsd(pnl)} realized` : ''
+          }.`
+        );
+      } else {
+        const sold = await closeGoldmanPredictionPosition({
+          groupId,
+          accessToken,
+          tokenId: target.tokenId!,
+        });
+        toast.success(
+          `${sold.title || 'Position'} sold${
+            sold.proceedsUsd ? ` · about $${sold.proceedsUsd.toFixed(2)}` : ''
+          }.`
+        );
+      }
       await perpsQueryClient.invalidateQueries({ queryKey: ['hl-positions'] });
     } catch (error) {
       toast.error(
@@ -9709,7 +9733,9 @@ function GoldmanAccessStation({
               Close {closeTarget?.label}?
             </AlertDialogTitle>
             <AlertDialogDescription className="dm-mono text-[12px] text-[#9396a0]">
-              This closes the position at market right now
+              {closeTarget?.coin
+                ? 'This closes the position at market right now'
+                : 'This sells the position at the current price'}
               {closeTarget && closeTarget.notional > 0
                 ? ` (about $${closeTarget.notional.toFixed(2)})`
                 : ''}{' '}
@@ -9724,7 +9750,7 @@ function GoldmanAccessStation({
               onClick={confirmClosePosition}
               className="dm-mono bg-[#ff5d63] text-[12px] text-white hover:bg-[#ff5d63]/90"
             >
-              Close position
+              {closeTarget?.coin ? 'Close position' : 'Sell position'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -9792,6 +9818,7 @@ function GoldmanAccessStation({
                         onClick={() =>
                           handleClosePosition(
                             position.coin,
+                            null,
                             `${coinLabel} ${size < 0 ? 'short' : 'long'}`,
                             notional
                           )
@@ -9808,6 +9835,9 @@ function GoldmanAccessStation({
               })}
               {openPredictionPositions.map((position, index) => {
                 const pnl = toFiniteNumber(position.cashPnl);
+                // Resolved markets are redeemed, not sold — no close button.
+                const predictionTokenId =
+                  String(position.asset || '') || null;
                 return (
                   <div
                     key={`pred-${position.slug || position.title || index}`}
@@ -9822,12 +9852,37 @@ function GoldmanAccessStation({
                         {formatCompactUsd(toFiniteNumber(position.currentValue))}
                       </div>
                     </div>
-                    <div
-                      className={`dm-mono shrink-0 text-[12px] font-bold ${
-                        pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff8585]'
-                      }`}
-                    >
-                      {formatSignedUsd(pnl)}
+                    <div className="flex shrink-0 items-center gap-2.5">
+                      <div
+                        className={`dm-mono text-[12px] font-bold ${
+                          pnl >= 0 ? 'text-[#3fe08f]' : 'text-[#ff8585]'
+                        }`}
+                      >
+                        {formatSignedUsd(pnl)}
+                      </div>
+                      {predictionTokenId && !position.redeemable ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleClosePosition(
+                              null,
+                              predictionTokenId,
+                              `${position.title || 'position'} · ${String(
+                                position.outcome || 'YES'
+                              ).toUpperCase()}`,
+                              Math.abs(toFiniteNumber(position.currentValue))
+                            )
+                          }
+                          disabled={
+                            closingCoin === predictionTokenId ||
+                            Boolean(closingCoin)
+                          }
+                          aria-label={`Close ${position.title || 'position'}`}
+                          className="dm-mono rounded-[7px] border border-[#ff8585]/35 bg-[#ff8585]/10 px-2 py-1 text-[9.5px] font-bold tracking-[0.06em] text-[#ff8585] transition hover:bg-[#ff8585]/20 disabled:opacity-50"
+                        >
+                          {closingCoin === predictionTokenId ? '…' : 'CLOSE'}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );
