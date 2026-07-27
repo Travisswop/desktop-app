@@ -290,3 +290,48 @@ export async function withdrawGoldmanVault({
   }
   return data;
 }
+
+export type GoldmanClosedPosition = {
+  coin: string;
+  direction?: string | null;
+  size?: string | number | null;
+  amountUsd?: number | null;
+  pnlUsd?: number | null;
+};
+
+/**
+ * Owner-initiated close of ONE open perps position in the Goldman vault.
+ * The backend runs the same reduce-only IOC path the agent's own exits use
+ * and hands any unfilled remainder to the strategy loop to finish.
+ */
+export async function closeGoldmanPosition({
+  groupId,
+  accessToken,
+  coin,
+}: {
+  groupId: string;
+  accessToken: string;
+  coin: string;
+}): Promise<GoldmanClosedPosition> {
+  const response = await apiFetch(goldmanAgentUrl(groupId, '/positions/close'), {
+    method: 'POST',
+    headers: {
+      ...authHeaders(accessToken),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ coin }),
+  });
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Could not close ${coin} (${response.status})`
+    );
+  }
+
+  const closed = (body as { data?: { closed?: GoldmanClosedPosition } } | null)
+    ?.data?.closed;
+  if (!closed?.coin) throw new Error(`Could not close ${coin}.`);
+  return closed;
+}
