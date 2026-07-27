@@ -13,10 +13,16 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import { selectPreferredWallet } from "./hooks/useWalletData";
 
+type ChainKey =
+  | "solana"
+  | "ethereum"
+  | "polygon"
+  | "base"
+  | "arbitrum"
+  | "robinhood";
+
 export default function WalletReceiveCryptoPopup() {
-  const [qrOpenStatus, setQrOpenStatus] = useState<
-    false | "sol" | "eth" | "pol" | "base"
-  >(false);
+  const [qrChain, setQrChain] = useState<ChainKey | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const qrRef = useRef<HTMLDivElement>(null);
@@ -37,28 +43,62 @@ export default function WalletReceiveCryptoPopup() {
     )?.address;
   }, [ethWallets, privyUser?.wallet?.address]);
 
-  const chainAddresses = [
+  // Every EVM chain shares the same embedded wallet address — the entries differ
+  // only in which network the sender must broadcast on.
+  const chainAddresses: {
+    key: ChainKey;
+    name: string;
+    networkName: string;
+    icon: string;
+    address: string | undefined;
+  }[] = [
     {
+      key: "solana",
       name: "Solana",
+      networkName: "Solana",
       icon: "/assets/icons/sol.png",
       address: solWalletAddress,
     },
     {
+      key: "ethereum",
       name: "Ethereum",
+      networkName: "Ethereum",
       icon: "/assets/icons/ETH.png",
       address: evmWalletAddress,
     },
     {
+      key: "polygon",
       name: "Polygon",
+      networkName: "Polygon",
       icon: "/assets/icons/POL.png",
       address: evmWalletAddress,
     },
     {
+      key: "base",
       name: "Base",
+      networkName: "Base",
       icon: "/assets/icons/base.png",
       address: evmWalletAddress,
     },
+    {
+      key: "arbitrum",
+      name: "Arbitrum",
+      networkName: "Arbitrum",
+      icon: "/assets/icons/arbitrum.png",
+      address: evmWalletAddress,
+    },
+    {
+      key: "robinhood",
+      name: "Robinhood",
+      networkName: "Robinhood Chain",
+      icon: "/assets/icons/robinhood.png",
+      address: evmWalletAddress,
+    },
   ];
+
+  const activeChain = qrChain
+    ? chainAddresses.find((chain) => chain.key === qrChain)
+    : undefined;
 
   const handleCopy = (address: string | undefined, index: number) => {
     if (!address) return;
@@ -120,14 +160,7 @@ export default function WalletReceiveCryptoPopup() {
         qrImg.src = svgUrl;
       });
 
-      const iconSrc =
-        qrOpenStatus === "sol"
-          ? chainAddresses[0].icon
-          : qrOpenStatus === "eth"
-            ? chainAddresses[1].icon
-            : qrOpenStatus === "base"
-              ? chainAddresses[3].icon
-              : chainAddresses[2].icon;
+      const iconSrc = activeChain?.icon ?? chainAddresses[0].icon;
 
       await new Promise<void>((resolve) => {
         const iconImg = new window.Image();
@@ -156,11 +189,8 @@ export default function WalletReceiveCryptoPopup() {
   };
 
   const handleShareQR = async () => {
-    if (!evmWalletAddress || !solWalletAddress) return;
-    const address =
-      qrOpenStatus === "eth" || qrOpenStatus === "pol" || qrOpenStatus === "base"
-        ? evmWalletAddress
-        : solWalletAddress;
+    const address = activeChain?.address;
+    if (!address) return;
     const shareData = { title: "My Wallet Address", text: `My Wallet Address: ${address}` };
     try {
       if (navigator.share) {
@@ -174,20 +204,13 @@ export default function WalletReceiveCryptoPopup() {
     }
   };
 
-  const handleQrOpen = (chain: { name: string }) => {
-    if (chain.name === "Solana") setQrOpenStatus("sol");
-    else if (chain.name === "Ethereum") setQrOpenStatus("eth");
-    else if (chain.name === "Polygon") setQrOpenStatus("pol");
-    else setQrOpenStatus("base");
-  };
-
   return (
     <div className="bg-white rounded-2xl space-y-4 shadow-sm">
       {/* QR View */}
-      {qrOpenStatus ? (
+      {activeChain ? (
         <div className="relative bg-white mx-auto p-8">
           <button
-            onClick={() => setQrOpenStatus(false)}
+            onClick={() => setQrChain(null)}
             className="absolute left-3 top-3"
           >
             <FaArrowLeftLong />
@@ -209,25 +232,12 @@ export default function WalletReceiveCryptoPopup() {
             >
               <div className="bg-white p-4">
                 <QRCodeSVG
-                  value={
-                    qrOpenStatus === "eth" ||
-                    qrOpenStatus === "pol" ||
-                    qrOpenStatus === "base"
-                      ? evmWalletAddress || ""
-                      : solWalletAddress || ""
-                  }
+                  value={activeChain.address || ""}
                   size={200}
                   level="H"
                   includeMargin={false}
                   imageSettings={{
-                    src:
-                      qrOpenStatus === "sol"
-                        ? chainAddresses[0].icon
-                        : qrOpenStatus === "eth"
-                          ? chainAddresses[1].icon
-                          : qrOpenStatus === "base"
-                            ? chainAddresses[3].icon
-                            : chainAddresses[2].icon,
+                    src: activeChain.icon,
                     height: 40,
                     width: 40,
                     excavate: true,
@@ -241,15 +251,7 @@ export default function WalletReceiveCryptoPopup() {
           </div>
 
           <p className="text-center text-gray-500 text-sm max-w-md mx-auto mb-6 leading-relaxed">
-            {`Use This Only To Receive Tokens or NFTs on the ${
-              qrOpenStatus === "sol"
-                ? "Solana"
-                : qrOpenStatus === "eth"
-                  ? "Ethereum"
-                  : qrOpenStatus === "pol"
-                    ? "Polygon"
-                    : "Base"
-            } Blockchain`}
+            {`Use This Only To Receive Tokens or NFTs on the ${activeChain.networkName} Blockchain`}
           </p>
 
           <div className="flex justify-center gap-4">
@@ -307,10 +309,10 @@ export default function WalletReceiveCryptoPopup() {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {chainAddresses.map((chain, index) => (
               <div
-                key={index}
+                key={chain.key}
                 className="flex flex-col items-center shadow-medium rounded-xl p-4 space-y-2"
               >
                 <p className="text-sm font-semibold text-gray-900">{chain.name}</p>
@@ -327,7 +329,7 @@ export default function WalletReceiveCryptoPopup() {
 
                 <div className="flex gap-1 mt-2">
                   <button
-                    onClick={() => handleQrOpen(chain)}
+                    onClick={() => setQrChain(chain.key)}
                     className="p-1.5 hover:bg-gray-200 rounded-lg transition"
                   >
                     <MdOutlineQrCodeScanner />

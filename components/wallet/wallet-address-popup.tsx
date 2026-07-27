@@ -124,6 +124,11 @@ export default function WalletAddressPopup({
       icon: "/assets/icons/arbitrum.png",
       address: evmAddress,
     },
+    {
+      chain: "Robinhood",
+      icon: "/assets/icons/robinhood.png",
+      address: evmAddress,
+    },
   ];
 
   return (
