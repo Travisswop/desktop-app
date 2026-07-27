@@ -15,6 +15,9 @@ type ChatMessage = {
   blink?: ChatBlink | null;
 };
 
+// The concierge answers in ~3s; 45s is generous headroom for a slow LLM turn.
+const CHAT_TIMEOUT_MS = 45_000;
+
 export default function AiChatCard({ widgetId, config, mode }: { widgetId?: string; config: any; mode: "builder" | "public" }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "assistant", text: `Hi — I’m ${config.name || "your SmartSite concierge"}. How can I help?` },
@@ -34,6 +37,10 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
       role: message.role === "visitor" ? "user" : "assistant",
       content: message.text,
     }));
+    // Without a timeout a stalled request never settles, and the card sits on
+    // "Thinking…" forever with the input disabled and no way to retry.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/widget/${widgetId}/chat`,
@@ -41,6 +48,7 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: cleanQuestion, history }),
+          signal: controller.signal,
         },
       );
       const body = await response.json();
@@ -50,14 +58,20 @@ export default function AiChatCard({ widgetId, config, mode }: { widgetId?: stri
         { role: "assistant", text: body.data.answer, blink: body.data.blink },
       ]);
     } catch (error) {
+      const timedOut = controller.signal.aborted;
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          text: error instanceof Error ? error.message : "I could not answer that.",
+          text: timedOut
+            ? "That took too long to answer — please try again."
+            : error instanceof Error && error.message
+              ? error.message
+              : "I could not answer that.",
         },
       ]);
     } finally {
+      clearTimeout(timer);
       setSending(false);
     }
   };
