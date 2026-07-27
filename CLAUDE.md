@@ -164,6 +164,51 @@ Swap quotes are fetched server-side and **degrade silently to slow/free public e
 - The swap modal **auto-refreshes the quote every 10s** while open (`components/wallet/SwapTokenModal.tsx`), so each open modal repeatedly hits the provider — keyless endpoints throttle fast.
 - These keys are **environment-specific**: the local stack's `.env` and each hosted deployment (Vercel/server) have separate env vars. A working production swap does not mean local is configured, and vice-versa.
 - To diagnose a timeout, curl the provider directly (e.g. `https://lite-api.jup.ag/swap/v1/quote?...`). A fast 200 means the provider is healthy and the issue is the missing/wrong key or rate-limiting, not an outage.
+
+## Dependency Audit — never run `npm audit fix` here (IMPORTANT)
+
+**`npm audit fix` makes this repo strictly worse.** Measured on a clean worktree
+(2026-07-26): it resolves 3 advisories and introduces **35 new high-severity ones
+(12 → 44)**, by downgrading the `eslint`/`glob`/`minimatch` chain and pulling in
+entire `jest` and `react-native` subtrees. `npm audit fix --force` is worse still.
+
+npm's suggested fixes are actively wrong on this tree — it proposes **downgrades**:
+`next` → 14.2.35, and `@solana/spl-token` → 0.1.8 (which would break all wallet
+SPL code). Always read `fixAvailable` before acting on it.
+
+**The safe pattern**, used for the current lockfile state:
+1. Bump direct deps to a patched version *inside* the existing semver range
+   (`npm update <pkg>`), or by an explicit patch bump (`npm install next@<patch>`).
+2. For pure transitives, add a **versioned** `overrides` key (e.g.
+   `"brace-expansion@^5.0.0": "^5.0.8"`) — never a blanket one, since several
+   packages here have two majors in the tree simultaneously.
+3. **Re-run `npm audit` after every single change.** Overrides can defeat npm's
+   deduplication and silently multiply the tree; a change is only good if the
+   count goes down.
+4. Verify with `npm run build` + `npx tsc --noEmit`, not just the audit number.
+
+### The 4 remaining high advisories are deliberate — leave them
+
+- **`@solana/spl-token` / `@solana/buffer-layout-utils` / `bigint-buffer`** —
+  unfixable at any version. `bigint-buffer`'s last release is 1.1.5 and the
+  advisory covers `<=1.1.5`, so no patched version exists; the latest
+  `@solana/buffer-layout-utils` (0.3.0) and `@solana/spl-token` (0.4.15) both
+  still require it. It is also **not shipped**: grepping the build output for
+  `bigint-buffer`, `toBigIntLE` and `bigint_buffer.node` finds 0 hits in both
+  `.next/static` and `.next/server` (while spl-token's own symbols *are* present)
+  — the vulnerable decode path tree-shakes away. The only server-side spl-token
+  import, `app/api/tokens/route.ts`, pulls just the `TOKEN_PROGRAM_ID` /
+  `TOKEN_2022_PROGRAM_ID` constants.
+- **`brace-expansion` 1.1.13** — reaches the tree only via the devDependency path
+  `eslint@8 → minimatch@3`, and appears in 0 build output files. Overriding it to
+  1.1.16 adds 131 packages and takes highs from 4 to 35, *and it stays flagged
+  anyway*. The real fix is migrating off the EOL `eslint@8` to `eslint@9`.
+
+The ~36 moderate advisories are almost entirely the core wallet/auth stack
+(Privy, wagmi, LiFi, `@solana/web3.js`, Solana wallet adapters, Farcaster), 18 of
+which need semver-major bumps. Do not take those on without real cross-chain
+wallet regression coverage — the upgrade risk exceeds the advisory risk.
+
 ## Git Workflow — Multi-Agent Safety (IMPORTANT)
 
 Multiple agent sessions (Claude Code, Codex, etc.) often work in this checkout at the
