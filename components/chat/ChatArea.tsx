@@ -4514,6 +4514,31 @@ export default function ChatArea({
       setAgentStatusText(`${agentName} is thinking`);
     };
 
+    // Authoritative version of the above: the backend starts this the moment
+    // the invocation begins and stops it when the agent actually finishes, so
+    // the indicator no longer disappears the instant an intermediate tool card
+    // lands, nor lingers after a silent failure.
+    const handleAgentTyping = (data: {
+      groupId?: string;
+      agentId?: string;
+      agentName?: string;
+      isTyping?: boolean;
+    }) => {
+      if (!isGroup || data.groupId !== activeChat._id) return;
+      if (data.isTyping !== true) {
+        setAgentStatusText(null);
+        return;
+      }
+      const activeGroupData = currentGroupDataRef.current;
+      const agentName =
+        data.agentName ||
+        activeGroupData?.botUsers?.find(
+          (agent) => agent.agentId === data.agentId
+        )?.displayName ||
+        'Agent';
+      setAgentStatusText(`${agentName} is thinking`);
+    };
+
     const handleAgentGroupResponse = (data: {
       groupId?: string;
       message?: Message;
@@ -4625,6 +4650,7 @@ export default function ChatArea({
       GROUP_AGENT_SOCKET_EVENTS.INVOCATION_STARTED,
       handleAgentInvocationStarted
     );
+    socket.on(GROUP_AGENT_SOCKET_EVENTS.AGENT_TYPING, handleAgentTyping);
     socket.on(
       GROUP_AGENT_SOCKET_EVENTS.GROUP_RESPONSE,
       handleAgentGroupResponse
@@ -4647,6 +4673,7 @@ export default function ChatArea({
         GROUP_AGENT_SOCKET_EVENTS.INVOCATION_STARTED,
         handleAgentInvocationStarted
       );
+      socket.off(GROUP_AGENT_SOCKET_EVENTS.AGENT_TYPING, handleAgentTyping);
       socket.off(
         GROUP_AGENT_SOCKET_EVENTS.GROUP_RESPONSE,
         handleAgentGroupResponse

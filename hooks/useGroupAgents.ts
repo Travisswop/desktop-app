@@ -122,6 +122,10 @@ export const GROUP_AGENT_SOCKET_EVENTS = {
   COMPLETE_AGENT_ACTION: 'complete_agent_action',
   REJECT_AGENT_ACTION: 'reject_agent_action',
   INVOCATION_STARTED: 'agent_invocation_started',
+  // Server-driven "agent is working" signal: covers the whole invocation
+  // (including the pre-gateway access check and steering replies), heartbeats
+  // while the agent works, and always stops — on success or failure.
+  AGENT_TYPING: 'group_agent_typing',
   GROUP_RESPONSE: 'agent_group_response',
   ACTION_PROPOSED: 'agent_action_proposed',
   ACTION_RESULT: 'agent_action_result',
