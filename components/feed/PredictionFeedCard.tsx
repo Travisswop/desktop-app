@@ -1909,6 +1909,29 @@ function resolvePredictionSummaryValue({
   );
 }
 
+/**
+ * Gross payout the position collects if the pick settles as a winner — every
+ * winning share redeems at $1.00, so the payout is just the share count.
+ * Only meaningful while the bet is still live and actually filled: a SELL has
+ * already cashed out, and a pre-fill quote has no share count to promise.
+ */
+export function resolvePredictionPotentialPayout({
+  entryIsEstimate,
+  isOpen,
+  side,
+  shares,
+}: {
+  entryIsEstimate?: boolean;
+  isOpen: boolean;
+  side: 'BUY' | 'SELL';
+  shares?: number;
+}): number | undefined {
+  if (entryIsEstimate || !isOpen || side === 'SELL') return undefined;
+  if (shares === undefined || !Number.isFinite(shares) || shares <= 0)
+    return undefined;
+  return shares;
+}
+
 function formatShares(value: number | undefined): string {
   if (value === undefined || !Number.isFinite(value)) return '—';
   return new Intl.NumberFormat('en-US', {
@@ -2474,13 +2497,21 @@ function SportsMiniPanel({
     !entryIsEstimate && isWonResult && summaryValue !== undefined
       ? summaryValue
       : undefined;
+  const potentialPayout = resolvePredictionPotentialPayout({
+    entryIsEstimate,
+    isOpen: open,
+    side,
+    shares: impliedShares,
+  });
   const resultDisplay = entryIsEstimate
     ? '—'
     : formatSignedUsd(selectedPnl);
   const resultSubcopy =
     payoutDisplayValue !== undefined
       ? `${formatUsd(payoutDisplayValue)} payout`
-      : undefined;
+      : potentialPayout !== undefined
+        ? `To win ${formatUsd(potentialPayout)}`
+        : undefined;
   const positionKicker = entryIsEstimate
     ? 'QUOTE'
     : open
@@ -2762,7 +2793,13 @@ function SportsMiniPanel({
             {resultDisplay}
           </p>
           {resultSubcopy && (
-            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
+            <p
+              className={`mt-0.5 font-mono text-[10px] font-black ${
+                potentialPayout !== undefined
+                  ? 'text-[#51AD7D]'
+                  : 'text-gray-400'
+              }`}
+            >
               {resultSubcopy}
             </p>
           )}
@@ -2933,13 +2970,21 @@ function PredictionPositionPanel({
     !entryIsEstimate && isWonResult && summaryValue !== undefined
       ? summaryValue
       : undefined;
+  const potentialPayout = resolvePredictionPotentialPayout({
+    entryIsEstimate,
+    isOpen: open,
+    side,
+    shares,
+  });
   const resultDisplay = entryIsEstimate
     ? '—'
     : formatSignedUsd(selectedPnl);
   const resultSubcopy =
     payoutDisplayValue !== undefined
       ? `${formatUsd(payoutDisplayValue)} payout`
-      : undefined;
+      : potentialPayout !== undefined
+        ? `To win ${formatUsd(potentialPayout)}`
+        : undefined;
   const positionKicker = entryIsEstimate
     ? 'QUOTE'
     : open
@@ -3259,7 +3304,13 @@ function PredictionPositionPanel({
             {resultDisplay}
           </p>
           {resultSubcopy && (
-            <p className="mt-0.5 font-mono text-[10px] font-black text-gray-400">
+            <p
+              className={`mt-0.5 font-mono text-[10px] font-black ${
+                potentialPayout !== undefined
+                  ? 'text-[#07976B]'
+                  : 'text-gray-400'
+              }`}
+            >
               {resultSubcopy}
             </p>
           )}
