@@ -25,7 +25,9 @@ import { useAaveMarkets, useAavePositions } from './hooks/useAaveData';
 import { sortAaveReservesBySupplyApy } from './aaveMarketSorting';
 import type { AaveSupplyApySortDirection } from './aaveMarketSorting';
 import { buildAaveFeedContent } from '@/lib/defi/defiFeed';
+import { toAavePayTokens } from '@/lib/defi/aaveFunding';
 import { upsertAavePositionFeed } from '@/lib/defi/defiFeedSync';
+import type { TokenData } from '@/types/token';
 import { resolvePerpsFeedSmartsiteId } from '@/lib/perps/perpsFeed';
 import { useUser } from '@/lib/UserContext';
 
@@ -63,12 +65,20 @@ const hasDisplayableSupplyApy = (reserve: AaveReserve) =>
 const hasDisplayableBorrowApy = (reserve: AaveReserve) =>
   reserve.borrowingEnabled && reserve.variableBorrowApy >= MIN_DISPLAY_APY;
 
+// Collateral-only assets (wstETH, weETH, cbBTC…) round to 0.00% supply APY but
+// carry a real LTV, and are exactly what people supply when they want to borrow
+// against a holding — keep them listed. Only dead reserves (expired Pendle PTs
+// and the like) drop out.
 const hasDisplayableApy = (reserve: AaveReserve) =>
-  hasDisplayableSupplyApy(reserve) || hasDisplayableBorrowApy(reserve);
+  hasDisplayableSupplyApy(reserve) ||
+  hasDisplayableBorrowApy(reserve) ||
+  reserve.ltv > 0;
 
 interface DefiSectionProps {
   accessToken: string;
   evmWalletAddress: string | null;
+  /** Wallet tokens, so a supply/repay can be funded with anything held. */
+  tokens?: TokenData[];
 }
 
 interface ModalState {
@@ -80,6 +90,7 @@ interface ModalState {
 export function DefiSection({
   accessToken,
   evmWalletAddress,
+  tokens,
 }: DefiSectionProps) {
   const queryClient = useQueryClient();
   const { user, primaryMicrosite } = useUser();
@@ -103,6 +114,8 @@ export function DefiSection({
     const reserves = markets.data?.reserves ?? [];
     return sortAaveReservesBySupplyApy(reserves, supplyApySortDirection);
   }, [markets.data?.reserves, supplyApySortDirection]);
+
+  const payTokens = useMemo(() => toAavePayTokens(tokens ?? []), [tokens]);
 
   const marketReserves = useMemo(
     () =>
@@ -400,9 +413,30 @@ export function DefiSection({
           chain={chain}
           poolAddress={markets.data.poolAddress}
           reserve={modal.reserve}
+          reserves={sortedReserves}
+          payTokens={payTokens}
           userAddress={evmWalletAddress}
           account={account}
           position={modal.position}
+          onSelectReserve={(reserve) =>
+            setModal((current) => {
+              if (!current) return current;
+              // Carry the position across an asset change so withdraw/repay
+              // still cap against what the user actually holds.
+              const held =
+                current.mode === 'withdraw'
+                  ? positions.data?.supplies?.find((entry) =>
+                      entry.asset.toLowerCase() === reserve.asset.toLowerCase(),
+                    )
+                  : current.mode === 'repay'
+                    ? positions.data?.borrows?.find((entry) =>
+                        entry.asset.toLowerCase() ===
+                        reserve.asset.toLowerCase(),
+                      )
+                    : null;
+              return { mode: current.mode, reserve, position: held ?? null };
+            })
+          }
           onClose={() => setModal(null)}
           onSuccess={(txHash, details) => {
             publishAaveFeedPost(txHash, details);

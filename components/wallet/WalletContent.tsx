@@ -2419,6 +2419,7 @@ const WalletContentInner = () => {
           <DefiSection
             accessToken={accessToken}
             evmWalletAddress={evmWalletAddress ?? null}
+            tokens={tokens}
           />
         </section>
 

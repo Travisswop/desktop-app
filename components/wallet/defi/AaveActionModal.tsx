@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ethers } from 'ethers';
-import { CheckCircle2, Loader2, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Loader2, Search, X } from 'lucide-react';
 import type {
   AaveAccountSummary,
   AaveActionMode,
@@ -12,18 +12,35 @@ import type {
 } from '@/types/aave';
 import { AaveTokenIcon } from './AaveTokenIcon';
 import { useAaveActions } from './hooks/useAaveActions';
+import { useAaveFunding } from './hooks/useAaveFunding';
+import {
+  describeAaveFundingRoute,
+  getAaveFundingQuote,
+  reserveIsWrappedNative,
+  wrappedNativeFor,
+  type AaveFundingQuote,
+  type AavePayToken,
+} from '@/lib/defi/aaveFunding';
+import { CHAIN_ID } from '@/types/wallet-types';
 
 const MODE_COPY: Record<
   AaveActionMode,
   { title: string; cta: string; balanceLabel: string }
 > = {
-  supply: { title: 'Supply', cta: 'Supply', balanceLabel: 'Wallet balance' },
-  borrow: { title: 'Borrow', cta: 'Borrow', balanceLabel: 'Available to borrow' },
+  supply: { title: 'Supply', cta: 'Supply', balanceLabel: 'You pay' },
+  borrow: {
+    title: 'Borrow',
+    cta: 'Borrow',
+    balanceLabel: 'Available to borrow',
+  },
   withdraw: { title: 'Withdraw', cta: 'Withdraw', balanceLabel: 'Supplied' },
-  repay: { title: 'Repay', cta: 'Repay', balanceLabel: 'Debt' },
+  repay: { title: 'Repay', cta: 'Repay', balanceLabel: 'You pay' },
 };
 
-type Step = 'idle' | 'approving' | 'confirming' | 'success';
+const PERCENT_STEPS = [25, 50, 75, 100];
+const SLIPPAGE_BPS = 100;
+
+type Step = 'idle' | 'working' | 'success';
 
 export interface AaveActionSuccessDetails {
   mode: AaveActionMode;
@@ -37,10 +54,15 @@ interface AaveActionModalProps {
   chain: AaveChain;
   poolAddress: string;
   reserve: AaveReserve;
+  /** Every reserve on the chain — powers the in-modal asset picker. */
+  reserves: AaveReserve[];
+  /** EVM wallet tokens that can fund a supply/repay. */
+  payTokens: AavePayToken[];
   userAddress: string;
   account?: AaveAccountSummary | null;
   /** Existing position for withdraw / repay flows */
   position?: AavePosition | null;
+  onSelectReserve: (reserve: AaveReserve) => void;
   onClose: () => void;
   onSuccess: (txHash: string, details: AaveActionSuccessDetails) => void;
 }
@@ -55,28 +77,90 @@ const formatUsd = (value: number) =>
 const formatAmount = (value: number) =>
   value.toLocaleString('en-US', { maximumFractionDigits: 6 });
 
+const formatPct = (value: number) => `${(value * 100).toFixed(2)}%`;
+
+const trimZeros = (value: string) =>
+  value.includes('.') ? value.replace(/\.?0+$/, '') : value;
+
 export function AaveActionModal({
   mode,
   chain,
   poolAddress,
   reserve,
+  reserves,
+  payTokens,
   userAddress,
   account,
   position,
+  onSelectReserve,
   onClose,
   onSuccess,
 }: AaveActionModalProps) {
   const { execute, fetchBalanceAndAllowance } = useAaveActions();
+  const { executeFunded } = useAaveFunding();
+
+  // Supply and repay take funds IN, so they can be paid with any token and
+  // converted. Borrow and withdraw pay funds OUT — no conversion involved.
+  const converting = mode === 'supply' || mode === 'repay';
+  const targetChainId = CHAIN_ID[chain];
 
   const [amount, setAmount] = useState('');
+  const [payTokenId, setPayTokenId] = useState<string | null>(null);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [assetSearch, setAssetSearch] = useState('');
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
   const [step, setStep] = useState<Step>('idle');
+  const [status, setStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [quote, setQuote] = useState<AaveFundingQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+  const quoteRequestRef = useRef(0);
+  const busy = step === 'working';
 
-  // Wallet token balance is needed for supply (cap) and repay (cap by funds)
+  // Reset when the modal switches asset or mode.
+  useEffect(() => {
+    setAmount('');
+    setQuote(null);
+    setQuoteError('');
+    setError(null);
+    setWalletBalance(null);
+    // Re-default the pay token per asset — supplying WETH should preselect the
+    // user's ETH, not whatever they paid with on the previous asset.
+    setPayTokenId(null);
+  }, [mode, reserve.asset]);
+
+  // Default the pay token: the reserve asset itself if held, then the native
+  // coin for a wrapped-native reserve, then the largest holding on the chain.
+  useEffect(() => {
+    if (!converting || payTokens.length === 0) return;
+    setPayTokenId((current) => {
+      if (current && payTokens.some((token) => token.id === current)) {
+        return current;
+      }
+      const onChain = payTokens.filter(
+        (token) => token.chainId === targetChainId,
+      );
+      const exact = onChain.find(
+        (token) => token.address.toLowerCase() === reserve.asset.toLowerCase(),
+      );
+      const native = reserveIsWrappedNative(chain, reserve)
+        ? onChain.find((token) => token.isNative)
+        : undefined;
+      return (exact ?? native ?? onChain[0] ?? payTokens[0])?.id ?? null;
+    });
+  }, [converting, payTokens, targetChainId, chain, reserve]);
+
+  const payToken = useMemo(
+    () => payTokens.find((token) => token.id === payTokenId) ?? null,
+    [payTokens, payTokenId],
+  );
+
+  // Live on-chain debt-token balance for repay (the cached token list lags).
   useEffect(() => {
     let cancelled = false;
-    if (mode !== 'supply' && mode !== 'repay') return undefined;
+    if (mode !== 'repay') return undefined;
     fetchBalanceAndAllowance(chain, reserve.asset, userAddress, poolAddress)
       .then(({ balance }) => {
         if (!cancelled) {
@@ -101,16 +185,30 @@ export function AaveActionModal({
     fetchBalanceAndAllowance,
   ]);
 
+  // The unit the amount is denominated in: the pay token for supply/repay, the
+  // reserve asset for borrow/withdraw.
+  const unitSymbol = converting
+    ? (payToken?.symbol ?? reserve.symbol)
+    : reserve.symbol;
+  const unitDecimals = converting ? (payToken?.decimals ?? 18) : reserve.decimals;
+  const unitPrice = converting ? (payToken?.priceUsd ?? 0) : reserve.priceUsd;
+
   const maxAmount = useMemo(() => {
     switch (mode) {
       case 'supply':
-        return walletBalance ?? 0;
+        return payToken?.balance ?? 0;
+      case 'repay': {
+        if (!payToken) return 0;
+        const isDebtToken =
+          payToken.chainId === targetChainId &&
+          payToken.address.toLowerCase() === reserve.asset.toLowerCase();
+        const debt = position?.amount ?? walletBalance ?? 0;
+        return isDebtToken
+          ? Math.min(payToken.balance, debt || payToken.balance)
+          : payToken.balance;
+      }
       case 'withdraw':
         return position?.amount ?? 0;
-      case 'repay': {
-        const debt = position?.amount ?? 0;
-        return walletBalance === null ? debt : Math.min(debt, walletBalance);
-      }
       case 'borrow': {
         if (!account || reserve.priceUsd <= 0) return 0;
         // 1% haircut so the tx doesn't revert on price movement between blocks
@@ -119,37 +217,130 @@ export function AaveActionModal({
       default:
         return 0;
     }
-  }, [mode, walletBalance, position, account, reserve.priceUsd]);
+  }, [
+    mode,
+    payToken,
+    position,
+    account,
+    reserve.priceUsd,
+    reserve.asset,
+    walletBalance,
+    targetChainId,
+  ]);
 
-  const parsedAmount = useMemo(() => {
-    const value = Number(amount);
-    if (!amount || Number.isNaN(value) || value <= 0) return null;
-    try {
-      return ethers.parseUnits(value.toFixed(reserve.decimals), reserve.decimals);
-    } catch {
-      return null;
+  const amountNumber = Number(amount);
+  const amountValid =
+    !!amount && Number.isFinite(amountNumber) && amountNumber > 0;
+  const overMax = amountValid && amountNumber > maxAmount * 1.000001;
+  const usdEstimate = amountValid ? amountNumber * unitPrice : null;
+  const isFullAmount = amountValid && amountNumber >= maxAmount * 0.999999;
+
+  const setPercent = useCallback(
+    (percent: number) => {
+      if (maxAmount <= 0) return;
+      const next = (maxAmount * percent) / 100;
+      setAmount(trimZeros(next.toFixed(Math.min(unitDecimals, 18))));
+    },
+    [maxAmount, unitDecimals],
+  );
+
+  // ── Conversion quote (supply / repay) ──
+  // Every amount change drops the quote synchronously: the refetch is
+  // debounced, and in that window a live CTA would execute stale amounts.
+  useEffect(() => {
+    const requestId = ++quoteRequestRef.current;
+    if (!converting || busy || step === 'success') return undefined;
+    setQuote(null);
+    setQuoteError('');
+    if (!payToken || !amountValid || overMax) {
+      setQuoting(false);
+      return undefined;
     }
-  }, [amount, reserve.decimals]);
-
-  const usdEstimate = useMemo(() => {
-    const value = Number(amount);
-    if (!amount || Number.isNaN(value)) return null;
-    return value * reserve.priceUsd;
-  }, [amount, reserve.priceUsd]);
-
-  const overMax = Number(amount) > maxAmount * 1.000001;
-  const busy = step === 'approving' || step === 'confirming';
-  const canSubmit = Boolean(parsedAmount) && !overMax && !busy;
-
-  const handleMax = () => setAmount(String(maxAmount));
+    const handle = setTimeout(() => {
+      if (quoteRequestRef.current !== requestId) return;
+      setQuoting(true);
+      getAaveFundingQuote({
+        payToken,
+        chain,
+        reserve,
+        amount,
+        slippageBps: SLIPPAGE_BPS,
+        userAddress,
+      })
+        .then((next) => {
+          if (quoteRequestRef.current === requestId) setQuote(next);
+        })
+        .catch((err) => {
+          if (quoteRequestRef.current === requestId) {
+            setQuoteError(
+              err instanceof Error
+                ? err.message
+                : 'Unable to quote this conversion.',
+            );
+          }
+        })
+        .finally(() => {
+          if (quoteRequestRef.current === requestId) setQuoting(false);
+        });
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [
+    converting,
+    payToken,
+    amount,
+    amountValid,
+    overMax,
+    chain,
+    reserve,
+    userAddress,
+    busy,
+    step,
+  ]);
 
   const handleSubmit = async () => {
-    if (!parsedAmount) return;
+    if (!amountValid || busy) return;
     setError(null);
+    setStep('working');
     try {
-      const isMax =
-        (mode === 'withdraw' || mode === 'repay') &&
-        Number(amount) >= maxAmount * 0.999999;
+      if (converting) {
+        if (!payToken) throw new Error('Choose a token to pay with.');
+        setStatus('Refreshing quote…');
+        // Re-quote right before executing — a displayed quote can be minutes
+        // old and every route spends its quote-time amounts.
+        const executable = await getAaveFundingQuote({
+          payToken,
+          chain,
+          reserve,
+          amount,
+          slippageBps: SLIPPAGE_BPS,
+          userAddress,
+        });
+        const { hash } = await executeFunded({
+          quote: executable,
+          mode,
+          payToken,
+          chain,
+          poolAddress,
+          reserve,
+          userAddress,
+          isMax: isFullAmount,
+          onStatus: setStatus,
+        });
+        setStep('success');
+        onSuccess(hash, {
+          mode,
+          amount: executable.reserveAmount,
+          amountUsd: executable.reserveAmountUsd,
+          reserve,
+        });
+        return;
+      }
+
+      const parsed = ethers.parseUnits(
+        amountNumber.toFixed(reserve.decimals),
+        reserve.decimals,
+      );
+      setStatus(mode === 'borrow' ? 'Borrowing…' : 'Withdrawing…');
       const { hash } = await execute(
         mode,
         {
@@ -157,15 +348,18 @@ export function AaveActionModal({
           poolAddress,
           reserve,
           userAddress,
-          amount: parsedAmount,
-          isMax,
+          amount: parsed,
+          isMax: mode === 'withdraw' && isFullAmount,
         },
-        (progress) => setStep(progress),
+        (progress) =>
+          setStatus(
+            progress === 'approving' ? 'Approving…' : 'Confirm in wallet…',
+          ),
       );
       setStep('success');
       onSuccess(hash, {
         mode,
-        amount: Number(amount),
+        amount: amountNumber,
         amountUsd: usdEstimate ?? 0,
         reserve,
       });
@@ -174,10 +368,38 @@ export function AaveActionModal({
       setError(
         err instanceof Error ? err.message : 'Transaction failed. Try again.',
       );
+    } finally {
+      setStatus('');
     }
   };
 
   const copy = MODE_COPY[mode];
+  const routeLabel = quote
+    ? describeAaveFundingRoute(quote, reserve.symbol)
+    : null;
+  const wrapped = wrappedNativeFor(targetChainId);
+  const showWrapHint =
+    mode === 'supply' && !!wrapped && reserveIsWrappedNative(chain, reserve);
+
+  const pickableReserves = useMemo(() => {
+    const base =
+      mode === 'borrow'
+        ? reserves.filter((entry) => entry.borrowingEnabled)
+        : // Drop reserves that neither earn nor collateralise (expired Pendle
+          // PTs and the like); keep 0%-APY collateral assets, which is exactly
+          // what people supply when they want to borrow against a holding.
+          reserves.filter((entry) => entry.supplyApy > 0 || entry.ltv > 0);
+    const query = assetSearch.trim().toLowerCase();
+    if (!query) return base;
+    return base.filter(
+      (entry) =>
+        entry.symbol.toLowerCase().includes(query) ||
+        entry.name.toLowerCase().includes(query),
+    );
+  }, [reserves, mode, assetSearch]);
+
+  const canSubmit =
+    amountValid && !overMax && !busy && (!converting || (!!quote && !quoting));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -189,10 +411,20 @@ export function AaveActionModal({
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-2.5">
-            <AaveTokenIcon symbol={reserve.symbol} size={28} />
             <h2 className="text-base font-semibold text-gray-800">
-              {copy.title} {reserve.symbol}
+              {copy.title}
             </h2>
+            <button
+              onClick={() => setAssetPickerOpen(true)}
+              disabled={busy}
+              className="flex items-center gap-2 rounded-full border border-black/[0.08] pl-1.5 pr-2.5 py-1 hover:bg-gray-50 transition-colors disabled:opacity-40"
+            >
+              <AaveTokenIcon symbol={reserve.symbol} size={22} />
+              <span className="text-sm font-semibold text-gray-900">
+                {reserve.symbol}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
           </div>
           <button
             onClick={onClose}
@@ -222,6 +454,35 @@ export function AaveActionModal({
           </div>
         ) : (
           <div className="px-5 pb-5 space-y-3">
+            {/* Pay with (supply / repay) */}
+            {converting && (
+              <button
+                onClick={() => setPayPickerOpen(true)}
+                disabled={busy}
+                className="w-full flex items-center justify-between gap-3 rounded-xl border border-black/[0.06] px-3 py-2.5 hover:bg-gray-50 transition-colors disabled:opacity-40"
+              >
+                <span className="text-left">
+                  <span className="block text-[13px] font-semibold text-gray-800">
+                    Pay with
+                  </span>
+                  <span className="block text-[11px] text-gray-400 font-mono">
+                    {payToken
+                      ? `${formatAmount(maxAmount)} ${payToken.symbol} available`
+                      : 'Choose a token'}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2 rounded-full border border-black/[0.08] pl-1.5 pr-2.5 py-1">
+                  {payToken && (
+                    <AaveTokenIcon symbol={payToken.symbol} size={20} />
+                  )}
+                  <span className="text-[13px] font-semibold text-gray-900">
+                    {payToken?.symbol ?? 'Select'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                </span>
+              </button>
+            )}
+
             <div className="rounded-xl border border-black/[0.06] bg-gray-50 p-3">
               <div className="flex items-center justify-between gap-2">
                 <input
@@ -234,26 +495,58 @@ export function AaveActionModal({
                   disabled={busy}
                   className="w-full bg-transparent text-2xl font-semibold text-gray-900 outline-none placeholder:text-gray-300"
                 />
-                <button
-                  onClick={handleMax}
-                  disabled={busy || maxAmount <= 0}
-                  className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-800 border border-black/[0.08] rounded-full px-2.5 py-1 transition-colors disabled:opacity-40"
-                >
-                  Max
-                </button>
+                <span className="text-sm font-semibold text-gray-500 shrink-0">
+                  {unitSymbol}
+                </span>
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
-                <span>{usdEstimate !== null ? formatUsd(usdEstimate) : '—'}</span>
+                <span>
+                  {usdEstimate !== null ? formatUsd(usdEstimate) : '—'}
+                </span>
                 <span>
                   {copy.balanceLabel}:{' '}
                   <span className="font-mono">
-                    {formatAmount(maxAmount)} {reserve.symbol}
+                    {formatAmount(maxAmount)} {unitSymbol}
                   </span>
                 </span>
+              </div>
+              <div className="mt-2.5 flex items-center gap-1.5">
+                {PERCENT_STEPS.map((percent) => (
+                  <button
+                    key={percent}
+                    onClick={() => setPercent(percent)}
+                    disabled={busy || maxAmount <= 0}
+                    className="flex-1 text-[11px] font-semibold text-gray-500 hover:text-gray-900 border border-black/[0.08] rounded-full py-1 transition-colors disabled:opacity-40"
+                  >
+                    {percent === 100 ? 'Max' : `${percent}%`}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="rounded-xl border border-black/[0.06] p-3 space-y-1.5 text-xs">
+              {converting && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-400">
+                    {mode === 'supply' ? 'You supply' : 'You repay'}
+                  </span>
+                  <span className="font-mono text-gray-900 text-right">
+                    {quoting
+                      ? 'Quoting…'
+                      : quote
+                        ? `${formatAmount(quote.reserveAmount)} ${reserve.symbol}`
+                        : '—'}
+                  </span>
+                </div>
+              )}
+              {converting && routeLabel && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-400">Route</span>
+                  <span className="font-mono text-gray-900 text-right">
+                    {routeLabel}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-400">
                   {mode === 'borrow' || mode === 'repay'
@@ -267,19 +560,20 @@ export function AaveActionModal({
                       : 'text-emerald-600'
                   }`}
                 >
-                  {(
-                    (mode === 'borrow' || mode === 'repay'
+                  {formatPct(
+                    mode === 'borrow' || mode === 'repay'
                       ? reserve.variableBorrowApy
-                      : reserve.supplyApy) * 100
-                  ).toFixed(2)}
-                  %
+                      : reserve.supplyApy,
+                  )}
                 </span>
               </div>
               {mode === 'supply' && (
                 <div className="flex justify-between">
                   <span className="text-gray-400">Max LTV as collateral</span>
                   <span className="font-mono text-gray-900">
-                    {(reserve.ltv * 100).toFixed(0)}%
+                    {reserve.ltv > 0
+                      ? `${(reserve.ltv * 100).toFixed(0)}%`
+                      : 'Not collateral'}
                   </span>
                 </div>
               )}
@@ -293,11 +587,26 @@ export function AaveActionModal({
               )}
             </div>
 
+            {showWrapHint && wrapped && (
+              <p className="text-[11px] leading-4 text-gray-400">
+                Aave lends {wrapped.wrapped}, not {wrapped.native} — paying with{' '}
+                {wrapped.native} wraps it 1:1 first, at no extra cost.
+              </p>
+            )}
+            {quote?.route.kind === 'lifi' && quote.route.crossChain && (
+              <p className="text-[11px] leading-4 text-gray-400">
+                This route bridges to {chain} first — the {reserve.symbol} is
+                supplied automatically once it lands, usually within a few
+                minutes.
+              </p>
+            )}
+
             {overMax && (
               <p className="text-xs text-red-500">
                 Amount exceeds {copy.balanceLabel.toLowerCase()}.
               </p>
             )}
+            {quoteError && <p className="text-xs text-red-500">{quoteError}</p>}
             {error && <p className="text-xs text-red-500">{error}</p>}
 
             <button
@@ -306,12 +615,124 @@ export function AaveActionModal({
               className="w-full py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-              {step === 'approving'
-                ? `Approving ${reserve.symbol}…`
-                : step === 'confirming'
-                  ? 'Confirm in wallet…'
+              {busy
+                ? status || 'Working…'
+                : quoting
+                  ? 'Quoting…'
                   : `${copy.cta} ${reserve.symbol}`}
             </button>
+          </div>
+        )}
+
+        {/* Aave asset picker */}
+        {assetPickerOpen && (
+          <div className="absolute inset-0 bg-white flex flex-col">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <h3 className="text-base font-semibold text-gray-800">
+                {mode === 'borrow' ? 'Borrow which asset?' : 'Which asset?'}
+              </h3>
+              <button
+                onClick={() => setAssetPickerOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400"
+                aria-label="Back"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 pb-3">
+              <div className="flex items-center gap-2 rounded-xl border border-black/[0.06] bg-gray-50 px-3 h-9">
+                <Search className="w-3.5 h-3.5 text-gray-400" />
+                <input
+                  value={assetSearch}
+                  onChange={(event) => setAssetSearch(event.target.value)}
+                  placeholder="Search assets"
+                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-gray-400"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-4 max-h-[420px]">
+              {pickableReserves.map((entry) => (
+                <button
+                  key={entry.asset}
+                  onClick={() => {
+                    setAssetPickerOpen(false);
+                    setAssetSearch('');
+                    onSelectReserve(entry);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                >
+                  <AaveTokenIcon symbol={entry.symbol} size={28} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] font-semibold text-gray-900 truncate">
+                      {entry.symbol}
+                    </span>
+                    <span className="block text-[11px] text-gray-400 truncate">
+                      {entry.name}
+                    </span>
+                  </span>
+                  <span className="font-mono text-[12px] text-gray-900">
+                    {formatPct(
+                      mode === 'borrow'
+                        ? entry.variableBorrowApy
+                        : entry.supplyApy,
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pay-with picker */}
+        {payPickerOpen && (
+          <div className="absolute inset-0 bg-white flex flex-col">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <h3 className="text-base font-semibold text-gray-800">Pay with</h3>
+              <button
+                onClick={() => setPayPickerOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400"
+                aria-label="Back"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-4 max-h-[460px]">
+              {payTokens.length === 0 ? (
+                <p className="px-4 py-6 text-center text-xs text-gray-400">
+                  No EVM tokens with a balance in this wallet.
+                </p>
+              ) : (
+                payTokens.map((token) => (
+                  <button
+                    key={token.id}
+                    onClick={() => {
+                      setPayTokenId(token.id);
+                      setPayPickerOpen(false);
+                      setAmount('');
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <AaveTokenIcon symbol={token.symbol} size={28} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[13px] font-semibold text-gray-900 truncate">
+                        {token.symbol}
+                      </span>
+                      <span className="block text-[11px] text-gray-400 truncate">
+                        {token.name}
+                      </span>
+                    </span>
+                    <span className="text-right">
+                      <span className="block font-mono text-[12px] text-gray-900">
+                        {formatAmount(token.balance)}
+                      </span>
+                      <span className="block font-mono text-[11px] text-gray-400">
+                        {formatUsd(token.balance * token.priceUsd)}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>
