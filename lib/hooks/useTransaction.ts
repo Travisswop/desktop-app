@@ -23,6 +23,31 @@ const isSupportedChain = (
   chain: string
 ): chain is keyof typeof CHAINS => chain in CHAINS;
 
+// Etherscan's plan doesn't cover every chain it accepts a chainid for — Base
+// answers "Free API access is not supported for this chain" on every account
+// action, which this module reads as an empty wallet, so Base history has been
+// silently blank. A chain that answers that way is remembered for the session
+// and served from Alchemy instead (see getAlchemyTransactions).
+const ETHERSCAN_UNSUPPORTED_CHAIN_MESSAGE =
+  'not supported for this chain';
+const etherscanUnsupportedChains = new Set<string>();
+
+const isAlchemyUrl = (url?: string): boolean =>
+  Boolean(url && /\.g\.alchemy\.com\//i.test(url));
+
+interface AlchemyTransfer {
+  hash: string;
+  from?: string;
+  to?: string;
+  asset?: string;
+  metadata?: { blockTimestamp?: string };
+  rawContract?: {
+    value?: string;
+    address?: string;
+    decimal?: string;
+  };
+}
+
 const runEtherscanRequest = async <T,>(
   request: () => Promise<T>
 ): Promise<T> => {
@@ -56,6 +81,21 @@ class TransactionAPI {
       response.status === '0' &&
       (response.message?.includes(ETHERSCAN_RATE_LIMIT_MESSAGE) ||
         result.includes(ETHERSCAN_RATE_LIMIT_MESSAGE))
+    );
+  }
+
+  private static isUnsupportedChainResponse(
+    response: ERC20ApiResponse
+  ): boolean {
+    const result =
+      typeof response.result === 'string' ? response.result : '';
+
+    return (
+      response.status === '0' &&
+      (response.message?.includes(
+        ETHERSCAN_UNSUPPORTED_CHAIN_MESSAGE
+      ) ||
+        result.includes(ETHERSCAN_UNSUPPORTED_CHAIN_MESSAGE))
     );
   }
 
@@ -138,6 +178,10 @@ class TransactionAPI {
       ) {
         return [];
       }
+      if (this.isUnsupportedChainResponse(response)) {
+        etherscanUnsupportedChains.add(chain);
+        return [];
+      }
       if (response.status === '0') {
         console.warn(
           `API returned error for ${chain} native transactions:`,
@@ -197,6 +241,10 @@ class TransactionAPI {
       ) {
         return [];
       }
+      if (this.isUnsupportedChainResponse(response)) {
+        etherscanUnsupportedChains.add(chain);
+        return [];
+      }
       if (response.status === '0') {
         console.warn(
           `API returned error for ${chain} internal transactions:`,
@@ -237,6 +285,178 @@ class TransactionAPI {
     }
   }
 
+  /**
+   * Full history for one chain from Alchemy's `alchemy_getAssetTransfers`.
+   *
+   * Used only as the fallback for chains Etherscan's plan won't serve (Base,
+   * on the free tier). The chain's Alchemy RPC URL is already configured as
+   * CHAINS[chain].rpcUrl, so no new env var is needed. Rows are shaped like
+   * Etherscan account rows — raw-unit `value`, seconds `timeStamp` — because
+   * formatEvmTransaction normalizes both paths downstream.
+   */
+  static async getAlchemyTransactions(
+    chain: keyof typeof CHAINS,
+    address: string
+  ): Promise<Transaction[]> {
+    const url = CHAINS[chain].rpcUrl;
+    if (!isAlchemyUrl(url)) return [];
+
+    const BASE_CATEGORY = [
+      'external',
+      'erc20',
+      'erc721',
+      'erc1155',
+    ];
+    // `internal` is the trace-level native transfer — the counterpart of
+    // Etherscan's txlistinternal, and the only place a relayed 7702/4337
+    // send appears. Alchemy supports it per-network and rejects the WHOLE
+    // request on a network that doesn't (arb-mainnet, verified), so a
+    // rejection retries without it rather than blanking the chain.
+    const WITH_INTERNAL = [...BASE_CATEGORY, 'internal'];
+
+    const call = async (
+      dirKey: 'fromAddress' | 'toAddress',
+      category: string[]
+    ): Promise<{ ok: boolean; transfers: AlchemyTransfer[] }> => {
+      const response = await fetch(url as string, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'alchemy_getAssetTransfers',
+          params: [
+            {
+              fromBlock: '0x0',
+              toBlock: 'latest',
+              [dirKey]: address,
+              category,
+              withMetadata: true,
+              excludeZeroValue: true,
+              order: 'desc',
+              maxCount: '0x28',
+            },
+          ],
+        }),
+      });
+      if (!response.ok) return { ok: false, transfers: [] };
+      const json = await response.json();
+      // A JSON-RPC error arrives as HTTP 200 with an `error` member — that
+      // is a failure, not an empty wallet.
+      if (json?.error) return { ok: false, transfers: [] };
+      return {
+        ok: true,
+        transfers: (json?.result?.transfers ??
+          []) as AlchemyTransfer[],
+      };
+    };
+
+    const callWithFallback = async (
+      dirKey: 'fromAddress' | 'toAddress'
+    ): Promise<AlchemyTransfer[]> => {
+      const withInternal = await call(dirKey, WITH_INTERNAL);
+      if (withInternal.ok) return withInternal.transfers;
+      return (await call(dirKey, BASE_CATEGORY)).transfers;
+    };
+
+    try {
+      const [sent, received] = await Promise.all([
+        callWithFallback('fromAddress'),
+        callWithFallback('toAddress'),
+      ]);
+
+      const nativeToken = CHAINS[chain].nativeToken;
+      const seen = new Set<string>();
+      const rows: Transaction[] = [];
+
+      for (const transfer of [...sent, ...received]) {
+        const rawValue = transfer.rawContract?.value;
+        if (!rawValue) continue;
+
+        let value: string;
+        try {
+          value = BigInt(rawValue).toString();
+        } catch {
+          continue;
+        }
+        if (value === '0') continue;
+
+        // One transfer can come back on both the sent and received call.
+        const key = `${transfer.hash}:${transfer.asset ?? ''}:${
+          transfer.from ?? ''
+        }:${transfer.to ?? ''}:${value}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const iso = transfer.metadata?.blockTimestamp;
+        const decimalHex = transfer.rawContract?.decimal;
+
+        rows.push({
+          hash: transfer.hash,
+          from: transfer.from ?? '',
+          to: transfer.to ?? '',
+          value,
+          // Seconds as a string — what the Etherscan rows carry.
+          timeStamp: iso
+            ? String(Math.floor(Date.parse(iso) / 1000))
+            : '0',
+          // Alchemy reports no per-transfer fee, and the fee on a relayed
+          // send was never the user's anyway; zeroes keep it out of the UI.
+          gas: '0',
+          gasPrice: '0',
+          networkFee: '0',
+          isError: '0',
+          contractAddress: transfer.rawContract?.address ?? undefined,
+          tokenName: transfer.asset ?? nativeToken.name,
+          tokenSymbol: transfer.asset ?? nativeToken.symbol,
+          tokenDecimal: decimalHex
+            ? parseInt(decimalHex, 16)
+            : nativeToken.decimals,
+          // network / currentPrice / nativeTokenPrice are filled in by
+          // formatEvmTransaction, exactly as for the Etherscan rows.
+        } as unknown as Transaction);
+      }
+
+      return rows;
+    } catch (error) {
+      console.error(
+        `Error fetching Alchemy transfers for ${chain}:`,
+        error
+      );
+      // Return empty array instead of throwing to prevent breaking the entire UI
+      return [];
+    }
+  }
+
+  /**
+   * One EVM chain's history, from whichever source can serve it: Etherscan
+   * normally, Alchemy for a chain its plan rejects.
+   */
+  static async getEvmChainTransactions(
+    chain: keyof typeof CHAINS,
+    address: string
+  ): Promise<Transaction[]> {
+    if (etherscanUnsupportedChains.has(chain)) {
+      return this.getAlchemyTransactions(chain, address);
+    }
+
+    // These run through the shared Etherscan queue, so they are spaced
+    // out rather than actually issued in parallel.
+    const [nativeTxs, internalTxs, erc20Txs] = await Promise.all([
+      this.getNativeTransactions(chain, address),
+      this.getInternalTransactions(chain, address),
+      this.getERC20Transactions(chain, address),
+    ]);
+
+    // The three calls above set the flag when the plan doesn't cover this
+    // chain, so this is the first refresh for it — retry through Alchemy.
+    if (etherscanUnsupportedChains.has(chain)) {
+      return this.getAlchemyTransactions(chain, address);
+    }
+
+    return [...nativeTxs, ...internalTxs, ...erc20Txs];
+  }
+
   static async getERC20Transactions(
     chain: keyof typeof CHAINS,
     address: string
@@ -263,6 +483,10 @@ class TransactionAPI {
         response.status === '0' &&
         response.message === 'No transactions found'
       ) {
+        return [];
+      }
+      if (this.isUnsupportedChainResponse(response)) {
+        etherscanUnsupportedChains.add(chain);
         return [];
       }
       if (response.status === '0') {
@@ -579,24 +803,13 @@ export const useMultiChainTransactionData = (
           return TransactionAPI.getSolanaTransactions(address);
         }
 
-        // These run through the shared Etherscan queue, so they are spaced
-        // out rather than actually issued in parallel.
-        const [nativeTxs, internalTxs, erc20Txs] = await Promise.all([
-          TransactionAPI.getNativeTransactions(
+        const chainTxs =
+          await TransactionAPI.getEvmChainTransactions(
             chain,
             address
-          ),
-          TransactionAPI.getInternalTransactions(
-            chain,
-            address
-          ),
-          TransactionAPI.getERC20Transactions(
-            chain,
-            address
-          ),
-        ]);
+          );
 
-        return [...nativeTxs, ...internalTxs, ...erc20Txs]
+        return chainTxs
           .sort(
             (a, b) => parseInt(b.timeStamp) - parseInt(a.timeStamp)
           )
