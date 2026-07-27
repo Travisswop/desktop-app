@@ -161,14 +161,6 @@ interface PredictionFeedCardProps {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function toAmericanOdds(price: number): string {
-  if (price <= 0 || price >= 1) return '—';
-  if (price >= 0.5) {
-    return `-${Math.round((price / (1 - price)) * 100)}`;
-  }
-  return `+${Math.round(((1 - price) / price) * 100)}`;
-}
-
 function seededRand(seed: string, idx: number): number {
   let h = 5381;
   const s = seed + String(idx);
@@ -997,10 +989,123 @@ function usePredictionMarketNavigation(
     ],
   );
 
+  // ── "Copy Bet" hand-off ────────────────────────────────────────────────────
+  // Deliberately NOT the same path as the market links above. Those stash the
+  // market rebuilt from the feed post, and a feed post only carries CLOB token
+  // ids for sports markets — everywhere else the stashed market lands on a
+  // detail view that cannot place an order. Copy Bet instead routes by the real
+  // market id and lets the detail page fetch the authoritative market (and
+  // rebuild sports game context), carrying the copied outcome + stake in the
+  // URL so a refresh or a shared link resolves the same way.
+  const copyBetKey = firstText(content.marketId, content.marketSlug);
+  const copyBetAmount =
+    content.side === 'BUY'
+      ? formatCopyBetAmount(
+          firstNumber(content.executedCost, content.cost, content.requestedCost),
+        )
+      : undefined;
+  const copyBetHref = copyBetKey
+    ? `/prediction/market/${encodeURIComponent(copyBetKey)}${buildCopyBetQuery(
+        defaultInitialOutcome,
+        copyBetAmount,
+      )}`
+    : undefined;
+
+  const onCopyBetClick = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!copyBetKey || !copyBetHref) return;
+
+      // A previous card click may have left a feed-built market under this key.
+      // Drop it when it has no tradable tokens so the detail page recovers the
+      // real one instead of rendering an un-orderable shell.
+      const stashed = useMarketDetailStore.getState().get(copyBetKey);
+      if (stashed && !hasTradableTokens(stashed.market)) {
+        useMarketDetailStore.getState().clear(copyBetKey);
+      }
+      router.push(copyBetHref);
+    },
+    [copyBetHref, copyBetKey, router],
+  );
+
   return {
     marketHref,
     onMarketClick,
+    copyBetHref,
+    onCopyBetClick,
   };
+}
+
+function formatCopyBetAmount(cost: number | undefined): string | undefined {
+  if (cost === undefined || !(cost > 0)) return undefined;
+  return String(Math.round(cost * 100) / 100);
+}
+
+function buildCopyBetQuery(
+  outcome: 'yes' | 'no' | undefined,
+  amount: string | undefined,
+): string {
+  const params = new URLSearchParams();
+  if (outcome) params.set('outcome', outcome);
+  if (amount) params.set('amount', amount);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function hasTradableTokens(market: PolymarketMarket): boolean {
+  const raw = market.clobTokenIds;
+  let ids: unknown[] = [];
+  if (Array.isArray(raw)) {
+    ids = raw;
+  } else if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) ids = parsed;
+    } catch {
+      ids = [];
+    }
+  }
+  return ids.filter((id) => typeof id === 'string' && id.trim()).length >= 2;
+}
+
+/**
+ * Primary call-to-action on an open prediction card: take the viewer to the
+ * same market with the poster's outcome (and stake) pre-filled.
+ */
+function CopyBetButton({
+  href,
+  onClick,
+}: {
+  href?: string;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const classes =
+    'flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-[13px] font-extrabold transition-colors';
+
+  if (!href) {
+    return (
+      <button
+        type="button"
+        disabled
+        className={`${classes} border border-gray-100 bg-white text-gray-400`}
+      >
+        Copy Bet
+      </button>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      title="Open this market with the same pick"
+      className={`${classes} bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)] hover:bg-[#2569B8]`}
+    >
+      Copy Bet
+      <span aria-hidden="true">→</span>
+    </a>
+  );
 }
 
 function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
@@ -2252,6 +2357,8 @@ function SportsMiniPanel({
   tradeState,
   marketHref,
   onMarketClick,
+  copyBetHref,
+  onCopyBetClick,
   agent,
   ownerHandle,
 }: {
@@ -2284,6 +2391,8 @@ function SportsMiniPanel({
     event: React.MouseEvent<HTMLAnchorElement>,
     initialOutcome?: 'yes' | 'no',
   ) => void;
+  copyBetHref?: string;
+  onCopyBetClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
 }) {
@@ -2525,51 +2634,6 @@ function SportsMiniPanel({
       : tradeState.label.toUpperCase();
   const entryPriceLabel = `${Math.round(clampProbability(entryPrice) * 100)}¢`;
 
-  const buttonForOutcome = (
-    label: string,
-    price: number,
-    selected: boolean,
-    initialOutcome: 'yes' | 'no',
-  ) => {
-    const odds = toAmericanOdds(price);
-    const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
-      selected
-        ? 'border-[#2F7ED8] bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)]'
-        : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
-    }`;
-
-    if (marketHref) {
-      return (
-        <a
-          href={marketHref}
-          onClick={(event) => onMarketClick?.(event, initialOutcome)}
-          className={classes}
-          title={`Open ${label} market`}
-        >
-          <span className="truncate">{label}</span>
-          <span
-            className={`shrink-0 font-mono text-[12px] ${
-              selected ? 'text-white' : 'text-[#2F7ED8]'
-            }`}
-          >
-            {odds}
-          </span>
-        </a>
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        disabled
-        className={`${classes} opacity-60`}
-      >
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 font-mono text-[12px]">{odds}</span>
-      </button>
-    );
-  };
-
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
       {/* Agent badge — only for trades auto-posted by a user's agent */}
@@ -2806,24 +2870,12 @@ function SportsMiniPanel({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {open ? (
-          <>
-            {buttonForOutcome(
-              binary ? 'Yes' : displayYesOutcome,
-              yP,
-              pickedIsYes,
-              'yes',
-            )}
-            {buttonForOutcome(
-              binary ? 'No' : displayNoOutcome,
-              nP,
-              !pickedIsYes,
-              'no',
-            )}
-          </>
-        ) : (
-          <>
+      {open ? (
+        <div className="mt-4">
+          <CopyBetButton href={copyBetHref} onClick={onCopyBetClick} />
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-3">
             {marketHref ? (
               <a
                 href={marketHref}
@@ -2848,9 +2900,8 @@ function SportsMiniPanel({
             >
               View Predictions
             </a>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2871,6 +2922,8 @@ function PredictionPositionPanel({
   tradeState,
   marketHref,
   onMarketClick,
+  copyBetHref,
+  onCopyBetClick,
   userName,
   agent,
   ownerHandle,
@@ -2893,6 +2946,8 @@ function PredictionPositionPanel({
     event: React.MouseEvent<HTMLAnchorElement>,
     initialOutcome?: 'yes' | 'no',
   ) => void;
+  copyBetHref?: string;
+  onCopyBetClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   userName?: string;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
@@ -3060,51 +3115,6 @@ function PredictionPositionPanel({
   const formatPredictionPrice = (price: number) =>
     `${Math.round(clampProbability(price) * 100)}¢`;
   const entryPriceLabel = formatPredictionPrice(entryPrice);
-  const buttonForOutcome = (
-    label: string,
-    price: number,
-    selected: boolean,
-    initialOutcome: 'yes' | 'no',
-  ) => {
-    const classes = `flex h-11 min-w-0 items-center justify-between gap-3 rounded-xl border px-3 text-[13px] font-extrabold transition-colors ${
-      selected
-        ? 'border-[#2F7ED8] bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)]'
-        : 'border-gray-100 bg-white text-gray-900 hover:border-gray-200 hover:bg-gray-50'
-    }`;
-
-    if (marketHref) {
-      return (
-        <a
-          href={marketHref}
-          onClick={(event) => onMarketClick?.(event, initialOutcome)}
-          className={classes}
-          title={`Open ${label} market`}
-        >
-          <span className="truncate">{label}</span>
-          <span
-            className={`shrink-0 font-mono text-[12px] ${
-              selected ? 'text-white' : 'text-[#2F7ED8]'
-            }`}
-          >
-            {formatPredictionPrice(price)}
-          </span>
-        </a>
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        disabled
-        className={`${classes} opacity-60`}
-      >
-        <span className="truncate">{label}</span>
-        <span className="shrink-0 font-mono text-[12px]">
-          {formatPredictionPrice(price)}
-        </span>
-      </button>
-    );
-  };
 
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
@@ -3317,14 +3327,12 @@ function PredictionPositionPanel({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {open ? (
-          <>
-            {buttonForOutcome(yesLabel, resolvedYesPrice, pickedIsYes, 'yes')}
-            {buttonForOutcome(noLabel, resolvedNoPrice, !pickedIsYes, 'no')}
-          </>
-        ) : (
-          <>
+      {open ? (
+        <div className="mt-4">
+          <CopyBetButton href={copyBetHref} onClick={onCopyBetClick} />
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-3">
             {marketHref ? (
               <a
                 href={marketHref}
@@ -3349,9 +3357,8 @@ function PredictionPositionPanel({
             >
               View Predictions
             </a>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3487,7 +3494,8 @@ function RegularPredictionFeedCard({
     currentPrice <= 1
       ? currentPrice
       : entryPrice;
-  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+    usePredictionMarketNavigation(
     displayContent,
     {
       marketTitle: content.marketTitle,
@@ -3544,6 +3552,8 @@ function RegularPredictionFeedCard({
           tradeState={tradeState}
           marketHref={marketHref}
           onMarketClick={onMarketClick}
+          copyBetHref={copyBetHref}
+          onCopyBetClick={onCopyBetClick}
           agent={agent}
           ownerHandle={ownerHandle}
         />
@@ -3566,6 +3576,8 @@ function RegularPredictionFeedCard({
           tradeState={tradeState}
           marketHref={marketHref}
           onMarketClick={onMarketClick}
+          copyBetHref={copyBetHref}
+          onCopyBetClick={onCopyBetClick}
           userName={userName}
           agent={agent}
           ownerHandle={ownerHandle}
@@ -3673,7 +3685,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
     currentPrice,
   };
   const tradeState = resolveTradeState(liveContent, false, marketState);
-  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+    usePredictionMarketNavigation(
     liveContent,
     {
       marketTitle: liveContent.marketTitle,
@@ -3705,6 +3718,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
         tradeState={tradeState}
         marketHref={marketHref}
         onMarketClick={onMarketClick}
+        copyBetHref={copyBetHref}
+        onCopyBetClick={onCopyBetClick}
         userName={userName}
         agent={agent}
         ownerHandle={ownerHandle}
@@ -3807,7 +3822,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
     false,
     marketState,
   );
-  const { marketHref, onMarketClick } = usePredictionMarketNavigation(
+  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+    usePredictionMarketNavigation(
     historicalContent,
     {
       marketTitle: resolvedTitle,
@@ -3839,6 +3855,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         tradeState={tradeState}
         marketHref={marketHref}
         onMarketClick={onMarketClick}
+        copyBetHref={copyBetHref}
+        onCopyBetClick={onCopyBetClick}
         userName={userName}
         agent={agent}
         ownerHandle={ownerHandle}
