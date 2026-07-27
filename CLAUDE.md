@@ -199,10 +199,21 @@ SPL code). Always read `fixAvailable` before acting on it.
   — the vulnerable decode path tree-shakes away. The only server-side spl-token
   import, `app/api/tokens/route.ts`, pulls just the `TOKEN_PROGRAM_ID` /
   `TOKEN_2022_PROGRAM_ID` constants.
-- **`brace-expansion` 1.1.13** — reaches the tree only via the devDependency path
-  `eslint@8 → minimatch@3`, and appears in 0 build output files. Overriding it to
-  1.1.16 adds 131 packages and takes highs from 4 to 35, *and it stays flagged
-  anyway*. The real fix is migrating off the EOL `eslint@8` to `eslint@9`.
+- **`brace-expansion` 1.1.13** — reachable from a **production** dependency, via
+  `@solana/wallet-adapter-react → @solana-mobile/wallet-adapter-mobile →
+  react-native@0.80.3 → glob@7 → minimatch@3`. (Verify this kind of claim with
+  `npm ls <pkg> --omit=dev`; a hand-rolled walk over `package-lock.json` will
+  silently miss nested `node_modules` paths and report a false "dev-only".)
+  It is still **not bundled**: 0 hits for both `brace-expansion` and its only
+  dependency `balanced-match` across `.next/static` and `.next/server`, while
+  `react-native` itself *does* appear — glob/minimatch are Node-only fs helpers
+  that webpack drops for the browser.
+  Overriding it to 1.1.16 adds 131 packages and takes highs from 4 to 35, *and
+  it stays flagged anyway*. Upgrading to `eslint@9` does **not** clear it either:
+  the flat-config shim `@eslint/eslintrc` still depends on `minimatch@^3.1.5`,
+  and the react-native path is untouched regardless. The only real remedy is
+  upstream (`@solana-mobile/wallet-adapter-mobile` dropping react-native, or
+  glob@7 → glob@9+), so treat this one as accepted risk.
 
 The ~36 moderate advisories are almost entirely the core wallet/auth stack
 (Privy, wagmi, LiFi, `@solana/web3.js`, Solana wallet adapters, Farcaster), 18 of
