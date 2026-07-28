@@ -524,25 +524,6 @@ function isKnownToken2022Mint(mint?: string | null) {
   return Boolean(normalized?.startsWith('xs'));
 }
 
-function shouldUseToken2022JupiterRoute({
-  inputMint,
-  outputMint,
-  inputTokenProgram,
-  outputTokenProgram,
-}: {
-  inputMint: string;
-  outputMint: string;
-  inputTokenProgram: PublicKey;
-  outputTokenProgram: PublicKey;
-}) {
-  return (
-    isKnownToken2022Mint(inputMint) ||
-    isKnownToken2022Mint(outputMint) ||
-    inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
-    outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID)
-  );
-}
-
 async function fetchLiFiTokensCached(
   chainId: string,
 ): Promise<any[]> {
@@ -3718,24 +3699,16 @@ export default function SwapTokenModal({
         detectSolanaTokenProgram(quoteConnection, inputMint),
         detectSolanaTokenProgram(quoteConnection, outputMint),
       ]);
-    const shouldSkipPlatformFee =
-      shouldUseToken2022JupiterRoute({
-        inputMint,
-        outputMint,
-        inputTokenProgram,
-        outputTokenProgram,
-      });
-
     const quoteParams = new URLSearchParams({
       inputMint,
       outputMint,
       amount: amountInSmallestUnit,
       slippageBps: slippageBps.toString(),
       swapMode: 'ExactIn',
+      // Jupiter's current Swap API accepts Token-2022 fee accounts. The
+      // backend creates the fee ATA with the mint's actual token program.
+      platformFeeBps: PLATFORM_FEE_BPS.toString(),
     });
-    if (!shouldSkipPlatformFee) {
-      quoteParams.set('platformFeeBps', PLATFORM_FEE_BPS.toString());
-    }
 
     const response = await fetch(
       `/api/jupiter/quote?${quoteParams}`,
@@ -3749,12 +3722,8 @@ export default function SwapTokenModal({
       throw new Error(result?.error || 'Failed to get Jupiter quote');
     return {
       ...result.data,
-      swopPlatformFeeBps: shouldSkipPlatformFee
-        ? 0
-        : PLATFORM_FEE_BPS,
-      swopPlatformFeeSkippedReason: shouldSkipPlatformFee
-        ? 'token-2022-route'
-        : undefined,
+      swopPlatformFeeBps: PLATFORM_FEE_BPS,
+      swopPlatformFeeSkippedReason: undefined,
       swopTokenPrograms: {
         input: inputTokenProgram.toString(),
         output: outputTokenProgram.toString(),
@@ -5240,33 +5209,15 @@ export default function SwapTokenModal({
             detectSolanaTokenProgram(connection, outputMint),
           ]);
 
-        const shouldSkipPlatformFee =
-          shouldUseToken2022JupiterRoute({
-            inputMint,
-            outputMint,
-            inputTokenProgram,
-            outputTokenProgram,
-          });
-        setSwapStatus(
-          shouldSkipPlatformFee
-            ? 'Preparing Jupiter swap...'
-            : 'Preparing Jupiter fee...',
-        );
-        const feeInfo = shouldSkipPlatformFee
-          ? {
-              feeAccount: undefined as string | undefined,
-              tokenProgramId: TOKEN_PROGRAM_ID,
-              feeMint: undefined as string | undefined,
-              feeMintRole: 'none' as const,
-            }
-          : await getJupiterPlatformFeePlan({
-              inputMint,
-              outputMint,
-              inputTokenProgram,
-              outputTokenProgram,
-              isSOLOutput,
-              connection,
-            });
+        setSwapStatus('Preparing Jupiter fee...');
+        const feeInfo = await getJupiterPlatformFeePlan({
+          inputMint,
+          outputMint,
+          inputTokenProgram,
+          outputTokenProgram,
+          isSOLOutput,
+          connection,
+        });
         const requiresInstructionV2 =
           isSOLOutput ||
           isKnownToken2022Mint(inputMint) ||
@@ -5274,12 +5225,8 @@ export default function SwapTokenModal({
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
-        const effectivePlatformFeeBps = shouldSkipPlatformFee
-          ? undefined
-          : PLATFORM_FEE_BPS;
-        const effectiveFeeAccount = shouldSkipPlatformFee
-          ? undefined
-          : feeInfo.feeAccount;
+        const effectivePlatformFeeBps = PLATFORM_FEE_BPS;
+        const effectiveFeeAccount = feeInfo.feeAccount;
         const slippageBps = Math.floor(slippage * 100);
         const buildParams = {
           inputMint,
@@ -5308,9 +5255,7 @@ export default function SwapTokenModal({
             feeMint: feeInfo.feeMint,
             feeMintRole: feeInfo.feeMintRole,
             feeTokenProgram: feeInfo.tokenProgramId.toString(),
-            platformFeeSkippedReason: shouldSkipPlatformFee
-              ? 'token-2022-route'
-              : undefined,
+            platformFeeSkippedReason: undefined,
             instructionVersion: requiresInstructionV2
               ? 'V2'
               : undefined,
@@ -5333,9 +5278,7 @@ export default function SwapTokenModal({
           feeMintRole: feeInfo.feeMintRole,
           feeTokenProgram: feeInfo.tokenProgramId.toString(),
           platformFeeBps: effectivePlatformFeeBps,
-          platformFeeSkippedReason: shouldSkipPlatformFee
-            ? 'token-2022-route'
-            : undefined,
+          platformFeeSkippedReason: undefined,
           instructionVersion: requiresInstructionV2
             ? 'V2'
             : undefined,
@@ -5403,9 +5346,7 @@ export default function SwapTokenModal({
               feeMint: feeInfo.feeMint,
               feeMintRole: feeInfo.feeMintRole,
               feeTokenProgram: feeInfo.tokenProgramId.toString(),
-              platformFeeSkippedReason: shouldSkipPlatformFee
-                ? 'token-2022-route'
-                : undefined,
+              platformFeeSkippedReason: undefined,
               instructionVersion: requiresInstructionV2
                 ? 'V2'
                 : undefined,
@@ -5571,12 +5512,8 @@ export default function SwapTokenModal({
             await saveSwapToDatabase(txId, {
               inputMint,
               outputMint,
-              swopPlatformFeeBps: shouldSkipPlatformFee
-                ? 0
-                : PLATFORM_FEE_BPS,
-              swopPlatformFeeSkippedReason: shouldSkipPlatformFee
-                ? 'token-2022-route'
-                : undefined,
+              swopPlatformFeeBps: PLATFORM_FEE_BPS,
+              swopPlatformFeeSkippedReason: undefined,
             });
           } catch (postSwapError) {
             console.warn(
