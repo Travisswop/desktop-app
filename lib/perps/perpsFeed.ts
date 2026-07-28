@@ -229,6 +229,50 @@ export function toPerpsFeedNumber(value: unknown, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function hyperliquidOrderStatuses(value: unknown) {
+  if (!value || typeof value !== 'object') return [];
+  const response = (value as Record<string, unknown>).response;
+  if (!response || typeof response !== 'object') return [];
+  const data = (response as Record<string, unknown>).data;
+  if (!data || typeof data !== 'object') return [];
+  const statuses = (data as Record<string, unknown>).statuses;
+  return Array.isArray(statuses) ? statuses : [];
+}
+
+export function perpsOrderResultHasFill(value: unknown) {
+  return hyperliquidOrderStatuses(value).some((status) => {
+    if (!status || typeof status !== 'object') return false;
+    const filled = (status as Record<string, unknown>).filled;
+    if (!filled || typeof filled !== 'object') return false;
+    return toPerpsFeedNumber(
+      (filled as Record<string, unknown>).totalSz,
+    ) > 0;
+  });
+}
+
+export function perpsOrderResultOrderId(value: unknown) {
+  for (const status of hyperliquidOrderStatuses(value)) {
+    if (!status || typeof status !== 'object') continue;
+    const record = status as Record<string, unknown>;
+    for (const result of [record.filled, record.resting]) {
+      if (!result || typeof result !== 'object') continue;
+      const oid = (result as Record<string, unknown>).oid;
+      if (oid !== undefined && oid !== null && String(oid).trim()) {
+        return String(oid);
+      }
+    }
+  }
+
+  if (!value || typeof value !== 'object') return undefined;
+  const text = JSON.stringify(value);
+  const oidMatch = text.match(/"oid"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
+  if (oidMatch?.[1]) return oidMatch[1];
+  const orderIdMatch = text.match(
+    /"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/,
+  );
+  return orderIdMatch?.[1];
+}
+
 function maybePerpsFeedNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;

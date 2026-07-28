@@ -28,6 +28,8 @@ import {
 import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsPositionKey,
+  perpsOrderResultHasFill,
+  perpsOrderResultOrderId,
   qualifyPerpsPositionCoin,
   resolvePerpsFeedSmartsiteId,
   toPerpsFeedNumber,
@@ -452,7 +454,10 @@ export function TradingForm({
         });
       }
 
-      const orderId = extractHyperliquidOrderId(orderResult);
+      const orderId = perpsOrderResultOrderId(orderResult);
+      const orderFilled =
+        mode === 'market' || perpsOrderResultHasFill(orderResult);
+      const pendingLimit = mode !== 'market' && !orderFilled;
       const entryPxNum =
         mode === 'market' ? markNum : parseFloat(limitPrice) || markNum;
       const notionalUsd = sizeNum * entryPxNum;
@@ -476,7 +481,7 @@ export function TradingForm({
             ? Math.max(0, existingSizeCoins - sizeNum)
             : sizeNum;
       const event: PerpsPositionFeedEvent =
-        mode === 'limit' || mode === 'tpsl'
+        pendingLimit
           ? 'limit'
           : existingSide && existingSide === side
           ? 'add'
@@ -1072,15 +1077,6 @@ function summarizeExecutionResult(value: unknown) {
     response: record.response,
     data: record.data,
   };
-}
-
-function extractHyperliquidOrderId(value: unknown) {
-  if (!value || typeof value !== 'object') return undefined;
-  const text = JSON.stringify(value);
-  const oidMatch = text.match(/"oid"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
-  if (oidMatch?.[1]) return oidMatch[1];
-  const orderIdMatch = text.match(/"orderId"\s*:\s*"?([0-9A-Za-z_-]+)"?/);
-  return orderIdMatch?.[1];
 }
 
 function Label({ children }: { children: React.ReactNode }) {
