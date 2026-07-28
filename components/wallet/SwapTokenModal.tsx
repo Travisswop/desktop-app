@@ -205,6 +205,13 @@ type CopyTradeRewardPreview = {
   };
 };
 
+type SwapFeeAttachmentFailure = {
+  stage: 'fee_plan' | 'fee_quote' | 'fee_build';
+  reason: string;
+  requestedFeeBps: number;
+  feeMint?: string;
+};
+
 const isCopyTradeParamEnabled = (value?: string | null) =>
   value === '1' || value === 'true';
 
@@ -3699,31 +3706,53 @@ export default function SwapTokenModal({
         detectSolanaTokenProgram(quoteConnection, inputMint),
         detectSolanaTokenProgram(quoteConnection, outputMint),
       ]);
-    const quoteParams = new URLSearchParams({
-      inputMint,
-      outputMint,
-      amount: amountInSmallestUnit,
-      slippageBps: slippageBps.toString(),
-      swapMode: 'ExactIn',
-      // Jupiter's current Swap API accepts Token-2022 fee accounts. The
-      // backend creates the fee ATA with the mint's actual token program.
-      platformFeeBps: PLATFORM_FEE_BPS.toString(),
-    });
+    const fetchQuote = async (platformFeeBps?: number) => {
+      const quoteParams = new URLSearchParams({
+        inputMint,
+        outputMint,
+        amount: amountInSmallestUnit,
+        slippageBps: slippageBps.toString(),
+        swapMode: 'ExactIn',
+      });
+      if (platformFeeBps) {
+        quoteParams.set('platformFeeBps', platformFeeBps.toString());
+      }
+      const response = await fetch(
+        `/api/jupiter/quote?${quoteParams}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+        },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to get Jupiter quote');
+      }
+      return result.data;
+    };
 
-    const response = await fetch(
-      `/api/jupiter/quote?${quoteParams}`,
-      {
-        method: 'GET',
-        cache: 'no-store',
-      },
-    );
-    const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.success)
-      throw new Error(result?.error || 'Failed to get Jupiter quote');
+    let data: any;
+    let platformFeeBps = PLATFORM_FEE_BPS;
+    let feeFailure: SwapFeeAttachmentFailure | undefined;
+    try {
+      data = await fetchQuote(PLATFORM_FEE_BPS);
+    } catch (error: any) {
+      // Treat the failure as fee-specific only when the same quote succeeds
+      // without platformFeeBps.
+      data = await fetchQuote();
+      platformFeeBps = 0;
+      feeFailure = {
+        stage: 'fee_quote',
+        reason:
+          error?.message ||
+          'Jupiter rejected the platform-fee quote.',
+        requestedFeeBps: PLATFORM_FEE_BPS,
+      };
+    }
     return {
-      ...result.data,
-      swopPlatformFeeBps: PLATFORM_FEE_BPS,
-      swopPlatformFeeSkippedReason: undefined,
+      ...data,
+      swopPlatformFeeBps: platformFeeBps,
+      swopPlatformFeeFailure: feeFailure,
       swopTokenPrograms: {
         input: inputTokenProgram.toString(),
         output: outputTokenProgram.toString(),
@@ -4380,6 +4409,12 @@ export default function SwapTokenModal({
       )
         ? Number(q?.swopPlatformFeeBps)
         : PLATFORM_FEE_BPS;
+      const feeAttachmentFailure:
+        | SwapFeeAttachmentFailure
+        | undefined =
+        actualPlatformFeeBps === 0
+          ? q?.swopPlatformFeeFailure
+          : undefined;
 
       const params = {
         smartsiteId: userData?.primaryMicrosite || '',
@@ -4405,6 +4440,15 @@ export default function SwapTokenModal({
                 feeRouting: 'swop_buyback',
                 rewardToken: SWOP_REWARD_TOKEN,
                 integrator: 'Swop-Desktop',
+              }
+            : undefined,
+          platformFeeFailure: feeAttachmentFailure
+            ? {
+                ...(isCopyTrade && copyTradePostId
+                  ? { sourcePostId: copyTradePostId }
+                  : {}),
+                ...feeAttachmentFailure,
+                appliedFeeBps: actualPlatformFeeBps,
               }
             : undefined,
           inputToken: {
@@ -4500,6 +4544,53 @@ export default function SwapTokenModal({
         );
       } else {
         useModalStore.getState().triggerFeedRefetch();
+      }
+
+      if (
+        accessToken &&
+        actualPlatformFeeBps === 0 &&
+        feeAttachmentFailure &&
+        isSolanaToSolanaSwap()
+      ) {
+        try {
+          const diagnosticResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v5/wallet/swap-fee-diagnostic`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                ...feeAttachmentFailure,
+                transactionHash: signature,
+                inputMint:
+                  q?.inputMint || params.content.inputToken.mint,
+                outputMint:
+                  q?.outputMint || params.content.outputToken.mint,
+                appliedFeeBps: 0,
+                sourcePostId:
+                  isCopyTrade && copyTradePostId
+                    ? copyTradePostId
+                    : undefined,
+                route: 'jupiter',
+                platform: 'desktop',
+                isCopyTrade,
+              }),
+            },
+          );
+          if (!diagnosticResponse.ok) {
+            console.error(
+              'Failed to report swap fee fallback:',
+              await diagnosticResponse.text().catch(() => ''),
+            );
+          }
+        } catch (diagnosticError) {
+          console.error(
+            'Failed to report swap fee fallback:',
+            diagnosticError,
+          );
+        }
       }
 
       if (
@@ -5210,25 +5301,58 @@ export default function SwapTokenModal({
           ]);
 
         setSwapStatus('Preparing Jupiter fee...');
-        const feeInfo = await getJupiterPlatformFeePlan({
-          inputMint,
-          outputMint,
-          inputTokenProgram,
-          outputTokenProgram,
-          isSOLOutput,
-          connection,
-        });
+        const shouldUseOutputFee =
+          !isSOLOutput &&
+          (isNativeSolMint(inputMint) ||
+            (inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) &&
+              !outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID)));
+        const intendedFeeMint = shouldUseOutputFee
+          ? outputMint
+          : inputMint;
+        let feeInfo:
+          | Awaited<
+              ReturnType<typeof getJupiterPlatformFeePlan>
+            >
+          | undefined;
+        let feeAttachmentFailure:
+          | SwapFeeAttachmentFailure
+          | undefined;
+        try {
+          feeInfo = await getJupiterPlatformFeePlan({
+            inputMint,
+            outputMint,
+            inputTokenProgram,
+            outputTokenProgram,
+            isSOLOutput,
+            connection,
+          });
+        } catch (error: any) {
+          feeAttachmentFailure = {
+            stage: 'fee_plan',
+            reason:
+              error?.message ||
+              'Could not prepare the Jupiter platform fee account.',
+            requestedFeeBps: PLATFORM_FEE_BPS,
+            feeMint: intendedFeeMint,
+          };
+          console.warn(
+            '[SwapFeeFallback] Platform fee plan failed; building without fee',
+            feeAttachmentFailure,
+          );
+        }
         const requiresInstructionV2 =
           isSOLOutput ||
           isKnownToken2022Mint(inputMint) ||
           isKnownToken2022Mint(outputMint) ||
           inputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
           outputTokenProgram.equals(TOKEN_2022_PROGRAM_ID) ||
-          feeInfo.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
-        const effectivePlatformFeeBps = PLATFORM_FEE_BPS;
-        const effectiveFeeAccount = feeInfo.feeAccount;
+          feeInfo?.tokenProgramId.equals(TOKEN_2022_PROGRAM_ID);
+        let effectivePlatformFeeBps = feeInfo
+          ? PLATFORM_FEE_BPS
+          : 0;
+        let effectiveFeeAccount = feeInfo?.feeAccount;
         const slippageBps = Math.floor(slippage * 100);
-        const buildParams = {
+        let buildParams: Parameters<typeof fetchJupiterBuild>[0] = {
           inputMint,
           outputMint,
           amount: amountInSmallestUnit,
@@ -5236,7 +5360,8 @@ export default function SwapTokenModal({
           payer: selectedSolanaWallet.address,
           slippageBps,
           mode: 'fast' as const,
-          platformFeeBps: effectivePlatformFeeBps,
+          platformFeeBps:
+            effectivePlatformFeeBps || undefined,
           feeAccount: effectiveFeeAccount,
           instructionVersion: requiresInstructionV2
             ? ('V2' as const)
@@ -5252,10 +5377,10 @@ export default function SwapTokenModal({
             slippageBps,
             platformFeeBps: effectivePlatformFeeBps,
             feeAccount: effectiveFeeAccount,
-            feeMint: feeInfo.feeMint,
-            feeMintRole: feeInfo.feeMintRole,
-            feeTokenProgram: feeInfo.tokenProgramId.toString(),
-            platformFeeSkippedReason: undefined,
+            feeMint: feeInfo?.feeMint || intendedFeeMint,
+            feeMintRole: feeInfo?.feeMintRole,
+            feeTokenProgram: feeInfo?.tokenProgramId.toString(),
+            platformFeeFailure: feeAttachmentFailure,
             instructionVersion: requiresInstructionV2
               ? 'V2'
               : undefined,
@@ -5274,11 +5399,13 @@ export default function SwapTokenModal({
           outputMint: maskIdentifier(outputMint),
           amount: amountInSmallestUnit,
           feeAccount: maskIdentifier(effectiveFeeAccount),
-          feeMint: maskIdentifier(feeInfo.feeMint),
-          feeMintRole: feeInfo.feeMintRole,
-          feeTokenProgram: feeInfo.tokenProgramId.toString(),
+          feeMint: maskIdentifier(
+            feeInfo?.feeMint || intendedFeeMint,
+          ),
+          feeMintRole: feeInfo?.feeMintRole,
+          feeTokenProgram: feeInfo?.tokenProgramId.toString(),
           platformFeeBps: effectivePlatformFeeBps,
-          platformFeeSkippedReason: undefined,
+          platformFeeFailure: feeAttachmentFailure,
           instructionVersion: requiresInstructionV2
             ? 'V2'
             : undefined,
@@ -5289,10 +5416,39 @@ export default function SwapTokenModal({
         });
 
         if (!buildResult.success || !buildResult.data) {
-          throw new Error(
-            buildResult.error ||
-              'Failed to build Jupiter swap route.',
+          if (!feeInfo || effectivePlatformFeeBps === 0) {
+            throw new Error(
+              buildResult.error ||
+                'Failed to build Jupiter swap route.',
+            );
+          }
+
+          feeAttachmentFailure = {
+            stage: 'fee_build',
+            reason:
+              buildResult.error ||
+              'Jupiter rejected the platform-fee build.',
+            requestedFeeBps: PLATFORM_FEE_BPS,
+            feeMint: feeInfo.feeMint,
+          };
+          console.warn(
+            '[SwapFeeFallback] Fee-bearing build failed; retrying without fee',
+            feeAttachmentFailure,
           );
+          effectivePlatformFeeBps = 0;
+          effectiveFeeAccount = undefined;
+          buildParams = {
+            ...buildParams,
+            platformFeeBps: undefined,
+            feeAccount: undefined,
+          };
+          buildResult = await fetchJupiterBuild(buildParams);
+          if (!buildResult.success || !buildResult.data) {
+            throw new Error(
+              buildResult.error ||
+                'Failed to build Jupiter swap route without the platform fee.',
+            );
+          }
         }
 
         let build = await pruneExistingJupiterAtaSetupInstructions({
@@ -5343,10 +5499,10 @@ export default function SwapTokenModal({
               slippageBps,
               platformFeeBps: effectivePlatformFeeBps,
               feeAccount: effectiveFeeAccount,
-              feeMint: feeInfo.feeMint,
-              feeMintRole: feeInfo.feeMintRole,
-              feeTokenProgram: feeInfo.tokenProgramId.toString(),
-              platformFeeSkippedReason: undefined,
+              feeMint: feeInfo?.feeMint || intendedFeeMint,
+              feeMintRole: feeInfo?.feeMintRole,
+              feeTokenProgram: feeInfo?.tokenProgramId.toString(),
+              platformFeeFailure: feeAttachmentFailure,
               instructionVersion: requiresInstructionV2
                 ? 'V2'
                 : undefined,
@@ -5373,15 +5529,35 @@ export default function SwapTokenModal({
             });
 
             if (!simulationResult.success) {
-              await logJupiterSimulationFailure({
-                stage: 'jupiter_simulation',
-                result: simulationResult,
-                failedBuild: build,
-              });
-              console.warn(
-                'Jupiter simulation failed before signing; retrying with a fresh route:',
-                simulationResult.message,
-              );
+              if (effectivePlatformFeeBps > 0 && feeInfo) {
+                feeAttachmentFailure = {
+                  stage: 'fee_build',
+                  reason: simulationResult.message,
+                  requestedFeeBps: PLATFORM_FEE_BPS,
+                  feeMint: feeInfo.feeMint,
+                };
+                console.warn(
+                  '[SwapFeeFallback] Fee-bearing simulation failed; retrying without fee',
+                  feeAttachmentFailure,
+                );
+                effectivePlatformFeeBps = 0;
+                effectiveFeeAccount = undefined;
+                buildParams = {
+                  ...buildParams,
+                  platformFeeBps: undefined,
+                  feeAccount: undefined,
+                };
+              } else {
+                await logJupiterSimulationFailure({
+                  stage: 'jupiter_simulation',
+                  result: simulationResult,
+                  failedBuild: build,
+                });
+                console.warn(
+                  'Jupiter simulation failed before signing; retrying with a fresh route:',
+                  simulationResult.message,
+                );
+              }
 
               setSwapStatus('Refreshing Jupiter route...');
               buildResult = await fetchJupiterBuild(buildParams);
@@ -5512,8 +5688,8 @@ export default function SwapTokenModal({
             await saveSwapToDatabase(txId, {
               inputMint,
               outputMint,
-              swopPlatformFeeBps: PLATFORM_FEE_BPS,
-              swopPlatformFeeSkippedReason: undefined,
+              swopPlatformFeeBps: effectivePlatformFeeBps,
+              swopPlatformFeeFailure: feeAttachmentFailure,
             });
           } catch (postSwapError) {
             console.warn(
