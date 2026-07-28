@@ -221,7 +221,8 @@ function extractOgTitle(feed: any): string {
         content.question,
         content.title,
       );
-      const verb = cleanText(content.side).toUpperCase() === "SELL" ? "Sold" : "Picked";
+      const verb =
+        cleanText(content.side).toUpperCase() === "SELL" ? "Sold" : "Picked";
       return `${verb} ${outcome || "a side"}${market ? ` on ${market}` : ""}`;
     }
     case "perpsPosition": {
@@ -300,7 +301,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed/${id}/og`;
 
   try {
-    const response = await apiFetch(url);
+    const response = await apiFetch(url, { cache: "no-store" });
 
     const responseData = await response.json();
     let feed = responseData?.data;
@@ -342,9 +343,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const appUrl = publicAppUrl();
 
     let ogImageUrl: string | undefined;
+    const usesLiveFeedCard = [
+      "prediction",
+      "perps",
+      "perpsPosition",
+      "swapTransaction",
+    ].includes(feed.postType);
+    const ogImageHeight = usesLiveFeedCard ? 1200 : 630;
 
-    // ── Swap gets its own card — check first ─────────────────────────────────
-    if (feed.postType === "swapTransaction" && feed.content) {
+    // Trade posts render from their feed id so the OG endpoint can hydrate the
+    // same current scores, prices and post state shown in the live feed card.
+    // A five-minute bucket gives each newly shared link a fresh preview URL
+    // without creating an unbounded image-cache key per request.
+    if (usesLiveFeedCard) {
+      ogImageUrl = buildOgFeedUrl({
+        feedId: id,
+        v: String(Math.floor(Date.now() / (5 * 60 * 1000))),
+      });
+    } else if (feed.postType === "swapTransaction" && feed.content) {
       const c = feed.content;
       // ── Calculate price change percentage ──────────────────────────────────
       const inputValueUsd =
@@ -410,13 +426,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         firstNumber(c.executedCost, c.executedProceeds, c.cost),
       );
       const pnl = formatUsd(
-        firstNumber(
-          c.realizedPnl,
-          c.cashPnl,
-          c.sellPnl,
-          c.pnl,
-          c.profitAmount,
-        ),
+        firstNumber(c.realizedPnl, c.cashPnl, c.sellPnl, c.pnl, c.profitAmount),
       );
 
       ogImageUrl = buildOgFeedUrl({
@@ -495,7 +505,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         {
           url: ogImageUrl,
           width: 1200,
-          height: 630,
+          height: ogImageHeight,
           alt: feedTitle,
           type: "image/png",
         },
@@ -505,7 +515,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         "og:image:secure_url": ogImageUrl,
         "og:image:type": "image/png",
         "og:image:width": "1200",
-        "og:image:height": "630",
+        "og:image:height": String(ogImageHeight),
       };
     }
 

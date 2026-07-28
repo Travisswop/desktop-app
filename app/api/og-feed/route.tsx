@@ -1,4 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 import { ImageResponse } from "next/og";
+import {
+  buildLegacyFeedShareSnapshot,
+  FeedShareImage,
+  loadFeedShareSnapshot,
+} from "./feed-card-snapshot";
 
 const DEFAULT_PUBLIC_APP_URL = "https://www.swopme.app";
 
@@ -22,10 +28,27 @@ function statusLabel(value: string) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).replace(
-      /\/+$/,
-      "",
-    );
+    const appUrl = (
+      process.env.NEXT_PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL
+    ).replace(/\/+$/, "");
+    const feedId = cleanText(searchParams.get("feedId"));
+    const feedSnapshot = feedId
+      ? await loadFeedShareSnapshot(feedId, appUrl)
+      : buildLegacyFeedShareSnapshot(searchParams);
+
+    if (feedSnapshot) {
+      return new ImageResponse(
+        <FeedShareImage snapshot={feedSnapshot} appUrl={appUrl} />,
+        {
+          width: 1200,
+          height: 1200,
+          headers: {
+            "Cache-Control":
+              "public, max-age=0, s-maxage=30, stale-while-revalidate=300",
+          },
+        },
+      );
+    }
 
     const type = searchParams.get("type") || "default";
     const ensName = searchParams.get("ensName") || "swop.user";
@@ -106,7 +129,8 @@ export async function GET(request: Request) {
     const isPerps = type === "perps";
     // Two generations of cards share a type — discriminate by their params
     const isPerpsPosition = isPerps && searchParams.has("perpsSide");
-    const isPredictionMarket = isPrediction && searchParams.has("pickedOutcome");
+    const isPredictionMarket =
+      isPrediction && searchParams.has("pickedOutcome");
 
     // Add to params extraction
     const priceChange = searchParams.get("priceChange") || "0.00";
@@ -1227,37 +1251,37 @@ export async function GET(request: Request) {
           !isPerps &&
           !hasImage &&
           showGifPlaceholder && (
-          <div
-            style={{
-              display: "flex",
-              flex: 1,
-              margin: "0 60px 30px 60px",
-              backgroundColor: "#f0f0f0",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "12px",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            <div style={{ fontSize: "64px", display: "flex" }}>🎞️</div>
             <div
               style={{
-                fontSize: "28px",
-                color: "#888888",
-                fontWeight: "bold",
                 display: "flex",
+                flex: 1,
+                margin: "0 60px 30px 60px",
+                backgroundColor: "#f0f0f0",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "12px",
+                flexDirection: "column",
+                gap: "8px",
               }}
             >
-              GIF
+              <div style={{ fontSize: "64px", display: "flex" }}>🎞️</div>
+              <div
+                style={{
+                  fontSize: "28px",
+                  color: "#888888",
+                  fontWeight: "bold",
+                  display: "flex",
+                }}
+              >
+                GIF
+              </div>
+              <div
+                style={{ fontSize: "18px", color: "#aaaaaa", display: "flex" }}
+              >
+                View on Swop
+              </div>
             </div>
-            <div
-              style={{ fontSize: "18px", color: "#aaaaaa", display: "flex" }}
-            >
-              View on Swop
-            </div>
-          </div>
-        )}
+          )}
 
         {/* Footer */}
         <div
