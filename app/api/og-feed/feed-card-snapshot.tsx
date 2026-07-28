@@ -1490,6 +1490,12 @@ function PerpsCard({ snapshot }: { snapshot: PerpsShareSnapshot }) {
     >
       <div
         style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: 170,
+          boxSizing: "border-box",
           padding: "38px 38px 24px",
           display: "flex",
           justifyContent: "space-between",
@@ -1580,6 +1586,9 @@ function PerpsCard({ snapshot }: { snapshot: PerpsShareSnapshot }) {
 
       <div
         style={{
+          position: "absolute",
+          top: 170,
+          left: 0,
           height: 360,
           width: "100%",
           display: "flex",
@@ -1596,7 +1605,12 @@ function PerpsCard({ snapshot }: { snapshot: PerpsShareSnapshot }) {
 
       <div
         style={{
+          position: "absolute",
+          top: 530,
+          left: 0,
+          width: "100%",
           height: 72,
+          boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-around",
@@ -1626,7 +1640,12 @@ function PerpsCard({ snapshot }: { snapshot: PerpsShareSnapshot }) {
 
       <div
         style={{
-          flex: 1,
+          position: "absolute",
+          top: 602,
+          left: 0,
+          width: "100%",
+          height: 408,
+          boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
