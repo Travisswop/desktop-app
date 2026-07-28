@@ -1013,7 +1013,8 @@ function usePredictionMarketNavigation(
 
   const onCopyBetClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
-      event.preventDefault();
+      // Keep the anchor's native navigation. Cancelling it here made Copy Bet
+      // depend on a client-router transition that could stall on the feed.
       event.stopPropagation();
       if (!copyBetKey || !copyBetHref) return;
 
@@ -1024,9 +1025,8 @@ function usePredictionMarketNavigation(
       if (stashed && !hasTradableTokens(stashed.market)) {
         useMarketDetailStore.getState().clear(copyBetKey);
       }
-      router.push(copyBetHref);
     },
-    [copyBetHref, copyBetKey, router],
+    [copyBetHref, copyBetKey],
   );
 
   return {

@@ -5425,12 +5425,6 @@ export default function MarketDetailView({
     setShowFullDescription(false);
   }, [initialOutcome, initialAmount, initialSide, initialOrderType, initialLimitPrice]);
 
-  // Sell input means shares, so only the buy side gets the default stake.
-  useEffect(() => {
-    setInputValue(side === 'BUY' ? DEFAULT_BUY_AMOUNT : '');
-    setLocalError(null);
-  }, [side]);
-
   // After a successful order the celebration popup owns the dismissal
   // (Done/backdrop → back), so no timed banner-and-close is needed here.
 
@@ -5967,6 +5961,10 @@ export default function MarketDetailView({
           side={side}
           setSide={(s) => {
             setSide(s);
+            // Changing ticket sides resets the input because BUY is dollars
+            // while SELL is shares. Keep this user-action reset here instead
+            // of in an effect so deep-link amounts survive the initial render.
+            setInputValue(s === 'BUY' ? DEFAULT_BUY_AMOUNT : '');
             setLocalError(null);
           }}
           orderType={orderType}

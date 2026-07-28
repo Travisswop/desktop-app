@@ -57,6 +57,21 @@ describe('prediction feed card "Copy Bet"', () => {
     );
   });
 
+  it('allows the anchor to perform its normal navigation', () => {
+    render(<PredictionFeedCard content={openBet} userName="Travis" />);
+
+    const cta = screen.getByRole('link', { name: /Copy Bet/ });
+    const click = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    cta.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(false);
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('copies the "no" side when that is what the poster backed', () => {
     render(
       <PredictionFeedCard
