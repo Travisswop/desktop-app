@@ -8,6 +8,10 @@ import {
 
 const DEFAULT_PUBLIC_APP_URL = "https://www.swopme.app";
 
+// Rendering the hydrated 1200px feed card can exceed the platform's default
+// execution window on a cold start, especially for swap cards with token art.
+export const maxDuration = 30;
+
 function cleanText(value: string | null) {
   return String(value || "")
     .replace(/\s+/g, " ")
