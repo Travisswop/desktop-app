@@ -11,6 +11,7 @@ import { fetchTokenLivePrice } from "@/lib/utils/marketPriceClient";
 import { getTokenFallbackPrice } from "@/lib/utils/tokenMarketData";
 import { sanitizeNextImageSrc } from "@/lib/sanitizeNextImageSrc";
 import AgentBadge from "./AgentBadge";
+import AuthorStreakBadge from "./AuthorStreakBadge";
 dayjs.extend(relativeTime);
 
 // ---------------------------------------------------------------------------
@@ -187,6 +188,7 @@ interface SwapTransactionCardProps {
   setCurrentPost?: (v: any) => void;
   navigateBack?: () => void;
   refreshKey?: number;
+  isOwner?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,8 +200,9 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   onFeedClick,
   onTransactionPress,
   refreshKey,
+  isOwner: isOwnerProp,
 }) => {
-  const { accessToken } = useUser();
+  const { accessToken, user } = useUser();
 
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [, setGrowth] = useState(0);
@@ -209,6 +212,11 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
 
   const inputToken = feed?.content?.inputToken;
   const outputToken = feed?.content?.outputToken;
+  const feedUserId =
+    typeof feed?.userId === "string" ? feed.userId : feed?.userId?._id;
+  const isOwner =
+    isOwnerProp ??
+    Boolean(user?._id && feedUserId && String(user._id) === String(feedUserId));
   const marketApiBase = process.env.NEXT_PUBLIC_API_URL || "";
 
   const profilePic =
@@ -229,6 +237,42 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
   const resolveTokenImg = (token: any): string =>
     getTokenImageCandidates(token)[0] ||
     cryptoIconPath(String(token?.symbol ?? ""));
+
+  const actionInputToken = isOwner ? outputToken : inputToken;
+  const actionOutputToken = isOwner ? inputToken : outputToken;
+  const walletParams = new URLSearchParams();
+  walletParams.set("inputToken", String(actionInputToken?.symbol || ""));
+  walletParams.set("inputMint", String(actionInputToken?.mint || ""));
+  walletParams.set(
+    "inputChain",
+    String(actionInputToken?.chain || actionInputToken?.chainId || ""),
+  );
+  walletParams.set("inputImg", resolveTokenImg(actionInputToken));
+  walletParams.set(
+    "inputDecimals",
+    String(actionInputToken?.decimals ?? ""),
+  );
+  walletParams.set("outputToken", String(actionOutputToken?.symbol || ""));
+  walletParams.set("outputMint", String(actionOutputToken?.mint || ""));
+  walletParams.set(
+    "outputChain",
+    String(actionOutputToken?.chain || actionOutputToken?.chainId || ""),
+  );
+  walletParams.set("outputImg", resolveTokenImg(actionOutputToken));
+  walletParams.set(
+    "outputDecimals",
+    String(actionOutputToken?.decimals ?? ""),
+  );
+  walletParams.set(
+    "amount",
+    String((isOwner ? outputToken?.amount : inputToken?.amount) ?? ""),
+  );
+  if (!isOwner) {
+    walletParams.set("copyTrade", "1");
+    walletParams.set("copyTradePostId", String(feed?._id || ""));
+  }
+  const walletHref = `/wallet?${walletParams.toString()}`;
+  const actionLabel = isOwner ? "Sell Token" : "Copy Trade";
 
   // ---------------------------------------------------------------------------
   // Live price fetch
@@ -288,15 +332,17 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
         >
           {/* ── Top padded section ───────────────────────────────────────── */}
           <div className="px-4 pt-4">
-            {/* Agent badge — only for trades auto-posted by a user's agent */}
-            {feed?.agent?.isAgentTrade && (
-              <div className="mb-2 flex justify-end">
-                <AgentBadge
-                  agent={feed.agent}
-                  ownerHandle={
-                    feed?.smartsiteEnsName || feed?.smartsiteUserName
-                  }
-                />
+            {(feed?.agent?.isAgentTrade || feed?.authorStreak) && (
+              <div className="mb-2 flex items-center justify-end gap-2">
+                {feed?.agent?.isAgentTrade && (
+                  <AgentBadge
+                    agent={feed.agent}
+                    ownerHandle={
+                      feed?.smartsiteEnsName || feed?.smartsiteUserName
+                    }
+                  />
+                )}
+                <AuthorStreakBadge streak={feed?.authorStreak} compact />
               </div>
             )}
             {/* Header row */}
@@ -392,19 +438,19 @@ const SwapTransactionCard: React.FC<SwapTransactionCardProps> = ({
               className="flex items-center justify-end pt-3 border-t border-gray-100"
               onClick={(e) => e.stopPropagation()}
             >
-              {onPress ? (
+              {onPress && !isOwner ? (
                 <button
                   onClick={onPress}
                   className="rounded-full bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
-                  Copy Trade
+                  {actionLabel}
                 </button>
               ) : (
                 <Link
-                  href={`/wallet?inputToken=${inputToken?.symbol}&inputMint=${inputToken?.mint}&inputChain=${inputToken?.chain || inputToken?.chainId}&inputImg=${encodeURIComponent(resolveTokenImg(inputToken))}&inputDecimals=${inputToken?.decimals}&outputToken=${outputToken?.symbol}&outputMint=${outputToken?.mint}&outputChain=${outputToken?.chain || outputToken?.chainId}&outputImg=${encodeURIComponent(resolveTokenImg(outputToken))}&outputDecimals=${outputToken?.decimals}&amount=${inputToken?.amount}&copyTrade=1&copyTradePostId=${encodeURIComponent(feed?._id || "")}`}
+                  href={walletHref}
                   className="rounded-lg bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
                 >
-                  Copy Trade
+                  {actionLabel}
                 </Link>
               )}
             </div>

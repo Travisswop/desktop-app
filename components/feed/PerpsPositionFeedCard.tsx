@@ -26,6 +26,9 @@ import {
 } from './perpsEntryMarkers';
 import type { PerpsPositionFeedContent } from '@/lib/perps/perpsFeed';
 import AgentBadge, { type AgentBadgeAgent } from './AgentBadge';
+import AuthorStreakBadge, {
+  type AuthorStreak,
+} from './AuthorStreakBadge';
 
 export type { PerpsEntryMarker } from './perpsEntryMarkers';
 
@@ -40,8 +43,12 @@ interface PerpsPositionFeedCardProps {
     smartsiteUserName?: string | null;
     smartsiteEnsName?: string | null;
     agent?: AgentBadgeAgent | null;
+    authorStreak?: AuthorStreak | null;
+    userId?: string | { _id?: string } | null;
     createdAt?: string;
   };
+  isOwner?: boolean;
+  streak?: AuthorStreak | null;
 }
 
 interface ChartPoint {
@@ -534,6 +541,8 @@ export function selectPerpsChartMarkerEntries(
 
 export default function PerpsPositionFeedCard({
   feed,
+  isOwner = false,
+  streak = feed.authorStreak,
 }: PerpsPositionFeedCardProps) {
   const content = useMemo(() => feed.content || {}, [feed.content]);
   const rawCoin = String(content.coin || 'BTC');
@@ -1015,7 +1024,16 @@ export default function PerpsPositionFeedCard({
     value: number;
     className: string;
   }>;
-  const href = `/wallet?perps=1&coin=${encodeURIComponent(coin)}&side=${side}&leverage=${leverage}`;
+  const href = `/wallet?perps=1&coin=${encodeURIComponent(coin)}&side=${side}&leverage=${leverage}${
+    isOwner ? '&manage=1' : ''
+  }`;
+  const actionLabel = isOwner
+    ? status === 'open'
+      ? 'Close Trade'
+      : status === 'limit'
+        ? 'Manage Order'
+        : 'View Perps'
+    : 'Copy Trade';
   const periodBar = (
     <div
       className="flex items-center justify-around border-t border-gray-100 px-4 py-2"
@@ -1055,15 +1073,17 @@ export default function PerpsPositionFeedCard({
           }}
         >
           <div className="px-4 pt-4">
-            {/* Agent badge — only for trades auto-posted by a user's agent */}
-            {feed?.agent?.isAgentTrade && (
-              <div className="mb-2 flex justify-end">
-                <AgentBadge
-                  agent={feed.agent}
-                  ownerHandle={
-                    feed?.smartsiteEnsName || feed?.smartsiteUserName
-                  }
-                />
+            {(feed?.agent?.isAgentTrade || streak) && (
+              <div className="mb-2 flex items-center justify-end gap-2">
+                {feed?.agent?.isAgentTrade && (
+                  <AgentBadge
+                    agent={feed.agent}
+                    ownerHandle={
+                      feed?.smartsiteEnsName || feed?.smartsiteUserName
+                    }
+                  />
+                )}
+                <AuthorStreakBadge streak={streak} compact />
               </div>
             )}
             <div className="flex items-start justify-between gap-4">
@@ -1313,7 +1333,7 @@ export default function PerpsPositionFeedCard({
                 href={href}
                 className="rounded-lg bg-gray-100 px-7 py-2 text-[13px] font-extrabold text-gray-950 transition-all hover:bg-gray-200 active:scale-95"
               >
-                Copy Trade
+                {actionLabel}
               </Link>
             </div>
           </div>

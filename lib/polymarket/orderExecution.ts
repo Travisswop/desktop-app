@@ -21,6 +21,7 @@ type PredictionFeedExecutionFallback = {
   potentialWin?: number;
   price: number;
   acceptedPrice?: number;
+  positionEntryPrice?: number;
 };
 
 function finiteNumber(value: unknown): number | undefined {
@@ -51,6 +52,22 @@ export function resolvePredictionFeedExecution(
     fallback.side === 'BUY'
       ? executedShares ?? fallback.potentialWin
       : fallback.potentialWin;
+  const requestedShares =
+    fallback.side === 'BUY'
+      ? fallback.potentialWin
+      : fallback.price > 0
+        ? fallback.cost / fallback.price
+        : undefined;
+  const positionEntryPrice =
+    fallback.side === 'SELL'
+      ? positiveNumber(fallback.positionEntryPrice)
+      : undefined;
+  const soldShares =
+    fallback.side === 'SELL' ? executedShares ?? requestedShares : undefined;
+  const positionCostBasisUsd =
+    positionEntryPrice && soldShares
+      ? positionEntryPrice * soldShares
+      : undefined;
 
   return {
     cost,
@@ -60,7 +77,10 @@ export function resolvePredictionFeedExecution(
       quotePrice: fallback.price,
       acceptedPrice: fallback.acceptedPrice ?? fallback.price,
       requestedCost: fallback.cost,
+      requestedShares,
       requestedPotentialWin: fallback.potentialWin,
+      positionEntryPrice,
+      positionCostBasisUsd,
       executedPrice,
       executedShares,
       executedCost,

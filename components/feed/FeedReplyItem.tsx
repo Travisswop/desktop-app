@@ -230,7 +230,10 @@ const FeedReplyItem = memo(
 
               {/* Swap Transaction Content */}
               {feed.postType === "swapTransaction" && (
-                <SwapTransactionCard feed={feed} />
+                <SwapTransactionCard
+                  feed={feed}
+                  isOwner={canDeletePost}
+                />
               )}
 
               {/* Repost Content */}
@@ -339,7 +342,10 @@ const FeedReplyItem = memo(
               )}
 
               {feed.postType === "perpsPosition" && (
-                <PerpsPositionFeedCard feed={feed} />
+                <PerpsPositionFeedCard
+                  feed={feed}
+                  isOwner={canDeletePost}
+                />
               )}
 
               {feed.postType === "perps" && (
@@ -357,6 +363,8 @@ const FeedReplyItem = memo(
                     undefined
                   }
                   createdAt={feed.createdAt}
+                  isOwner={canDeletePost}
+                  streak={feed.authorStreak}
                 />
               )}
 

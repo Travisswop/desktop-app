@@ -31,6 +31,15 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
   const [redeemFeedData, setRedeemFeedData] = useState({});
   const router = useRouter();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const repostedOwnerId =
+    typeof feed?.repostedPostDetails?.userId === "string"
+      ? feed.repostedPostDetails.userId
+      : feed?.repostedPostDetails?.userId?._id;
+  const isOwnRepostedPost = Boolean(
+    userId &&
+      repostedOwnerId &&
+      String(userId) === String(repostedOwnerId),
+  );
   const openRedeemModal = (data: any) => {
     onOpen();
     setIsModalOpen(true);
@@ -222,6 +231,7 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
             {feed.repostedPostDetails.postType === "swapTransaction" && (
               <SwapTransactionCard
                 feed={feed.repostedPostDetails}
+                isOwner={isOwnRepostedPost}
                 showAmountDetails={true}
                 showCopyTrade={true}
                 showSolscanLink={true}
@@ -298,16 +308,30 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
               <PredictionFeedCard
                 content={feed.repostedPostDetails.content}
                 createdAt={feed.repostedPostDetails.createdAt}
+                feedPostId={feed.repostedPostDetails._id}
+                feedUserId={repostedOwnerId}
+                accessToken={token}
                 userName={
                   feed.repostedPostDetails?.smartsiteId?.name ||
                   feed.repostedPostDetails?.smartsiteUserName ||
                   feed.repostedPostDetails?.smartsiteDetails?.name ||
                   undefined
                 }
+                agent={feed.repostedPostDetails.agent}
+                ownerHandle={
+                  feed.repostedPostDetails?.smartsiteEnsName ||
+                  feed.repostedPostDetails?.smartsiteUserName
+                }
+                streak={feed.repostedPostDetails.authorStreak}
+                isOwner={isOwnRepostedPost}
               />
             )}
             {feed.repostedPostDetails.postType === "perpsPosition" && (
-              <PerpsPositionFeedCard feed={feed.repostedPostDetails} />
+              <PerpsPositionFeedCard
+                feed={feed.repostedPostDetails}
+                isOwner={isOwnRepostedPost}
+                streak={feed.repostedPostDetails.authorStreak}
+              />
             )}
             {feed.repostedPostDetails.postType === "perps" && (
               <PerpsFeedCard
@@ -325,6 +349,13 @@ const IndividualFeedContent = ({ feed, userId, token, onVoteSuccess }: any) => {
                   undefined
                 }
                 createdAt={feed.repostedPostDetails?.createdAt}
+                agent={feed.repostedPostDetails?.agent}
+                ownerHandle={
+                  feed.repostedPostDetails?.smartsiteEnsName ||
+                  feed.repostedPostDetails?.smartsiteUserName
+                }
+                streak={feed.repostedPostDetails?.authorStreak}
+                isOwner={isOwnRepostedPost}
               />
             )}
           </div>

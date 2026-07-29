@@ -68,6 +68,9 @@ const FeedPostContent = ({
       : feed?.userId?._id
         ? String(feed.userId._id)
         : undefined;
+  const isOwnFeedPost = Boolean(
+    userId && feedOwnerId && String(userId) === String(feedOwnerId),
+  );
   // Owner handle used by the agent badge on venue cards. The post is authored
   // AS the user, so the badge reads "🤖 <owner>'s agent".
   const agentOwnerHandle =
@@ -132,7 +135,7 @@ const FeedPostContent = ({
 
       {/* Swap transaction */}
       {feed.postType === 'swapTransaction' && (
-        <SwapTransactionCard feed={feed} />
+        <SwapTransactionCard feed={feed} isOwner={isOwnFeedPost} />
       )}
 
       {/* Repost — with content */}
@@ -265,12 +268,18 @@ const FeedPostContent = ({
           }
           agent={feed.agent}
           ownerHandle={agentOwnerHandle}
+          streak={feed.authorStreak}
+          isOwner={isOwnFeedPost}
         />
       )}
 
       {/* Hyperliquid perps position */}
       {feed.postType === 'perpsPosition' && (
-        <PerpsPositionFeedCard feed={feed} />
+        <PerpsPositionFeedCard
+          feed={feed}
+          isOwner={isOwnFeedPost}
+          streak={feed.authorStreak}
+        />
       )}
 
       {/* Perps */}
@@ -291,6 +300,8 @@ const FeedPostContent = ({
           createdAt={feed.createdAt}
           agent={feed.agent}
           ownerHandle={agentOwnerHandle}
+          streak={feed.authorStreak}
+          isOwner={isOwnFeedPost}
         />
       )}
 

@@ -1,6 +1,9 @@
 'use client';
 
 import { ArrowDownRight, ArrowUpRight, Bot, RefreshCcw } from 'lucide-react';
+import AuthorStreakBadge, {
+  type AuthorStreak,
+} from './AuthorStreakBadge';
 
 // Renders a feed post authored by a user's autonomous agent (postType ===
 // 'agentTrade'). The post is authored AS the user (smartsiteEnsName is the
@@ -33,6 +36,7 @@ interface AgentTradeFeed {
   agent?: AgentTradeAgent;
   smartsiteEnsName?: string;
   smartsiteUserName?: string;
+  authorStreak?: AuthorStreak | null;
   createdAt?: string;
 }
 
@@ -110,17 +114,20 @@ export default function AgentTradeFeedCard({ feed }: AgentTradeFeedCardProps) {
             >
               {actionLabel}
             </span>
-            {/* 🤖 <user>'s agent badge — derived from agent.agentName */}
-            <span
-              className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-mono text-[10px] font-black text-indigo-600"
-              title={agentName}
-              data-testid="agent-trade-badge"
-            >
-              <Bot className="h-3 w-3 shrink-0" aria-hidden="true" />
-              <span className="truncate">
-                🤖 {userHandle}&apos;s agent
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+              <AuthorStreakBadge streak={feed.authorStreak} compact />
+              {/* 🤖 <user>'s agent badge — derived from agent.agentName */}
+              <span
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 font-mono text-[10px] font-black text-indigo-600"
+                title={agentName}
+                data-testid="agent-trade-badge"
+              >
+                <Bot className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  🤖 {userHandle}&apos;s agent
+                </span>
               </span>
-            </span>
+            </div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-3">

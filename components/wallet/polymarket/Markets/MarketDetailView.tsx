@@ -4897,6 +4897,8 @@ type MarketDetailViewProps = {
   isConvertingBalance?: boolean;
   yesShares?: number;
   noShares?: number;
+  yesEntryPrice?: number;
+  noEntryPrice?: number;
   initialOutcome?: 'yes' | 'no';
   initialAmount?: string;
   initialSide?: 'BUY' | 'SELL';
@@ -4928,6 +4930,8 @@ export default function MarketDetailView({
   isConvertingBalance,
   yesShares = 0,
   noShares = 0,
+  yesEntryPrice = 0,
+  noEntryPrice = 0,
   initialOutcome,
   initialAmount,
   initialSide,
@@ -5339,6 +5343,8 @@ export default function MarketDetailView({
     : activeDisplayPrice;
   const apiShareBalance =
     selectedOutcome === 'yes' ? yesShares : noShares;
+  const activePositionEntryPrice =
+    selectedOutcome === 'yes' ? yesEntryPrice : noEntryPrice;
   const [onchainShareBalance, setOnchainShareBalance] = useState<
     number | null
   >(null);
@@ -5582,6 +5588,7 @@ export default function MarketDetailView({
           potentialWin: win,
           price: effectivePrice,
           acceptedPrice: effectivePrice,
+          positionEntryPrice: activePositionEntryPrice,
         });
         const orderSuccessInfo = buildOrderSuccessInfo({
           result,
@@ -5668,12 +5675,13 @@ export default function MarketDetailView({
           potentialWin: win,
           price: effectivePrice,
           acceptedPrice: effectivePrice,
+          positionEntryPrice: activePositionEntryPrice,
         });
 
-        getAccessToken()
-          .then((token) => {
-            if (!token) return;
-            return postFeed(
+        try {
+          const token = await getAccessToken();
+          if (token) {
+            await postFeed(
               {
                 postType: 'prediction',
                 smartsiteId: user.primaryMicrosite,
@@ -5719,10 +5727,12 @@ export default function MarketDetailView({
               },
               token,
             );
-          })
-          .catch((err) =>
-            console.error('Failed to post prediction to feed:', err),
-          );
+          }
+        } catch (err) {
+          // The order has already executed. Keep the trading success intact
+          // while making the accounting write a best-effort side effect.
+          console.error('Failed to post prediction to feed:', err);
+        }
       }
     } catch (err) {
       console.error('Error placing order:', err);

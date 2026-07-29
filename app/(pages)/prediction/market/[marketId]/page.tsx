@@ -81,9 +81,29 @@ function MarketDetailPageInner() {
   const sharesForMarket = useCallback(
     (market: PolymarketMarket) => {
       const tokenIds = parseJsonArray<string>(market.clobTokenIds);
+      const positionMetrics = (asset?: string) => {
+        // A merged portfolio can expose the same outcome token in the deposit
+        // wallet and legacy Safe. One sell order uses one holder wallet, and
+        // the detail view validates against the largest on-chain holding, so
+        // use that same lot's entry price for the realized basis.
+        const position = positions
+          ?.filter((item) => item.asset === asset)
+          .sort((a, b) => Math.abs(b.size) - Math.abs(a.size))[0];
+        const shares = position?.size || 0;
+        const entryPrice =
+          position?.avgPrice ||
+          (shares > 0 && position?.initialValue
+            ? position.initialValue / shares
+            : 0);
+        return { shares, entryPrice };
+      };
+      const yes = positionMetrics(tokenIds[0]);
+      const no = positionMetrics(tokenIds[1]);
       return {
-        yesShares: positions?.find((p) => p.asset === tokenIds[0])?.size || 0,
-        noShares: positions?.find((p) => p.asset === tokenIds[1])?.size || 0,
+        yesShares: yes.shares,
+        noShares: no.shares,
+        yesEntryPrice: yes.entryPrice,
+        noEntryPrice: no.entryPrice,
       };
     },
     [positions],
@@ -248,6 +268,8 @@ function MarketDetailPageInner() {
     );
   }
 
+  const livePositionMetrics = sharesForMarket(snapshot.market);
+
   return (
     <MarketDetailView
       onClose={handleBack}
@@ -258,6 +280,8 @@ function MarketDetailPageInner() {
       isConvertingBalance={isNormalizingCollateral}
       yesShares={snapshot.yesShares}
       noShares={snapshot.noShares}
+      yesEntryPrice={livePositionMetrics.yesEntryPrice}
+      noEntryPrice={livePositionMetrics.noEntryPrice}
       initialOutcome={
         snapshot.initialOutcome ||
         selectedOutcomeFromUrl

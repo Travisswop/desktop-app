@@ -21,6 +21,9 @@ import {
 import { apiFetch } from '@/lib/api/apiFetch';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import AgentBadge, { type AgentBadgeAgent } from './AgentBadge';
+import AuthorStreakBadge, {
+  type AuthorStreak,
+} from './AuthorStreakBadge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -157,6 +160,8 @@ interface PredictionFeedCardProps {
   onVerifiedFinalScore?: (content: PredictionContent) => void;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
+  streak?: AuthorStreak | null;
+  isOwner?: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -932,6 +937,7 @@ function resolveInitialOutcome(
 function usePredictionMarketNavigation(
   content: PredictionContent,
   options: Parameters<typeof buildPredictionDetailMarket>[1],
+  isOwner = false,
 ) {
   const router = useRouter();
   const stashMarketDetail = useMarketDetailStore((state) => state.set);
@@ -1004,12 +1010,17 @@ function usePredictionMarketNavigation(
           firstNumber(content.executedCost, content.cost, content.requestedCost),
         )
       : undefined;
+  const ownerSellAmount = formatCopyBetAmount(
+    firstNumber(content.executedShares, content.potentialWin),
+  );
   const copyBetHref = copyBetKey
     ? `/prediction/market/${encodeURIComponent(copyBetKey)}${buildCopyBetQuery(
         defaultInitialOutcome,
-        copyBetAmount,
+        isOwner ? ownerSellAmount : copyBetAmount,
+        isOwner ? 'SELL' : undefined,
       )}`
     : undefined;
+  const copyBetLabel = isOwner ? 'Sell Bet' : 'Copy Bet';
 
   const onCopyBetClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -1022,17 +1033,18 @@ function usePredictionMarketNavigation(
       // Drop it when it has no tradable tokens so the detail page recovers the
       // real one instead of rendering an un-orderable shell.
       const stashed = useMarketDetailStore.getState().get(copyBetKey);
-      if (stashed && !hasTradableTokens(stashed.market)) {
+      if (isOwner || (stashed && !hasTradableTokens(stashed.market))) {
         useMarketDetailStore.getState().clear(copyBetKey);
       }
     },
-    [copyBetHref, copyBetKey],
+    [copyBetHref, copyBetKey, isOwner],
   );
 
   return {
     marketHref,
     onMarketClick,
     copyBetHref,
+    copyBetLabel,
     onCopyBetClick,
   };
 }
@@ -1045,10 +1057,12 @@ function formatCopyBetAmount(cost: number | undefined): string | undefined {
 function buildCopyBetQuery(
   outcome: 'yes' | 'no' | undefined,
   amount: string | undefined,
+  side?: 'SELL',
 ): string {
   const params = new URLSearchParams();
   if (outcome) params.set('outcome', outcome);
   if (amount) params.set('amount', amount);
+  if (side) params.set('side', side);
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -1076,9 +1090,11 @@ function hasTradableTokens(market: PolymarketMarket): boolean {
 function CopyBetButton({
   href,
   onClick,
+  label = 'Copy Bet',
 }: {
   href?: string;
   onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  label?: string;
 }) {
   const classes =
     'flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-[13px] font-extrabold transition-colors';
@@ -1090,7 +1106,7 @@ function CopyBetButton({
         disabled
         className={`${classes} border border-gray-100 bg-white text-gray-400`}
       >
-        Copy Bet
+        {label}
       </button>
     );
   }
@@ -1099,10 +1115,14 @@ function CopyBetButton({
     <a
       href={href}
       onClick={onClick}
-      title="Open this market with the same pick"
+      title={
+        label === 'Sell Bet'
+          ? 'Open this position in the sell ticket'
+          : 'Open this market with the same pick'
+      }
       className={`${classes} bg-[#2F7ED8] text-white shadow-[0_8px_18px_rgba(47,126,216,0.24)] hover:bg-[#2569B8]`}
     >
-      Copy Bet
+      {label}
       <span aria-hidden="true">→</span>
     </a>
   );
@@ -2358,9 +2378,11 @@ function SportsMiniPanel({
   marketHref,
   onMarketClick,
   copyBetHref,
+  copyBetLabel,
   onCopyBetClick,
   agent,
   ownerHandle,
+  streak,
 }: {
   marketTitle: string;
   eventSlug?: string;
@@ -2392,9 +2414,11 @@ function SportsMiniPanel({
     initialOutcome?: 'yes' | 'no',
   ) => void;
   copyBetHref?: string;
+  copyBetLabel?: string;
   onCopyBetClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
+  streak?: AuthorStreak | null;
 }) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -2636,10 +2660,12 @@ function SportsMiniPanel({
 
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
-      {/* Agent badge — only for trades auto-posted by a user's agent */}
-      {agent?.isAgentTrade && (
-        <div className="mb-3 flex justify-end">
-          <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+      {(agent?.isAgentTrade || streak) && (
+        <div className="mb-3 flex items-center justify-end gap-2">
+          {agent?.isAgentTrade && (
+            <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+          )}
+          <AuthorStreakBadge streak={streak} compact />
         </div>
       )}
       <div className="flex items-center justify-between gap-3">
@@ -2872,7 +2898,11 @@ function SportsMiniPanel({
 
       {open ? (
         <div className="mt-4">
-          <CopyBetButton href={copyBetHref} onClick={onCopyBetClick} />
+          <CopyBetButton
+            href={copyBetHref}
+            onClick={onCopyBetClick}
+            label={copyBetLabel}
+          />
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2923,10 +2953,12 @@ function PredictionPositionPanel({
   marketHref,
   onMarketClick,
   copyBetHref,
+  copyBetLabel,
   onCopyBetClick,
   userName,
   agent,
   ownerHandle,
+  streak,
 }: {
   marketTitle: string;
   outcome: string;
@@ -2947,10 +2979,12 @@ function PredictionPositionPanel({
     initialOutcome?: 'yes' | 'no',
   ) => void;
   copyBetHref?: string;
+  copyBetLabel?: string;
   onCopyBetClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   userName?: string;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
+  streak?: AuthorStreak | null;
 }) {
   const shares =
     positionShares !== undefined && Number.isFinite(positionShares)
@@ -3118,10 +3152,12 @@ function PredictionPositionPanel({
 
   return (
     <div className="mt-2 w-full max-w-[430px] overflow-hidden rounded-[24px] border border-[#ECECEB] bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.10)]">
-      {/* Agent badge — only for trades auto-posted by a user's agent */}
-      {agent?.isAgentTrade && (
-        <div className="mb-3 flex justify-end">
-          <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+      {(agent?.isAgentTrade || streak) && (
+        <div className="mb-3 flex items-center justify-end gap-2">
+          {agent?.isAgentTrade && (
+            <AgentBadge agent={agent} ownerHandle={ownerHandle} />
+          )}
+          <AuthorStreakBadge streak={streak} compact />
         </div>
       )}
       <div className="flex items-center justify-between gap-3">
@@ -3329,7 +3365,11 @@ function PredictionPositionPanel({
 
       {open ? (
         <div className="mt-4">
-          <CopyBetButton href={copyBetHref} onClick={onCopyBetClick} />
+          <CopyBetButton
+            href={copyBetHref}
+            onClick={onCopyBetClick}
+            label={copyBetLabel}
+          />
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -3374,6 +3414,8 @@ function RegularPredictionFeedCard({
   onVerifiedFinalScore,
   agent,
   ownerHandle,
+  streak,
+  isOwner = false,
 }: PredictionFeedCardProps) {
   const {
     outcome,
@@ -3494,7 +3536,13 @@ function RegularPredictionFeedCard({
     currentPrice <= 1
       ? currentPrice
       : entryPrice;
-  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+  const {
+    marketHref,
+    onMarketClick,
+    copyBetHref,
+    copyBetLabel,
+    onCopyBetClick,
+  } =
     usePredictionMarketNavigation(
     displayContent,
     {
@@ -3507,6 +3555,7 @@ function RegularPredictionFeedCard({
       noPrice: resolvedNoPrice,
       closed: resolvedMarketState.closed,
     },
+    isOwner,
   );
 
   return (
@@ -3553,9 +3602,11 @@ function RegularPredictionFeedCard({
           marketHref={marketHref}
           onMarketClick={onMarketClick}
           copyBetHref={copyBetHref}
+          copyBetLabel={copyBetLabel}
           onCopyBetClick={onCopyBetClick}
           agent={agent}
           ownerHandle={ownerHandle}
+          streak={streak}
         />
       )}
 
@@ -3577,10 +3628,12 @@ function RegularPredictionFeedCard({
           marketHref={marketHref}
           onMarketClick={onMarketClick}
           copyBetHref={copyBetHref}
+          copyBetLabel={copyBetLabel}
           onCopyBetClick={onCopyBetClick}
           userName={userName}
           agent={agent}
           ownerHandle={ownerHandle}
+          streak={streak}
         />
       )}
 
@@ -3654,6 +3707,8 @@ function LiveBtcFiveMinutePredictionFeedCard({
   userName,
   agent,
   ownerHandle,
+  streak,
+  isOwner = false,
 }: PredictionFeedCardProps) {
   const { upProbability } = useBtcUpDownMarket();
   const outcome = normalizeBtcOutcome(content.outcome);
@@ -3685,7 +3740,13 @@ function LiveBtcFiveMinutePredictionFeedCard({
     currentPrice,
   };
   const tradeState = resolveTradeState(liveContent, false, marketState);
-  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+  const {
+    marketHref,
+    onMarketClick,
+    copyBetHref,
+    copyBetLabel,
+    onCopyBetClick,
+  } =
     usePredictionMarketNavigation(
     liveContent,
     {
@@ -3698,6 +3759,7 @@ function LiveBtcFiveMinutePredictionFeedCard({
       noPrice,
       closed: false,
     },
+    isOwner,
   );
 
   return (
@@ -3719,10 +3781,12 @@ function LiveBtcFiveMinutePredictionFeedCard({
         marketHref={marketHref}
         onMarketClick={onMarketClick}
         copyBetHref={copyBetHref}
+        copyBetLabel={copyBetLabel}
         onCopyBetClick={onCopyBetClick}
         userName={userName}
         agent={agent}
         ownerHandle={ownerHandle}
+        streak={streak}
       />
     </div>
   );
@@ -3734,6 +3798,8 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
   createdAt,
   agent,
   ownerHandle,
+  streak,
+  isOwner = false,
 }: PredictionFeedCardProps) {
   const windowStart = resolveBtcWindowStart(content, createdAt);
   const { market } = useHistoricalBtcFeedMarket(windowStart, true);
@@ -3822,7 +3888,13 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
     false,
     marketState,
   );
-  const { marketHref, onMarketClick, copyBetHref, onCopyBetClick } =
+  const {
+    marketHref,
+    onMarketClick,
+    copyBetHref,
+    copyBetLabel,
+    onCopyBetClick,
+  } =
     usePredictionMarketNavigation(
     historicalContent,
     {
@@ -3835,6 +3907,7 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
       noPrice,
       closed: marketState.closed,
     },
+    isOwner,
   );
 
   return (
@@ -3856,10 +3929,12 @@ function HistoricalBtcFiveMinutePredictionFeedCard({
         marketHref={marketHref}
         onMarketClick={onMarketClick}
         copyBetHref={copyBetHref}
+        copyBetLabel={copyBetLabel}
         onCopyBetClick={onCopyBetClick}
         userName={userName}
         agent={agent}
         ownerHandle={ownerHandle}
+        streak={streak}
       />
     </div>
   );

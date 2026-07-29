@@ -108,6 +108,36 @@ describe('PerpsPositionFeedCard rendering', () => {
     expect(screen.queryByText(/Stop hit/)).not.toBeInTheDocument();
   });
 
+  it('shows Close Trade and the current streak on an owner position', () => {
+    const now = Date.now();
+    render(
+      <PerpsPositionFeedCard
+        isOwner
+        streak={{ result: 'L', count: 2, label: '2L', kind: 'loss' }}
+        feed={{
+          content: {
+            coin: 'BTC',
+            side: 'long',
+            status: 'open',
+            leverage: 5,
+            entryPrice: 100,
+            markPrice: 105,
+            sizeCoins: 0.1,
+            openedAt: iso(now - HOUR_MS),
+          },
+          createdAt: iso(now - HOUR_MS),
+        }}
+      />,
+    );
+
+    const cta = screen.getByRole('link', { name: 'Close Trade' });
+    expect(cta).toHaveAttribute('href', expect.stringContaining('manage=1'));
+    expect(screen.getByLabelText('2 loss streak')).toHaveTextContent(
+      '2L streak',
+    );
+    expect(screen.queryByText('Copy Trade')).toBeNull();
+  });
+
   it('renders a stored closed position with its exit price and stored return', () => {
     const now = Date.now();
 

@@ -4,6 +4,7 @@ import PerpsPositionFeedCard, {
   type PerpsEntryMarker,
 } from './PerpsPositionFeedCard';
 import type { AgentBadgeAgent } from './AgentBadge';
+import type { AuthorStreak } from './AuthorStreakBadge';
 import type {
   PerpsPositionFeedContent,
   PerpsPositionFeedEvent,
@@ -44,6 +45,8 @@ interface PerpsFeedCardProps {
   createdAt?: string;
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
+  isOwner?: boolean;
+  streak?: AuthorStreak | null;
 }
 
 function maybeNumber(value: unknown) {
@@ -165,6 +168,8 @@ export default function PerpsFeedCard({
   createdAt,
   agent,
   ownerHandle,
+  isOwner = false,
+  streak,
 }: PerpsFeedCardProps) {
   return (
     <PerpsPositionFeedCard
@@ -180,6 +185,8 @@ export default function PerpsFeedCard({
         agent,
         createdAt,
       }}
+      isOwner={isOwner}
+      streak={streak}
     />
   );
 }

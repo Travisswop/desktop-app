@@ -116,4 +116,27 @@ describe('prediction feed card "Copy Bet"', () => {
     expect(screen.queryByTitle(/Open Yes market/)).toBeNull();
     expect(screen.queryByTitle(/Open No market/)).toBeNull();
   });
+
+  it('opens the sell ticket and shows the author streak for the owner', () => {
+    render(
+      <PredictionFeedCard
+        content={openBet}
+        userName="Travis"
+        isOwner
+        streak={{ result: 'W', count: 5, label: '5W', kind: 'win' }}
+      />,
+    );
+
+    const cta = screen.getByRole('link', { name: /Sell Bet/ });
+    expect(cta).toHaveAttribute(
+      'href',
+      `/prediction/market/${encodeURIComponent(
+        '0xfed-sept',
+      )}?outcome=yes&amount=41.67&side=SELL`,
+    );
+    expect(
+      screen.getByLabelText('5 win streak'),
+    ).toHaveTextContent('5W streak');
+    expect(screen.queryByText(/Copy Bet/)).toBeNull();
+  });
 });
