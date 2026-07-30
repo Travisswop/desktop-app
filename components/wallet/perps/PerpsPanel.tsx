@@ -736,7 +736,10 @@ export function PerpsPanel({
           stopLossPrice: riskPrices.stopLossPrice,
           orderId: openedFill?.orderId,
           masterAddress,
-          openedAt: eventTimestamp,
+          // Only the real opening fill may be reported as `openedAt` — once
+          // fills roll out of the userFills window, stamping "now" makes an old
+          // position look brand new and forks a duplicate card on every visit.
+          openedAt: openedFill?.timestamp,
           updatedAt: eventTimestamp,
         },
       }).catch((feedError) => {
