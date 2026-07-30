@@ -58,6 +58,7 @@ import ChartPostCard from "@/components/publicProfile/widgets/ChartPostCard";
 import FilesCard from "@/components/publicProfile/widgets/FilesCard";
 import MusicCard from "@/components/publicProfile/widgets/MusicCard";
 import MediaCarouselCard from "@/components/publicProfile/widgets/MediaCarouselCard";
+import BookingCard from "@/components/publicProfile/widgets/BookingCard";
 
 interface ClientProfileProps {
   userName: string;
@@ -783,6 +784,12 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                       <MusicCard config={item.config || {}} />
                     ) : item.widgetType === "mediaCarousel" ? (
                       <MediaCarouselCard config={item.config || {}} />
+                    ) : item.widgetType === "booking" ? (
+                      <BookingCard
+                        widgetId={item._id}
+                        config={item.config || {}}
+                        mode="public"
+                      />
                     ) : null}
                   </div>
                 ))}

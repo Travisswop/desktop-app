@@ -10,7 +10,8 @@ export type SmartsiteWidgetType =
   | "chartPost"
   | "files"
   | "music"
-  | "mediaCarousel";
+  | "mediaCarousel"
+  | "booking";
 
 const revalidateMicrosite = (micrositeId: string) => {
   revalidatePath(`/smartsite/icons/${micrositeId}`);

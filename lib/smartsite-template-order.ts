@@ -151,6 +151,12 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
     title: "Form",
     description: "Build a custom form and collect responses",
   },
+  {
+    id: "booking",
+    sectionKey: "widget",
+    title: "Book a Meeting",
+    description: "Let visitors schedule time on your Google Calendar",
+  },
 ];
 
 const SMARTSITE_TEMPLATE_SECTION_KEY_SET = new Set<string>(

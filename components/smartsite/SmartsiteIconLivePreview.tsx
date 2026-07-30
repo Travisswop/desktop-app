@@ -106,6 +106,7 @@ import ChartPostCard from "../publicProfile/widgets/ChartPostCard";
 import FilesCard from "../publicProfile/widgets/FilesCard";
 import MusicCard from "../publicProfile/widgets/MusicCard";
 import MediaCarouselCard from "../publicProfile/widgets/MediaCarouselCard";
+import BookingCard from "../publicProfile/widgets/BookingCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2591,6 +2592,12 @@ const SmartsiteIconLivePreview = ({
                               <MusicCard config={item.config || {}} mode="builder" />
                             ) : item.widgetType === "mediaCarousel" ? (
                               <MediaCarouselCard config={item.config || {}} mode="builder" />
+                            ) : item.widgetType === "booking" ? (
+                              <BookingCard
+                                widgetId={item._id}
+                                config={item.config || {}}
+                                mode="builder"
+                              />
                             ) : null}
                           </div>
                         </SortablePreviewSection>

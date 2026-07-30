@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BiSolidEdit } from "react-icons/bi";
 import {
+  CalendarDays,
   ClipboardList,
   Bot,
   BarChart3,
@@ -57,6 +58,7 @@ import AddAiChat from "../smartsite/EditMicrosite/widget/AddAiChat";
 import AddTraderStats from "../smartsite/EditMicrosite/widget/AddTraderStats";
 import AddChartPost from "../smartsite/EditMicrosite/widget/AddChartPost";
 import AddFiles from "../smartsite/EditMicrosite/widget/AddFiles";
+import AddBooking from "../smartsite/EditMicrosite/widget/AddBooking";
 import AddMusic from "../smartsite/EditMicrosite/widget/AddMusic";
 import AddMediaCarousel from "../smartsite/EditMicrosite/widget/AddMediaCarousel";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
@@ -93,6 +95,7 @@ const TEMPLATE_VISUALS: Record<
   feed: { image: feedImg },
   "tip-jar": { icon: HandCoins },
   "leads-form": { icon: ClipboardList },
+  booking: { icon: CalendarDays },
   "ai-chat": { icon: Bot },
   "trader-stats": { icon: BarChart3 },
   "chart-post": { icon: BarChart3 },
@@ -767,6 +770,18 @@ const BottomNavContent = () => {
               ← Back to Templates
             </button>
             <AddFiles onCloseModal={handleTemplateSaved} />
+          </div>
+        );
+      case "booking":
+        return (
+          <div className="p-6">
+            <button
+              onClick={handleBackToTemplates}
+              className="mb-4 text-sm font-semibold text-gray-500"
+            >
+              ← Back to Templates
+            </button>
+            <AddBooking onCloseModal={handleTemplateSaved} />
           </div>
         );
       default:

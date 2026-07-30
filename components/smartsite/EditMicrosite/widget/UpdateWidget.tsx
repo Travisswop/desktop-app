@@ -15,6 +15,10 @@ import {
 } from "@/components/publicProfile/widgets/LeadFormCard";
 import { sendCloudinaryFile } from "@/lib/SendCloudinaryAnyFile";
 import LeadFormBuilder, { type LeadFormBuilderConfig } from "@/components/smartsite/EditMicrosite/widget/LeadFormBuilder";
+import BookingConfigForm, {
+  defaultBookingConfig,
+  type BookingWidgetConfig,
+} from "@/components/smartsite/EditMicrosite/widget/BookingConfigForm";
 
 const MAX_PRESETS = 3;
 const SWATCHES = ["#e8734a", "#2a6fdb", "#1f8a5b", "#7c3aed", "#0a0a0c"];
@@ -26,6 +30,7 @@ const WIDGET_TITLES: Record<string, string> = {
   files: "Files",
   music: "Music / MP3",
   mediaCarousel: "Photo / Video Carousel",
+  booking: "Book a Meeting",
 };
 
 const inputClass =
@@ -316,8 +321,59 @@ const UpdateWidget = ({ iconDataObj, isOn, setOff }: any) => {
     }
   };
 
+  const handleBookingSave = async (nextConfig: BookingWidgetConfig) => {
+    setIsLoading(true);
+    try {
+      const data = await handleUpdateWidget(
+        {
+          _id: widget._id,
+          micrositeId: widget.micrositeId || iconDataObj?.micrositeId,
+          config: nextConfig,
+        },
+        token,
+      );
+      if (data?.state !== "success") throw new Error("Update failed");
+      toast.success("Meeting template updated");
+      closeModal();
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOn) {
     return null;
+  }
+
+  if (widgetType === "booking") {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/55 p-4"
+        onMouseDown={handleBackdropClick}
+      >
+        <div
+          ref={modalRef}
+          className="max-h-[90vh] w-full max-w-[520px] overflow-auto rounded-2xl bg-white p-6"
+        >
+          <BookingConfigForm
+            initialConfig={{
+              ...defaultBookingConfig(),
+              ...config,
+              availability: Array.isArray(config.availability)
+                ? config.availability
+                : defaultBookingConfig().availability,
+            }}
+            saveLabel="Update Meeting Template"
+            saving={isLoading}
+            onSave={handleBookingSave}
+            onDelete={handleDelete}
+            deleting={isDeleteLoading}
+          />
+        </div>
+      </div>
+    );
   }
 
   if (widgetType === "leadForm") {
