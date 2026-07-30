@@ -39,14 +39,22 @@ export default function AuthGuard({
   useEffect(() => {
     if (!ready) return;
 
-    if (authenticated || hasSwopBackendSession()) {
+    if (authenticated) {
       safeLocalStorage.setItem(AUTH_CACHE_KEY, String(Date.now()));
       setHasCachedSession(true);
       return;
     }
 
+    // Privy is the source of truth once it has initialised. The Swop backend
+    // cookies used to count as a session here, but they never expire on their
+    // own — so a user returning after their Privy session lapsed kept the
+    // cookies, skipped this redirect, and then hit `if (!authenticated) return
+    // null` below: a permanently blank page with no route back to /login.
+    // Clear the stale session and send them to log in again.
     safeLocalStorage.removeItem(AUTH_CACHE_KEY);
     setHasCachedSession(false);
+    Cookies.remove('access-token');
+    Cookies.remove('user-id');
     router.replace('/login');
   }, [ready, authenticated, router]);
 
