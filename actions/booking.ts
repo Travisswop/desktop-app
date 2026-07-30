@@ -115,9 +115,11 @@ export interface BookingSummary {
     timezone: string;
     siteUrl: string | null;
   } | null;
-  counts: { upcoming30d: number; thisWeek: number };
+  counts: { upcoming30d: number; thisWeek: number; allTime?: number };
   upcoming: OwnerBooking[];
   past: OwnerBooking[];
+  /** All confirmed bookings, start of current month → +60d (month grid). */
+  calendarBookings?: OwnerBooking[];
 }
 
 /** Owner dashboard: Calendar tile + bookings screen data (authed). */

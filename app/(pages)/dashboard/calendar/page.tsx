@@ -49,11 +49,30 @@ const availabilitySummary = (
  * Owner bookings screen (design: Dashboard Calendar Canvas) — upcoming/past
  * agenda plus connection, settings, and booking-link rail.
  */
+const dayKeyOf = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+};
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export default function DashboardCalendarPage() {
   const [summary, setSummary] = useState<BookingSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"upcoming" | "past">("upcoming");
+  const [view, setView] = useState<"upcoming" | "month" | "past">("upcoming");
   const [open, setOpen] = useState<string | null>(null);
+  const now = useMemo(() => new Date(), []);
+  const [monthCursor, setMonthCursor] = useState(() => ({
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+  }));
+  const [selectedDay, setSelectedDay] = useState<string>(() =>
+    dayKeyOf(new Date().toISOString()),
+  );
 
   useEffect(() => {
     const token = Cookies.get("access-token") || "";
@@ -64,7 +83,7 @@ export default function DashboardCalendarPage() {
   }, []);
 
   const groups = useMemo(() => {
-    const list = view === "upcoming" ? summary?.upcoming : summary?.past;
+    const list = view === "past" ? summary?.past : summary?.upcoming;
     const map = new Map<string, OwnerBooking[]>();
     for (const b of list ?? []) {
       const key = longDayOf(b.startTime);
@@ -73,6 +92,44 @@ export default function DashboardCalendarPage() {
     }
     return [...map.entries()];
   }, [summary, view]);
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, OwnerBooking[]>();
+    for (const b of summary?.calendarBookings ?? []) {
+      const key = dayKeyOf(b.startTime);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(b);
+    }
+    return map;
+  }, [summary]);
+
+  const monthGrid = useMemo(() => {
+    const first = new Date(monthCursor.year, monthCursor.month, 1);
+    const lead = (first.getDay() + 6) % 7; // Monday-start
+    const days = new Date(monthCursor.year, monthCursor.month + 1, 0).getDate();
+    return { lead, days };
+  }, [monthCursor]);
+  const monthKeyFor = (d: number) =>
+    `${monthCursor.year}-${String(monthCursor.month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const canPrevMonth =
+    monthCursor.year > now.getFullYear() ||
+    (monthCursor.year === now.getFullYear() &&
+      monthCursor.month > now.getMonth());
+  const canNextMonth =
+    new Date(monthCursor.year, monthCursor.month + 1, 1).getTime() <
+    now.getTime() + 60 * 24 * 3600 * 1000;
+  const shiftMonth = (delta: number) => {
+    const next = new Date(monthCursor.year, monthCursor.month + delta, 1);
+    setMonthCursor({ year: next.getFullYear(), month: next.getMonth() });
+  };
+  const selectedDayBookings = byDay.get(selectedDay) ?? [];
+  const selectedDayLabel = useMemo(() => {
+    const [y, m, d] = selectedDay.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  }, [selectedDay]);
 
   const widget = summary?.widget;
 
@@ -132,20 +189,59 @@ export default function DashboardCalendarPage() {
         </div>
       </div>
 
+      {/* stats row */}
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {(
+          [
+            ["Upcoming", String(summary?.counts.upcoming30d ?? 0), "next 30 days"],
+            ["This week", String(summary?.counts.thisWeek ?? 0), "next 7 days"],
+            ["All time", String(summary?.counts.allTime ?? 0), "bookings"],
+            [
+              "Length",
+              widget ? `${widget.durationsMinutes[0]}m` : "—",
+              widget?.bufferMinutes
+                ? `${widget.bufferMinutes} min buffer`
+                : "default",
+            ],
+          ] as const
+        ).map(([label, value, sub]) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+          >
+            <p className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-gray-400">
+              {label}
+            </p>
+            <p className="mt-1 font-mono text-[22px] font-semibold tracking-[-0.5px] text-gray-950">
+              {value}
+            </p>
+            <p className="text-[11.5px] text-gray-500">{sub}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="grid items-start gap-3 lg:grid-cols-[1fr_296px]">
         {/* agenda */}
         <div className="rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
           <div className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4">
             <div>
               <p className="text-[15px] font-bold text-gray-950">
-                {view === "upcoming" ? "Upcoming" : "Past bookings"}
+                {view === "upcoming"
+                  ? "Upcoming"
+                  : view === "month"
+                    ? `${MONTH_LABELS[monthCursor.month]} ${monthCursor.year}`
+                    : "Past bookings"}
               </p>
               <p className="mt-0.5 text-[11.5px] text-gray-500">
-                {view === "upcoming" ? "Your local time" : "Most recent first"}
+                {view === "upcoming"
+                  ? "Your local time"
+                  : view === "month"
+                    ? "Click a day to see its bookings"
+                    : "Most recent first"}
               </p>
             </div>
             <div className="flex gap-1 rounded-[10px] border border-black/[0.06] bg-[#f4f4f2] p-[3px]">
-              {(["upcoming", "past"] as const).map((k) => (
+              {(["upcoming", "month", "past"] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -156,13 +252,127 @@ export default function DashboardCalendarPage() {
                       : "text-gray-500"
                   }`}
                 >
-                  {k === "upcoming" ? "Upcoming" : "Past"}
+                  {k === "upcoming" ? "Upcoming" : k === "month" ? "Month" : "Past"}
                 </button>
               ))}
             </div>
           </div>
 
-          {groups.length === 0 && (
+          {view === "month" && (
+            <div className="grid sm:grid-cols-[1fr_236px]">
+              <div className="border-black/[0.06] p-5 sm:border-r">
+                <div className="mb-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    aria-label="Previous month"
+                    disabled={!canPrevMonth}
+                    onClick={() => shiftMonth(-1)}
+                    className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[12px] font-semibold text-gray-950 disabled:opacity-30"
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next month"
+                    disabled={!canNextMonth}
+                    onClick={() => shiftMonth(1)}
+                    className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[12px] font-semibold text-gray-950 disabled:opacity-30"
+                  >
+                    →
+                  </button>
+                </div>
+                <div className="mb-1.5 grid grid-cols-7 gap-1">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                    <p
+                      key={d}
+                      className="font-mono text-[10.5px] font-bold uppercase tracking-[0.4px] text-gray-500"
+                    >
+                      {d}
+                    </p>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: monthGrid.lead }).map((_, i) => (
+                    <span key={`l${i}`} />
+                  ))}
+                  {Array.from({ length: monthGrid.days }, (_, i) => i + 1).map(
+                    (d) => {
+                      const key = monthKeyFor(d);
+                      const list = byDay.get(key) ?? [];
+                      const on = selectedDay === key;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setSelectedDay(key)}
+                          className={`flex min-h-[74px] flex-col gap-1 overflow-hidden rounded-[11px] bg-white p-[7px] pb-[5px] text-left ${
+                            on
+                              ? "border-[1.5px] border-gray-950"
+                              : "border border-black/[0.06]"
+                          }`}
+                        >
+                          <span
+                            className={`font-mono text-[11.5px] ${
+                              list.length
+                                ? "font-semibold text-gray-950"
+                                : "text-gray-300"
+                            }`}
+                          >
+                            {d}
+                          </span>
+                          {list.slice(0, 2).map((b) => (
+                            <span
+                              key={b._id}
+                              className="block truncate rounded-[4px] px-1 py-0.5 text-[9.5px] font-semibold text-gray-950"
+                              style={{ backgroundColor: SWATCH }}
+                            >
+                              {timeOf(b.startTime).replace(":00", "")}{" "}
+                              {b.visitorName.split(" ")[0]}
+                            </span>
+                          ))}
+                          {list.length > 2 && (
+                            <span className="text-[9.5px] text-gray-500">
+                              +{list.length - 2} more
+                            </span>
+                          )}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-gray-400">
+                  {selectedDayLabel}
+                </p>
+                <div className="mt-2.5 flex flex-col gap-2">
+                  {selectedDayBookings.map((b) => (
+                    <div
+                      key={b._id}
+                      className="rounded-xl border border-black/[0.06] p-[11px]"
+                    >
+                      <p className="font-mono text-[12px] font-semibold text-gray-950">
+                        {timeOf(b.startTime)}
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] font-medium text-gray-950">
+                        {b.visitorName}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11.5px] text-gray-500">
+                        {b.note || b.visitorEmail}
+                      </p>
+                    </div>
+                  ))}
+                  {selectedDayBookings.length === 0 && (
+                    <p className="text-[12.5px] text-gray-500">
+                      Nothing booked. Times are still open on your SmartSite.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {view !== "month" && groups.length === 0 && (
             <p className="px-5 py-10 text-center text-[13px] text-gray-500">
               {view === "upcoming"
                 ? "No upcoming bookings — share your Meet tab to fill the calendar."
@@ -170,7 +380,7 @@ export default function DashboardCalendarPage() {
             </p>
           )}
 
-          {groups.map(([date, list]) => (
+          {view !== "month" && groups.map(([date, list]) => (
             <div key={date}>
               <div className="flex items-center gap-2.5 border-b border-black/[0.04] bg-[#fbfbfa] px-5 py-2.5">
                 <span className="text-[12px] font-semibold text-gray-950">
@@ -331,6 +541,62 @@ export default function DashboardCalendarPage() {
             >
               <Pencil className="h-3.5 w-3.5" /> Edit availability
             </Link>
+          </div>
+
+          {/* mini month */}
+          <div className="rounded-2xl border border-black/[0.06] bg-white p-[18px] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+            <div className="mb-2.5 flex items-center justify-between">
+              <p className="font-mono text-[10.5px] font-bold uppercase tracking-wider text-gray-400">
+                {MONTH_LABELS[monthCursor.month]} {monthCursor.year}
+              </p>
+              <span className="text-[11.5px] text-gray-500">
+                {summary?.calendarBookings?.length ?? 0} booked
+              </span>
+            </div>
+            <div className="mb-1 grid grid-cols-7 gap-[2px]">
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                <p
+                  key={`${d}${i}`}
+                  className="text-center font-mono text-[9.5px] font-semibold text-gray-400"
+                >
+                  {d}
+                </p>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-[2px]">
+              {Array.from({ length: monthGrid.lead }).map((_, i) => (
+                <span key={`ml${i}`} />
+              ))}
+              {Array.from({ length: monthGrid.days }, (_, i) => i + 1).map(
+                (d) => {
+                  const key = monthKeyFor(d);
+                  const n = byDay.get(key)?.length ?? 0;
+                  const on = selectedDay === key && view === "month";
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(key);
+                        setView("month");
+                      }}
+                      className={`relative h-[30px] rounded-lg font-mono text-[11.5px] leading-none ${
+                        on
+                          ? "border border-gray-950 bg-gray-950 font-semibold text-white"
+                          : n
+                            ? "bg-black/[0.035] font-semibold text-gray-950"
+                            : "text-gray-400"
+                      }`}
+                    >
+                      {d}
+                      {n > 0 && !on && (
+                        <span className="absolute bottom-1 left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-emerald-600" />
+                      )}
+                    </button>
+                  );
+                },
+              )}
+            </div>
           </div>
 
           {widget?.siteUrl && (
