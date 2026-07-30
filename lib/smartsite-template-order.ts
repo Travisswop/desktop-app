@@ -154,8 +154,8 @@ export const SMARTSITE_TEMPLATE_CATALOG: SmartsiteTemplateCatalogEntry[] = [
   {
     id: "booking",
     sectionKey: "widget",
-    title: "Book a Meeting",
-    description: "Let visitors schedule time on your Google Calendar",
+    title: "Calendar",
+    description: "A bookable tab synced to your Google Calendar",
   },
 ];
 

@@ -106,7 +106,7 @@ import ChartPostCard from "../publicProfile/widgets/ChartPostCard";
 import FilesCard from "../publicProfile/widgets/FilesCard";
 import MusicCard from "../publicProfile/widgets/MusicCard";
 import MediaCarouselCard from "../publicProfile/widgets/MediaCarouselCard";
-import BookingCard from "../publicProfile/widgets/BookingCard";
+import BookingBuildCard from "./EditMicrosite/widget/BookingBuildCard";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -2593,10 +2593,18 @@ const SmartsiteIconLivePreview = ({
                             ) : item.widgetType === "mediaCarousel" ? (
                               <MediaCarouselCard config={item.config || {}} mode="builder" />
                             ) : item.widgetType === "booking" ? (
-                              <BookingCard
-                                widgetId={item._id}
-                                config={item.config || {}}
-                                mode="builder"
+                              // Staged inline build card (connect → availability →
+                              // live); stops propagation so the edit modal never
+                              // opens over it.
+                              <BookingBuildCard
+                                widget={{ _id: item._id, config: item.config || {} }}
+                                micrositeId={data._id}
+                                siteUrl={
+                                  data?.profileUrl ||
+                                  (data?.username
+                                    ? `https://swopme.app/sp/${data.username}`
+                                    : undefined)
+                                }
                               />
                             ) : null}
                           </div>

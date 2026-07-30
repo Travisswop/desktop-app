@@ -30,7 +30,7 @@ const WIDGET_TITLES: Record<string, string> = {
   files: "Files",
   music: "Music / MP3",
   mediaCarousel: "Photo / Video Carousel",
-  booking: "Book a Meeting",
+  booking: "Calendar",
 };
 
 const inputClass =

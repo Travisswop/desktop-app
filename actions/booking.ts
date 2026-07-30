@@ -7,6 +7,7 @@
 
 export interface BookingSlotsResponse {
   live: boolean;
+  published?: boolean;
   timezone: string;
   durations: number[];
   maxDaysAhead?: number;

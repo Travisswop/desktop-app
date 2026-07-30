@@ -789,6 +789,7 @@ export default function ClientProfile({ userName }: ClientProfileProps) {
                         widgetId={item._id}
                         config={item.config || {}}
                         mode="public"
+                        ownerName={name}
                       />
                     ) : null}
                   </div>
