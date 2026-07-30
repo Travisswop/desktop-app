@@ -88,3 +88,55 @@ export async function cancelBooking(manageToken: string) {
     return { state: "error", message: "Could not cancel" };
   }
 }
+
+export interface OwnerBooking {
+  _id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  visitorName: string;
+  visitorEmail: string;
+  note?: string;
+  status: "confirmed" | "cancelled";
+  meetLink?: string;
+}
+
+export interface BookingSummary {
+  google: { connected: boolean; email: string };
+  widget: {
+    _id: string;
+    micrositeId: string;
+    published: boolean;
+    title: string;
+    durationsMinutes: number[];
+    bufferMinutes: number;
+    minNoticeHours: number;
+    availability: Array<{ day: number; start: string; end: string }>;
+    timezone: string;
+    siteUrl: string | null;
+  } | null;
+  counts: { upcoming30d: number; thisWeek: number };
+  upcoming: OwnerBooking[];
+  past: OwnerBooking[];
+}
+
+/** Owner dashboard: Calendar tile + bookings screen data (authed). */
+export async function getBookingSummary(
+  token: string,
+): Promise<BookingSummary | null> {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/v5/microsite/bookings/summary`,
+      {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return null;
+    return data?.data ?? null;
+  } catch (error) {
+    console.error("Booking summary fetch failed:", error);
+    return null;
+  }
+}

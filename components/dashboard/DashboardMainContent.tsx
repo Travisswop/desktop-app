@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import CalendarTile from "@/components/dashboard/CalendarTile";
 import {
   cloneElement,
   isValidElement,
@@ -451,6 +452,8 @@ export default function DashboardMainContent() {
             />
           ))}
         </div>
+
+        <CalendarTile />
 
         <SectionHead
           title="Sales"
