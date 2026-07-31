@@ -16,10 +16,8 @@ import * as shape from 'd3-shape';
 import isUrl from '@/lib/isUrl';
 import { useHyperliquidCandles } from '@/components/wallet/perps/hooks/useHyperliquidCandles';
 import { useAllMids } from '@/components/wallet/perps/hooks/useHyperliquidWebSocket';
-import {
-  normalizePerpsCoin,
-  useLivePerpsMarkPrice,
-} from './useLivePerpsMarkPrice';
+import { useLivePerpsMarkPrice } from './useLivePerpsMarkPrice';
+import { usePerpsMarketCoin } from './usePerpsMarketCoin';
 import {
   normalizePerpsEntryMarkers,
   type PerpsEntryMarker,
@@ -583,7 +581,10 @@ export default function PerpsPositionFeedCard({
 
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('1W');
   const candleInterval = PERIOD_INTERVAL[selectedPeriod];
-  const normalizedCoin = normalizePerpsCoin(rawCoin);
+  // Posts predating the builder-DEX rollout stored a bare ticker; resolve it
+  // against the live market index so the card charts the market the position
+  // was actually opened on.
+  const normalizedCoin = usePerpsMarketCoin(rawCoin, !hasStoredTerminalStatus);
   const marketCoin = normalizedCoin?.requestCoin || coin;
   const isBuilderDexCoin = Boolean(normalizedCoin?.dex);
   const liveBuilderMarkPrice = useLivePerpsMarkPrice(
@@ -788,10 +789,12 @@ export default function PerpsPositionFeedCard({
       getXForIndex(index),
       getY(point.price),
     ]);
+    // curveMonotoneX, not curveNatural: natural splines overshoot between
+    // points and render highs/lows the market never printed.
     return (
       shape
         .line<[number, number]>()
-        .curve(points.length < 10 ? shape.curveLinear : shape.curveNatural)(
+        .curve(points.length < 10 ? shape.curveLinear : shape.curveMonotoneX)(
         coordinates,
       ) || ''
     );

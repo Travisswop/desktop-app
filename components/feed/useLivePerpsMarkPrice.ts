@@ -19,15 +19,11 @@ export function normalizePerpsCoin(value: string | null | undefined) {
   if (!trimmed) return null;
 
   if (!trimmed.includes(':')) {
+    // A bare ticker is left bare here. Mapping it to a builder DEX is not a
+    // structural question — SpaceX is `xyz:SPCX` on one DEX and `vntl:SPACEX`
+    // on another, at different prices — so it is resolved against the live
+    // market index by usePerpsMarketCoin instead of guessed at.
     const displayCoin = trimmed.toUpperCase();
-    if (displayCoin === 'SPCX' || displayCoin === 'SPACEX') {
-      return {
-        requestCoin: 'xyz:SPCX',
-        dex: 'xyz',
-        displayCoin: 'SPCX',
-      } satisfies NormalizedPerpsCoin;
-    }
-
     return {
       requestCoin: displayCoin,
       displayCoin,

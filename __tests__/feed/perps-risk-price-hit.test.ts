@@ -3,7 +3,7 @@ jest.mock('d3-shape', () => ({
     curve: () => () => '',
   }),
   curveLinear: 'curveLinear',
-  curveNatural: 'curveNatural',
+  curveMonotoneX: 'curveMonotoneX',
 }));
 
 jest.mock('@/components/wallet/perps/hooks/useHyperliquidCandles', () => ({
@@ -19,6 +19,15 @@ jest.mock('@/components/feed/useLivePerpsMarkPrice', () => ({
     requestCoin: String(coin || '').toUpperCase(),
   }),
   useLivePerpsMarkPrice: () => null,
+}));
+
+// The card resolves bare tickers against the live market index; these tests
+// assert card behaviour, not that resolution, so keep the coin as stored.
+jest.mock('@/components/feed/usePerpsMarketCoin', () => ({
+  usePerpsMarketCoin: (coin: string) => ({
+    requestCoin: String(coin || '').toUpperCase(),
+    displayCoin: String(coin || '').toUpperCase(),
+  }),
 }));
 
 import {

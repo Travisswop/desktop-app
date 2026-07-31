@@ -71,6 +71,47 @@ function resolveProfileImageSrc(profilePic?: string | null): string | null {
   return `/images/user_avator/${encodeURIComponent(fileName)}`;
 }
 
+/**
+ * X position of the "swap happened here" avatar, in chart pixels.
+ *
+ * This has to be derived from the timestamps actually plotted, not from the
+ * nominal period window. The series regularly covers less than the full window
+ * — a thin token has few trades to chart, a new listing has no old history —
+ * so assuming the x-axis spans exactly [now - period, now] dropped the avatar
+ * at the wrong point on the line, usually pinned to an edge.
+ *
+ * Returns null when the swap falls outside the plotted range.
+ */
+export function swapMarkerX(
+  timestamps: number[],
+  createdAt: string | null | undefined,
+  chartWidth: number,
+  padding = 0,
+): number | null {
+  if (!createdAt || timestamps.length < 2 || chartWidth <= 0) return null;
+
+  const createdAtMs = new Date(createdAt).getTime();
+  if (!isFinite(createdAtMs)) return null;
+
+  const first = timestamps[0];
+  const last = timestamps[timestamps.length - 1];
+  if (!(last > first)) return null;
+  if (createdAtMs < first || createdAtMs > last) return null;
+
+  // Interpolate between the bracketing samples so uneven spacing (5-minute
+  // candles in one stretch, hourly in another) still lands on the right point.
+  let index = timestamps.findIndex((ts) => ts >= createdAtMs);
+  if (index <= 0) index = 1;
+  const prev = timestamps[index - 1];
+  const next = timestamps[index];
+  const span = next - prev;
+  const fraction = span > 0 ? (createdAtMs - prev) / span : 0;
+  const position = index - 1 + Math.min(1, Math.max(0, fraction));
+
+  const xStep = (chartWidth - padding * 2) / (timestamps.length - 1);
+  return padding + position * xStep;
+}
+
 // ---------------------------------------------------------------------------
 // Skeleton loader
 // ---------------------------------------------------------------------------
@@ -271,12 +312,16 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
           }
         }
 
-        // Filter to window
+        // Trim to the window. The API already clips to the requested range,
+        // so this only guards against a provider returning extra history —
+        // and it must never empty the chart: a token that simply has less
+        // history than the period should still plot what it has.
         if (displayPeriod !== "ALL") {
           const windowMs = PERIOD_MS[displayPeriod];
           if (windowMs) {
             const cutoff = Date.now() - windowMs;
-            prices = prices.filter((p) => p.timestamp >= cutoff);
+            const trimmed = prices.filter((p) => p.timestamp >= cutoff);
+            if (trimmed.length >= 2) prices = trimmed;
           }
         }
 
@@ -383,7 +428,10 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
       })
       .filter((p): p is [number, number] => p !== null);
 
-    const curve = points.length < 10 ? shape.curveLinear : shape.curveNatural;
+    // curveNatural overshoots between points — it draws highs above the real
+    // max and dips below the real min, which reads as price action that never
+    // happened. curveMonotoneX is smooth but never leaves the data's range.
+    const curve = points.length < 10 ? shape.curveLinear : shape.curveMonotoneX;
     return shape.line<[number, number]>().curve(curve)(points) ?? "";
   }, [chartData, yDomain, chartWidth, chartHeight]);
 
@@ -395,15 +443,10 @@ const TransactionSwapGraph: React.FC<TransactionSwapGraphProps> = ({
   // ---------------------------------------------------------------------------
   // createdAt marker (same logic as RN)
   // ---------------------------------------------------------------------------
-  const createdAtX = useMemo(() => {
-    if (!createdAt || !chartData.length) return null;
-    if (selectedPeriod === "ALL") return PADDING + (chartWidth - PADDING * 2);
-    const totalMs = PERIOD_MS[selectedPeriod];
-    if (!totalMs) return null;
-    const elapsed = Date.now() - new Date(createdAt).getTime();
-    if (elapsed < 0 || elapsed > totalMs) return null;
-    return PADDING + (1 - elapsed / totalMs) * (chartWidth - PADDING * 2);
-  }, [createdAt, chartData, selectedPeriod, chartWidth]);
+  const createdAtX = useMemo(
+    () => swapMarkerX(timestamps, createdAt, chartWidth),
+    [createdAt, timestamps, chartWidth],
+  );
 
   const getYForX = useCallback(
     (xPos: number) => {
