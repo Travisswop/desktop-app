@@ -262,10 +262,15 @@ const DELIVERY_TONES: Record<string, { bg: string; fg: string }> = {
   Shipped: { bg: '#e0e7ff', fg: '#3730a3' },
   Delivered: { bg: '#e7f7ec', fg: '#0d8b3e' },
   Pending: { bg: '#fef0d4', fg: '#b45309' },
+  Paid: { bg: '#e7f7ec', fg: '#0d8b3e' },
+  'In escrow': { bg: '#e0e7ff', fg: '#3730a3' },
+  'Release pending': { bg: '#fef0d4', fg: '#b45309' },
+  Releasing: { bg: '#e0e7ff', fg: '#3730a3' },
   Processing: { bg: '#fef0d4', fg: '#b45309' },
   'In transit': { bg: '#e0e7ff', fg: '#3730a3' },
   Cancel: { bg: '#fde7e7', fg: '#b91c1c' },
   Refunded: { bg: '#fde7e7', fg: '#b91c1c' },
+  Failed: { bg: '#fde7e7', fg: '#b91c1c' },
 };
 
 export const DeliveryPill = ({ status }: { status: string }) => {

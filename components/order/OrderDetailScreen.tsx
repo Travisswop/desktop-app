@@ -30,6 +30,7 @@ import {
   formatUsdAmount,
   marketplaceReceiptImageUrl,
 } from '@/lib/marketplace-api';
+import { marketplaceCheckoutSourceLabel } from '@/lib/marketplace-display';
 import Image from 'next/image';
 
 export interface OrderLine {
@@ -86,7 +87,9 @@ export interface OrderDetail {
   };
   counterparty: Counterparty | null;
   lines: OrderLine[];
-  userRole: 'buyer' | 'seller' | null;
+  userRole: 'buyer' | 'seller' | 'payment' | null;
+  viewerIsBuyer?: boolean;
+  viewerIsSeller?: boolean;
   receipt?: {
     receiptId?: string | null;
     status?: string;
@@ -319,6 +322,15 @@ export default function OrderDetailScreen({
 }) {
   const router = useRouter();
   const isBuyerCtx = order.userRole === 'buyer';
+  const isSellerCtx = order.userRole === 'seller';
+  const isPaymentCtx = order.userRole === 'payment';
+  // A self-purchase has the same user on both sides of the order. Keep a
+  // single role for the tab context, while retaining independent participant
+  // checks so Sold can manage shipping and Purchases can confirm receipt.
+  const canActAsBuyer =
+    isBuyerCtx && (order.viewerIsBuyer ?? true);
+  const canActAsSeller =
+    isSellerCtx && (order.viewerIsSeller ?? true);
   const detailsLabel: DetailTab = isBuyerCtx ? 'Buyer Details' : 'Customer Details';
   const digitalLines = useMemo(
     () => order.lines.filter((line) => line.digitalAsset?.enabled),
@@ -413,7 +425,7 @@ export default function OrderDetailScreen({
       order.fulfillment?.status === 'receipt_confirmed'
   );
   const canConfirmReceipt =
-    isBuyerCtx &&
+    canActAsBuyer &&
     requiresShipping &&
     paymentComplete &&
     deliveryConfirmed &&
@@ -421,22 +433,25 @@ export default function OrderDetailScreen({
     !escrowReleased &&
     !disputeHold;
   const canDispute =
-    isBuyerCtx &&
+    canActAsBuyer &&
     paymentComplete &&
     !receiptConfirmed &&
     !escrowReleased &&
     Boolean(onDispute);
   const canUpdateShipping =
-    !isBuyerCtx && requiresShipping && paymentComplete && Boolean(onUpdateShipping);
+    canActAsSeller &&
+    requiresShipping &&
+    paymentComplete &&
+    Boolean(onUpdateShipping);
   const canCompletePayment =
-    isBuyerCtx && !paymentComplete && Boolean(onCompletePayment);
+    canActAsBuyer && !paymentComplete && Boolean(onCompletePayment);
   const canDownloadDigitalAssets =
-    isBuyerCtx && paymentComplete && order.receipt?.status === 'minted';
+    canActAsBuyer && paymentComplete && order.receipt?.status === 'minted';
   const hasMockReceipt = isMockReceipt(order.receipt);
   const digitalDownloadReadyMessage = hasMockReceipt
     ? 'Test receipt recorded. No wallet NFT was minted.'
     : 'Receipt NFT verified for this order.';
-  const digitalDownloadReason = !isBuyerCtx
+  const digitalDownloadReason = !canActAsBuyer
     ? 'Only the buyer can download purchased files.'
     : !paymentComplete
     ? 'Download unlocks after payment is complete.'
@@ -444,7 +459,12 @@ export default function OrderDetailScreen({
     ? 'Download unlocks after the receipt NFT is minted.'
     : '';
   const escrowStatusMessage = (() => {
-    if (!isBuyerCtx || !requiresShipping || !paymentComplete || receiptConfirmed) {
+    if (
+      !canActAsBuyer ||
+      !requiresShipping ||
+      !paymentComplete ||
+      receiptConfirmed
+    ) {
       return null;
     }
     if (disputeHold) return 'Dispute open. Escrow release is paused.';
@@ -515,7 +535,7 @@ export default function OrderDetailScreen({
       title={`Order #${order.orderId}`}
       kicker={`Placed ${formatDate(order.orderDate)} · ${
         order.counterparty?.name ?? '—'
-      } · ${isBuyerCtx ? 'Purchases' : 'Sold'}`}
+      } · ${isBuyerCtx ? 'Purchases' : isSellerCtx ? 'Sold' : 'Payments'}`}
     >
       {/* Total + Overview */}
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14 }}>
@@ -541,7 +561,11 @@ export default function OrderDetailScreen({
               marginBottom: 14,
             }}
           >
-            {isBuyerCtx ? 'Purchases Overview' : 'Payments Overview'}
+            {isBuyerCtx
+              ? 'Purchases Overview'
+              : isSellerCtx
+                ? 'Sales Overview'
+                : 'Payments Overview'}
           </div>
           <div
             style={{
@@ -741,7 +765,7 @@ export default function OrderDetailScreen({
           style={{
             padding: '20px 24px',
             borderTop: `1px solid ${hair2}`,
-            display: 'flex',
+            display: isPaymentCtx ? 'none' : 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: 12,
@@ -764,8 +788,15 @@ export default function OrderDetailScreen({
             </div>
           ) : null}
 
-          {isBuyerCtx ? (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+          {canActAsBuyer || canActAsSeller ? (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 12,
+              }}
+            >
               {canCompletePayment ? (
                 <button
                   type="button"
@@ -776,7 +807,7 @@ export default function OrderDetailScreen({
                   Submit Payment
                 </button>
               ) : null}
-              {requiresShipping ? (
+              {canActAsBuyer && requiresShipping ? (
                 <button
                   type="button"
                   disabled={!canConfirmReceipt || actionLoading}
@@ -789,31 +820,37 @@ export default function OrderDetailScreen({
                   Confirm order received
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled={!canDispute || actionLoading}
-                onClick={() => {
-                  if (!canDispute) return;
-                  setConfirmKind('dispute');
-                }}
-                style={buttonStyle(
-                  { ...primaryBtn, padding: '12px 32px', borderRadius: 12 },
-                  !canDispute || actionLoading
-                )}
-              >
-                Dispute
-              </button>
+              {canActAsBuyer ? (
+                <button
+                  type="button"
+                  disabled={!canDispute || actionLoading}
+                  onClick={() => {
+                    if (!canDispute) return;
+                    setConfirmKind('dispute');
+                  }}
+                  style={buttonStyle(
+                    { ...primaryBtn, padding: '12px 32px', borderRadius: 12 },
+                    !canDispute || actionLoading
+                  )}
+                >
+                  Dispute
+                </button>
+              ) : null}
+              {canActAsSeller ? (
+                <button
+                  type="button"
+                  disabled={!canUpdateShipping || actionLoading}
+                  onClick={() => setShippingOpen((value) => !value)}
+                  style={buttonStyle(
+                    ghostBtn,
+                    !canUpdateShipping || actionLoading
+                  )}
+                >
+                  Update Shipping
+                </button>
+              ) : null}
             </div>
-          ) : (
-            <button
-              type="button"
-              disabled={!canUpdateShipping || actionLoading}
-              onClick={() => setShippingOpen((value) => !value)}
-              style={buttonStyle(ghostBtn, !canUpdateShipping || actionLoading)}
-            >
-              Update Shipping
-            </button>
-          )}
+          ) : null}
 
           {escrowStatusMessage ? (
             <div style={escrowNoticeStyle}>{escrowStatusMessage}</div>
@@ -890,7 +927,9 @@ export default function OrderDetailScreen({
           })}
         </div>
 
-        {tab === 'Order History' && <OrderHistory order={order} isBuyer={isBuyerCtx} />}
+        {tab === 'Order History' && (
+          <OrderHistory order={order} context={order.userRole} />
+        )}
         {(tab === 'Customer Details' || tab === 'Buyer Details') && (
           <CounterpartyDetails counterparty={order.counterparty} buyer={isBuyerCtx} />
         )}
@@ -1358,8 +1397,17 @@ function OrderStateCards({ order }: { order: OrderDetail }) {
         ) : null}
       </Card>
       <Card pad={20}>
-        <div style={stateTitleStyle}>Settlement & Tracking</div>
+        <div style={stateTitleStyle}>
+          {order.userRole === 'payment'
+            ? 'Payment Flow & Escrow'
+            : 'Settlement & Tracking'}
+        </div>
         <div style={stateGridStyle}>
+          <StateRow
+            label="Checkout source"
+            value={marketplaceCheckoutSourceLabel(order.checkoutMode)}
+          />
+          <StateRow label="Payment" value={humanize(order.payment)} />
           <StateRow label="Policy" value={humanize(settlement?.policy)} />
           <StateRow label="Settlement" value={humanize(settlement?.status)} />
           <StateRow
@@ -1580,8 +1628,12 @@ const HISTORY_TONE: Record<string, string> = {
   Complete: posGreen,
   Delivered: posGreen,
   Settled: posGreen,
+  Paid: posGreen,
   'In Review': '#b45309',
   'In Transit': '#b45309',
+  Held: '#3730a3',
+  'Release Pending': '#b45309',
+  Releasing: '#3730a3',
   Pending: '#b45309',
   Processing: '#b45309',
   Cancel: '#b91c1c',
@@ -1590,10 +1642,10 @@ const HISTORY_TONE: Record<string, string> = {
 
 function OrderHistory({
   order,
-  isBuyer,
+  context,
 }: {
   order: OrderDetail;
-  isBuyer: boolean;
+  context: OrderDetail['userRole'];
 }) {
   const actualEvents = (order.processingStages || [])
     // Receipt minting is platform plumbing, not an order milestone.
@@ -1607,7 +1659,35 @@ function OrderHistory({
 
   const events = actualEvents.length
     ? actualEvents
-    : isBuyer
+    : context === 'payment'
+    ? [
+        {
+          label: 'Payment Status',
+          status: order.payment === 'completed' ? 'Paid' : 'Pending',
+          when: formatTime(order.orderDate),
+          done: order.payment === 'completed',
+        },
+        {
+          label: 'Escrow Status',
+          status: humanize(order.settlement?.status),
+          when: formatTime(
+            order.settlement?.releasedAt || order.orderDate
+          ),
+          done: order.settlement?.status === 'released',
+        },
+        {
+          label: 'Payout Status',
+          status:
+            order.settlement?.status === 'released'
+              ? 'Settled'
+              : 'Pending',
+          when: order.settlement?.releasedAt
+            ? formatTime(order.settlement.releasedAt)
+            : 'TBD',
+          done: order.settlement?.status === 'released',
+        },
+      ]
+    : context === 'buyer'
     ? [
         {
           label: 'Payment Status',

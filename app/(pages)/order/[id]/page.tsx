@@ -13,21 +13,29 @@ import {
   downloadMarketplaceDigitalAsset,
   getMarketplaceOrder,
   getMarketplaceReceipt,
+  marketplaceOrderContextFromTab,
+  marketplacePaymentFlowStatus,
   orderChainLabel,
   orderRequiresShippingFlow,
+  resolveMarketplaceOrderDetailContext,
   updateMarketplaceShipping,
   type MarketplaceDigitalAsset,
   type MarketplaceOrder,
   type MarketplaceParty,
   type MarketplaceReceiptState,
+  type MarketplaceOrderDetailContext,
 } from '@/lib/marketplace-api';
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }
 
-export default function OrderDetailPage({ params }: Props) {
+export default function OrderDetailPage({ params, searchParams }: Props) {
   const { id } = use(params);
+  const query = use(searchParams);
+  const tabParam = Array.isArray(query.tab) ? query.tab[0] : query.tab;
+  const requestedContext = marketplaceOrderContextFromTab(tabParam);
   const { user, accessToken } = useUser();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +44,12 @@ export default function OrderDetailPage({ params }: Props) {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (orderId: string, token: string, currentUserId: string) => {
+    async (
+      orderId: string,
+      token: string,
+      currentUserId: string,
+      preferredContext: MarketplaceOrderDetailContext | null
+    ) => {
       const [marketplaceOrder, receiptPayload] = await Promise.all([
         getMarketplaceOrder(token, orderId),
         getMarketplaceReceipt(token, orderId).catch(() => null),
@@ -50,7 +63,8 @@ export default function OrderDetailPage({ params }: Props) {
       return mapMarketplaceOrderDetail(
         receiptPayload?.order || marketplaceOrder,
         currentUserId,
-        receipt
+        receipt,
+        preferredContext
       );
     },
     []
@@ -59,9 +73,16 @@ export default function OrderDetailPage({ params }: Props) {
   const replaceOrder = useCallback(
     (nextOrder: MarketplaceOrder, receipt?: MarketplaceReceiptState) => {
       if (!user?._id) return;
-      setOrder(mapMarketplaceOrderDetail(nextOrder, user._id, receipt));
+      setOrder(
+        mapMarketplaceOrderDetail(
+          nextOrder,
+          user._id,
+          receipt,
+          requestedContext
+        )
+      );
     },
-    [user?._id]
+    [user?._id, requestedContext]
   );
 
   useEffect(() => {
@@ -81,7 +102,7 @@ export default function OrderDetailPage({ params }: Props) {
     setLoading(true);
     setError(null);
     setActionError(null);
-    load(id, accessToken, user._id)
+    load(id, accessToken, user._id, requestedContext)
       .then((data) => {
         if (!cancelled) {
           setOrder(data);
@@ -98,7 +119,7 @@ export default function OrderDetailPage({ params }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [id, user, accessToken, load]);
+  }, [id, user, accessToken, load, requestedContext]);
 
   const handleUpdateShipping = useCallback(
     async (payload: {
@@ -177,7 +198,8 @@ export default function OrderDetailPage({ params }: Props) {
         const refreshed = await load(
           order._id || order.orderId,
           accessToken,
-          user._id
+          user._id,
+          requestedContext
         );
         setOrder(refreshed);
       } catch (err) {
@@ -189,7 +211,7 @@ export default function OrderDetailPage({ params }: Props) {
         setActionLoading(false);
       }
     },
-    [accessToken, order, user?._id, load]
+    [accessToken, order, user?._id, load, requestedContext]
   );
 
   const handleDownloadDigitalAsset = useCallback(
@@ -266,17 +288,22 @@ export default function OrderDetailPage({ params }: Props) {
 function mapMarketplaceOrderDetail(
   order: MarketplaceOrder,
   currentUserId: string,
-  receipt?: MarketplaceReceiptState
+  receipt?: MarketplaceReceiptState,
+  requestedContext?: MarketplaceOrderDetailContext | null
 ): OrderDetail {
-  const role =
-    String(order.buyer?.id || '') === String(currentUserId) ? 'buyer' : 'seller';
-  const counterparty = role === 'buyer' ? order.merchant : order.buyer;
+  const { context, viewerIsBuyer, viewerIsSeller } =
+    resolveMarketplaceOrderDetailContext(
+      order,
+      currentUserId,
+      requestedContext
+    );
+  const counterparty = context === 'buyer' ? order.merchant : order.buyer;
 
   return {
     orderId: order.publicReference || order.orderId || order._id,
     _id: order._id || order.orderId,
     orderDate: order.createdAt || order.updatedAt || '',
-    delivery: deliveryLabel(order, role),
+    delivery: deliveryLabel(order, context),
     payment: order.payment?.status || 'pending',
     chain: orderChainLabel(order),
     financial: order.financial,
@@ -289,7 +316,9 @@ function mapMarketplaceOrderDetail(
       quantity: Number(item.quantity) || 1,
       digitalAsset: item.productSnapshot?.digitalAsset || null,
     })),
-    userRole: role,
+    userRole: context,
+    viewerIsBuyer,
+    viewerIsSeller,
     status: order.status,
     orderType: order.orderType,
     checkoutMode: order.checkoutMode,
@@ -315,7 +344,12 @@ function mapCounterparty(party?: MarketplaceParty | null) {
   };
 }
 
-function deliveryLabel(order: MarketplaceOrder, role: 'buyer' | 'seller') {
+function deliveryLabel(
+  order: MarketplaceOrder,
+  context: MarketplaceOrderDetailContext
+) {
+  if (context === 'payment') return marketplacePaymentFlowStatus(order);
+
   if (
     order.payment?.status === 'cancelled' ||
     order.status === 'cancelled' ||
@@ -329,7 +363,7 @@ function deliveryLabel(order: MarketplaceOrder, role: 'buyer' | 'seller') {
   // Digital / no-shipping orders complete as soon as payment clears.
   if (!orderRequiresShippingFlow(order)) {
     return order.payment?.status === 'completed'
-      ? role === 'buyer'
+      ? context === 'buyer'
         ? 'Delivered'
         : 'Complete'
       : 'Pending';
@@ -339,7 +373,7 @@ function deliveryLabel(order: MarketplaceOrder, role: 'buyer' | 'seller') {
   // and the buyer confirms receipt. Until then they stay pending, regardless of
   // settlement release or auto-completion.
   if (deliveryFullyConfirmed(order)) {
-    return role === 'buyer' ? 'Delivered' : 'Complete';
+    return context === 'buyer' ? 'Delivered' : 'Complete';
   }
 
   if (

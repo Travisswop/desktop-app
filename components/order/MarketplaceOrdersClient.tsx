@@ -9,6 +9,7 @@ import {
   listMarketplaceOrders,
   orderChainLabel,
   orderRequiresShippingFlow,
+  marketplacePaymentFlowStatus,
   type MarketplaceOrder,
   type MarketplaceParty,
 } from '@/lib/marketplace-api';
@@ -225,8 +226,7 @@ function deliveryLabel(
   }
 
   if (tab === 'Payments') {
-    if (order.settlement?.status === 'released') return 'Settled';
-    return 'Pending';
+    return marketplacePaymentFlowStatus(order);
   }
 
   // Digital / no-shipping orders have no delivery or receipt to confirm — they

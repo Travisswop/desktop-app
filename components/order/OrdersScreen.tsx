@@ -16,7 +16,10 @@ import {
   posGreen,
 } from '@/components/mint/design-system';
 import { Download } from 'lucide-react';
-import { isInPersonCheckoutMode } from '@/lib/marketplace-display';
+import {
+  isInPersonCheckoutMode,
+  marketplaceCheckoutSourceLabel,
+} from '@/lib/marketplace-display';
 import { formatUsdAmount } from '@/lib/marketplace-api';
 
 export type OrderTab = 'Payments' | 'Sold' | 'Purchases';
@@ -101,10 +104,18 @@ export default function OrdersScreen({
       ['Complete', 'Settled', 'Delivered'].includes(r.delivery)
     ).length;
     const pending = rows.filter((r) =>
-      ['Pending', 'Processing', 'In transit'].includes(r.delivery)
+      [
+        'Pending',
+        'Paid',
+        'In escrow',
+        'Release pending',
+        'Releasing',
+        'Processing',
+        'In transit',
+      ].includes(r.delivery)
     ).length;
     const refunded = rows.filter((r) =>
-      ['Refunded', 'Cancel'].includes(r.delivery)
+      ['Refunded', 'Cancel', 'Failed'].includes(r.delivery)
     ).length;
     const avg = orders > 0 ? revenue / orders : 0;
 
@@ -384,12 +395,23 @@ export default function OrdersScreen({
               <Mono size={12.5} color={ink}>
                 {o.id}
               </Mono>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Avatar size={24} bg="#eaeaea">
-                  {o.counterpartyAvatar}
-                </Avatar>
-                <div style={{ fontSize: 13 }}>{o.counterparty}</div>
-              </div>
+              {tab === 'Payments' ? (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {marketplaceCheckoutSourceLabel(o.checkoutMode)}
+                  </div>
+                  <div style={{ marginTop: 2, fontSize: 11, color: muted }}>
+                    {o.chain}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Avatar size={24} bg="#eaeaea">
+                    {o.counterpartyAvatar}
+                  </Avatar>
+                  <div style={{ fontSize: 13 }}>{o.counterparty}</div>
+                </div>
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -410,7 +432,8 @@ export default function OrdersScreen({
                 >
                   {o.item}
                 </span>
-                {isInPersonCheckoutMode(o.checkoutMode) && <CheckoutModePill />}
+                {tab !== 'Payments' &&
+                  isInPersonCheckoutMode(o.checkoutMode) && <CheckoutModePill />}
               </div>
               <Mono size={13}>${formatUsdAmount(o.price)}</Mono>
               <div style={{ fontSize: 12.5, color: muted }}>{o.date}</div>

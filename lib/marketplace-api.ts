@@ -159,6 +159,74 @@ export type MarketplaceParty = {
   wallet?: { address?: string };
 };
 
+export type MarketplaceOrderViewerRole = 'buyer' | 'seller';
+export type MarketplaceOrderDetailContext =
+  | MarketplaceOrderViewerRole
+  | 'payment';
+
+export function marketplaceOrderContextFromTab(
+  tab?: string | null
+): MarketplaceOrderDetailContext | null {
+  const normalized = String(tab || '').trim().toLowerCase();
+  if (normalized === 'purchases') return 'buyer';
+  if (normalized === 'sold') return 'seller';
+  if (normalized === 'payments') return 'payment';
+  return null;
+}
+
+export function resolveMarketplaceOrderDetailContext(
+  order: MarketplaceOrder,
+  currentUserId: string,
+  requestedContext?: MarketplaceOrderDetailContext | null
+) {
+  const viewerIsBuyer =
+    String(order.buyer?.id || '') === String(currentUserId);
+  const viewerIsSeller =
+    String(order.merchant?.id || '') === String(currentUserId);
+
+  const requestedContextAllowed =
+    (requestedContext === 'buyer' && viewerIsBuyer) ||
+    (requestedContext === 'seller' && viewerIsSeller) ||
+    (requestedContext === 'payment' && (viewerIsBuyer || viewerIsSeller));
+  const context: MarketplaceOrderDetailContext = requestedContextAllowed
+    ? requestedContext
+    : viewerIsBuyer
+      ? 'buyer'
+      : 'seller';
+
+  return { context, viewerIsBuyer, viewerIsSeller };
+}
+
+export function marketplacePaymentFlowStatus(order: MarketplaceOrder) {
+  const paymentStatus = String(order.payment?.status || '').toLowerCase();
+  const settlementStatus = String(order.settlement?.status || '').toLowerCase();
+
+  if (paymentStatus === 'refunded' || settlementStatus === 'refunded') {
+    return 'Refunded';
+  }
+  if (
+    paymentStatus === 'failed' ||
+    paymentStatus === 'cancelled' ||
+    settlementStatus === 'failed'
+  ) {
+    return 'Failed';
+  }
+
+  const settlementLabels: Record<string, string> = {
+    held: 'In escrow',
+    release_pending: 'Release pending',
+    releasing: 'Releasing',
+    released: 'Settled',
+  };
+  if (settlementLabels[settlementStatus]) {
+    return settlementLabels[settlementStatus];
+  }
+  if (paymentStatus === 'completed' && order.settlement?.policy === 'direct') {
+    return 'Settled';
+  }
+  return paymentStatus === 'completed' ? 'Paid' : 'Pending';
+}
+
 // True only for shippable orders that have nothing left to do: a delivery
 // flow exists (requiresShipping) and confirmations are pending.
 export function orderRequiresShippingFlow(order: MarketplaceOrder) {

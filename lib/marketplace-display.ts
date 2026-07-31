@@ -29,3 +29,10 @@ export const getMarketplaceProductSectionLabel = (
 
 export const isInPersonCheckoutMode = (checkoutMode?: string | null) =>
   String(checkoutMode || "").toLowerCase() === "in_person";
+
+export const marketplaceCheckoutSourceLabel = (
+  checkoutMode?: string | null,
+) =>
+  isInPersonCheckoutMode(checkoutMode)
+    ? "In-person checkout"
+    : "SmartSite checkout";
