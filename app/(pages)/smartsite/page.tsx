@@ -1,8 +1,9 @@
 "use client";
 import Image from "next/image";
-import React from "react";
+import React, { Suspense, useEffect, useMemo } from "react";
 import { LiaFileMedicalSolid } from "react-icons/lia";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import ButtonList from "@/components/smartsite/ButtonList";
 import isUrl from "@/lib/isUrl";
 import SmartsiteSocialShare from "@/components/smartsite/socialShare/SmartsiteSocialShare";
@@ -15,18 +16,43 @@ import { TbTransfer } from "react-icons/tb";
 import { Checkbox } from "@nextui-org/react";
 import { BsSend } from "react-icons/bs";
 
-const SmartsitePage = () => {
+const SmartsitePageContent = () => {
   const { user, loading, accessToken } = useUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // The editor IS the Build tab (matching mobile). This grid only shows as an
+  // explicit page switcher ("Switch Pages" in the build menu) or when the user
+  // has no SmartSite yet.
+  const isPageSwitcher = searchParams?.get("view") === "pages";
 
   const { data, error, isLoading } = useDesktopUserData(
     user?._id,
     accessToken || "",
   );
 
-  // console.log("useUser user", user);
-  console.log("data user", data);
+  const microsites = useMemo<any[]>(
+    () => data?.microsites ?? [],
+    [data?.microsites],
+  );
 
-  if (loading || isLoading) {
+  // The parent/primary microsite is the one the wallet is attached to — it is
+  // what mobile opens straight into.
+  const parentMicrositeId = useMemo(() => {
+    if (microsites.length === 0) return "";
+    const parent =
+      microsites.find((microsite: any) => microsite.primary) ?? microsites[0];
+    return parent?._id ?? "";
+  }, [microsites]);
+
+  const shouldOpenParentProfile = !isPageSwitcher && Boolean(parentMicrositeId);
+
+  useEffect(() => {
+    if (!shouldOpenParentProfile) return;
+    router.replace(`/smartsite/profile/${parentMicrositeId}`);
+  }, [shouldOpenParentProfile, parentMicrositeId, router]);
+
+  if (loading || isLoading || shouldOpenParentProfile) {
     return <SmartSitePageLoading />;
   }
 
@@ -53,9 +79,8 @@ const SmartsitePage = () => {
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6 2xl:gap-x-6 pb-4">
-        {data &&
-          data?.microsites?.length > 0 &&
-          data?.microsites?.map((microsite: any) => (
+        {microsites.length > 0 &&
+          microsites.map((microsite: any) => (
             <div
               key={microsite._id}
               className="bg-white p-4 rounded-xl shadow-small"
@@ -125,5 +150,12 @@ const SmartsitePage = () => {
     </div>
   );
 };
+
+// useSearchParams needs a Suspense boundary during prerender.
+const SmartsitePage = () => (
+  <Suspense fallback={<SmartSitePageLoading />}>
+    <SmartsitePageContent />
+  </Suspense>
+);
 
 export default SmartsitePage;

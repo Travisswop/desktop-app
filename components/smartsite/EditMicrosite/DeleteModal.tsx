@@ -41,7 +41,9 @@ const DeleteModal = ({
       setDeleteLoading(false);
       setDeleteSuccess(true);
       setTimeout(() => {}, 2000);
-      router.push("/smartsite");
+      // Land on the page switcher, not the parent editor — the deleted site is
+      // gone and the user is picking what to open next.
+      router.push("/smartsite?view=pages");
     } else if (deleteSmartsite?.state === "fail") {
       setDeleteLoading(false);
       setDeleteFailed(true);

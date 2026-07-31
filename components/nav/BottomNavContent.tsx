@@ -963,7 +963,7 @@ const BottomNavContent = () => {
                 onSelect={() => setIsMenuOpen(false)}
               />
               <BuildMenuTile
-                href="/smartsite"
+                href="/smartsite?view=pages"
                 title="Switch Pages"
                 subtitle="View another site"
                 icon={<LayoutGrid />}
