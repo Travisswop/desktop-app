@@ -13,6 +13,7 @@ import {
   HandCoins,
   Layers,
   LayoutGrid,
+  Info,
   Menu,
   WalletCards,
 } from "lucide-react";
@@ -68,6 +69,24 @@ import { SMARTSITE_TEMPLATE_CATALOG } from "@/lib/smartsite-template-order";
 
 const baseNavItemClass =
   "flex h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[14px] px-1 text-[10px] font-semibold leading-none tracking-[0] transition-colors duration-150 sm:max-w-16";
+
+// Plain-language explanation behind each tile's "i". Mirrored in the mobile
+// builder's MENU_ITEMS — keep the two in sync.
+const BUILD_MENU_INFO: Record<string, string> = {
+  "Edit Page":
+    "Your profile card — photo, name, bio, background, and fonts. This is the top of your SmartSite, the first thing visitors see. Also where you set which page is your primary one.",
+  "Add Templates":
+    "The building blocks of your page: links, contact card, marketplace, media, tip jar, forms, AI chat, and more. Each one you add becomes a section visitors can scroll to.",
+  "Edit QR": "Restyle the QR code for this page — colors, logo, and frame.",
+  Activate:
+    "Program an NFC chip — a Swop card, tag, or sticker — so tapping it opens this SmartSite. Has to be done from your phone; on desktop you'll get a QR to continue there.",
+  "Token Gate":
+    "Lock this page, or a single tab, behind a token or NFT. Visitors who don't hold it see a blurred preview and a prompt to get access.",
+  "Switch Pages":
+    "See all your SmartSites and open a different one. Your primary page is the one your wallet is attached to.",
+  "Add Page":
+    "Create an additional SmartSite — its own link, QR code, and content. Good for a business, a project, or a team. Extra pages need a paid plan.",
+};
 
 const SMARTSITE_TEMPLATE_HISTORY_KEY = "swopSmartsiteTemplateView";
 
@@ -126,23 +145,29 @@ const FeedRouteLoadingOverlay = () => (
 type BuildMenuTileProps = {
   title: string;
   subtitle: string;
+  info: string;
   icon: ReactNode;
   href?: string;
   trailing?: ReactNode;
   wide?: boolean;
+  infoOpen: boolean;
+  onToggleInfo: () => void;
   onSelect: () => void;
 };
 
 const BuildMenuTile = ({
   title,
   subtitle,
+  info,
   icon,
   href,
   trailing,
   wide = false,
+  infoOpen,
+  onToggleInfo,
   onSelect,
 }: BuildMenuTileProps) => {
-  const className = `${wide ? "col-span-2 min-h-0 flex-row items-center gap-3.5" : "min-h-[118px] flex-col gap-3"} flex rounded-[20px] border border-[#efeff0] bg-[#f7f7f8] p-3.5 text-left transition-colors hover:bg-[#f1f1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2`;
+  const className = `${wide ? "min-h-0 flex-row items-center gap-3.5" : "min-h-[118px] flex-col gap-3"} flex h-full w-full rounded-[20px] border border-[#efeff0] bg-[#f7f7f8] p-3.5 text-left transition-colors hover:bg-[#f1f1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2`;
   const content = (
     <>
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-white text-[21px] text-[#0a0a0c] shadow-[0_2px_8px_rgba(0,0,0,0.05)] [&>svg]:h-[21px] [&>svg]:w-[21px]">
@@ -164,14 +189,40 @@ const BuildMenuTile = ({
     </>
   );
 
-  return href ? (
-    <Link href={href} onClick={onSelect} className={className}>
-      {content}
-    </Link>
-  ) : (
-    <button type="button" onClick={onSelect} className={className}>
-      {content}
-    </button>
+  // The info button is a SIBLING of the tile, not a child — an interactive
+  // element nested inside the <a> would be invalid markup, and the click would
+  // still navigate.
+  return (
+    <div className={`relative ${wide ? "col-span-2" : ""}`}>
+      {href ? (
+        <Link href={href} onClick={onSelect} className={className}>
+          {content}
+        </Link>
+      ) : (
+        <button type="button" onClick={onSelect} className={className}>
+          {content}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label={`What is ${title}?`}
+        aria-expanded={infoOpen}
+        onClick={onToggleInfo}
+        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-[#b4b4b9] transition-colors hover:bg-white hover:text-[#0a0a0c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black"
+      >
+        <Info className="h-[15px] w-[15px]" strokeWidth={2.2} />
+      </button>
+      {infoOpen ? (
+        <div
+          role="tooltip"
+          className={`absolute right-1.5 z-30 w-[222px] rounded-[14px] bg-[#0a0a0c] p-3 text-[12px] font-medium leading-[1.45] text-white shadow-[0_12px_28px_rgba(0,0,0,0.28)] ${
+            wide ? "bottom-[calc(100%-4px)]" : "top-8"
+          }`}
+        >
+          {info}
+        </div>
+      ) : null}
+    </div>
   );
 };
 
@@ -183,6 +234,7 @@ const BottomNavContent = () => {
   const { openModal } = useModalStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [openInfoKey, setOpenInfoKey] = useState<string | null>(null);
   const [isIconsModalOpen, setIsIconsModalOpen] = useState(false);
   const [isActivateChipModalOpen, setIsActivateChipModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -340,15 +392,27 @@ const BottomNavContent = () => {
     // "/smartsite/profile/",
   ]; // Add routes here which we want to hide the bottom nav on
 
+  // Only one tooltip at a time, and none left open the next time the menu is.
+  useEffect(() => {
+    if (!isMenuOpen) setOpenInfoKey(null);
+  }, [isMenuOpen]);
+
   useEffect(() => {
     if (!isMenuOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsMenuOpen(false);
+      if (event.key === "Escape") {
+        // Escape backs out of an open tooltip before it closes the menu.
+        if (openInfoKey) {
+          setOpenInfoKey(null);
+          return;
+        }
+        setIsMenuOpen(false);
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [isMenuOpen]);
+  }, [isMenuOpen, openInfoKey]);
 
   // Hide bottom nav on specific routes
   if (hideOnRoutes.some((route) => pathname?.startsWith(route))) {
@@ -382,6 +446,13 @@ const BottomNavContent = () => {
     handleCloseIconsModal();
     router.refresh();
   };
+
+  const infoProps = (title: string) => ({
+    info: BUILD_MENU_INFO[title],
+    infoOpen: openInfoKey === title,
+    onToggleInfo: () =>
+      setOpenInfoKey((current) => (current === title ? null : title)),
+  });
 
   const handleOpenActiveChip = () => {
     setIsActivateChipModalOpen(true);
@@ -823,7 +894,7 @@ const BottomNavContent = () => {
     },
     {
       href: "/smartsite",
-      label: "Build",
+      label: "Profile",
       Icon: Layers,
       isActive: Boolean(pathname?.startsWith("/smartsite")),
       prefetch: true,
@@ -932,12 +1003,14 @@ const BottomNavContent = () => {
               <BuildMenuTile
                 href={`/smartsite/edit/${pageId}`}
                 title="Edit Page"
+                {...infoProps("Edit Page")}
                 subtitle="Change backgrounds"
                 icon={<FiEdit />}
                 onSelect={() => setIsMenuOpen(false)}
               />
               <BuildMenuTile
                 title="Add Templates"
+                {...infoProps("Add Templates")}
                 subtitle="Design your Smartsite"
                 icon={<AiOutlineFileAdd />}
                 onSelect={handleIconslistOpen}
@@ -945,12 +1018,14 @@ const BottomNavContent = () => {
               <BuildMenuTile
                 href={`/smartsite/qr-code/${pageId}`}
                 title="Edit QR"
+                {...infoProps("Edit QR")}
                 subtitle="Customize QR"
                 icon={<MdQrCodeScanner />}
                 onSelect={() => setIsMenuOpen(false)}
               />
               <BuildMenuTile
                 title="Activate"
+                {...infoProps("Activate")}
                 subtitle="Program your chip"
                 icon={<VscChip />}
                 onSelect={handleOpenActiveChip}
@@ -958,6 +1033,7 @@ const BottomNavContent = () => {
               <BuildMenuTile
                 href={`/smartsite/token-gated/${pageId}`}
                 title="Token Gate"
+                {...infoProps("Token Gate")}
                 subtitle="Monetize content"
                 icon={<TbLockDollar />}
                 onSelect={() => setIsMenuOpen(false)}
@@ -965,6 +1041,7 @@ const BottomNavContent = () => {
               <BuildMenuTile
                 href="/smartsite?view=pages"
                 title="Switch Pages"
+                {...infoProps("Switch Pages")}
                 subtitle="View another site"
                 icon={<LayoutGrid />}
                 onSelect={() => setIsMenuOpen(false)}
@@ -972,6 +1049,7 @@ const BottomNavContent = () => {
               <BuildMenuTile
                 href="/smartsite/create-smartsite"
                 title="Add Page"
+                {...infoProps("Add Page")}
                 subtitle="Create another SmartSite"
                 icon={<IoAdd />}
                 trailing={<ChevronRight />}
