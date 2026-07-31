@@ -47,7 +47,10 @@ export type MarketplaceProduct = {
     trackingEnabled?: boolean;
   };
   exclusiveContent?: MarketplaceExclusiveContentItem[];
+  /** Variant-derived labels ("Color: Red"), not search keywords. */
   tags?: string[];
+  /** Seller search keywords, surfaced in Discover product search. */
+  keywords?: string[];
   createdAt?: string;
   updatedAt?: string;
 };
