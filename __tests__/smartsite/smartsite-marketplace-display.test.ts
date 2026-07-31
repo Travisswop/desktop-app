@@ -1,5 +1,6 @@
 import {
   getMarketplaceExclusiveContentItems,
+  groupSmartsiteMarketplaceItems,
   normalizeSmartsiteMarketplaceItem,
   normalizeSmartsiteMarketplaceVariants,
 } from "@/lib/smartsite-marketplace-display";
@@ -94,6 +95,20 @@ describe("SmartSite marketplace display normalization", () => {
         options: [{ name: "Matte" }, { name: "Gloss", quantity: 3 }],
       },
     ]);
+  });
+
+  it("groups marketplace items into their named carousels", () => {
+    const featured = { _id: "featured", carouselTitle: "Featured products" };
+    const merch = { _id: "merch", carouselTitle: "Merch" };
+    const legacy = { _id: "legacy" };
+
+    expect(
+      groupSmartsiteMarketplaceItems([featured, merch, legacy] as any),
+    ).toEqual({
+      "Featured products": [featured],
+      Merch: [merch],
+      Products: [legacy],
+    });
   });
 
   it("exposes receipt-gated digital assets as marketplace exclusive content", () => {

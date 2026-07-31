@@ -420,13 +420,16 @@ export const normalizeSmartsiteMarketplaceItems = (items: any[] = []) =>
     .map((item) => normalizeSmartsiteMarketplaceItem(item))
     .filter(Boolean) as SmartsiteMarketplaceDisplayItem[];
 
-// One "Products" section for everything — splitting by category/carouselTitle
-// stacked a titled rail per group, which reads as a vertical list when each
-// group holds a single item. Mirrors the mobile app's marketplace display.
 export const groupSmartsiteMarketplaceItems = (
   items: SmartsiteMarketplaceDisplayItem[],
-): Record<string, SmartsiteMarketplaceDisplayItem[]> =>
-  items.length ? { Products: items } : {};
+): Record<string, SmartsiteMarketplaceDisplayItem[]> => {
+  const groups = new Map<string, SmartsiteMarketplaceDisplayItem[]>();
+  items.forEach((item) => {
+    const title = item.carouselTitle?.trim() || "Products";
+    groups.set(title, [...(groups.get(title) || []), item]);
+  });
+  return Object.fromEntries(groups);
+};
 
 export const getSmartsiteMarketplaceImage = (
   item: SmartsiteMarketplaceDisplayItem,
