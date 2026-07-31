@@ -91,6 +91,20 @@ export type TradeCelebrationSpec =
       payoutUsd: number;
       stakeUsd: number | null;
       profitUsd: number | null;
+    }
+  | {
+      kind: 'cash-added';
+      /** USDC actually delivered — Coinbase's fee comes out of the charge. */
+      amount: number;
+      symbol: string;
+      /** What the card was charged, when known. */
+      paidUsd: number | null;
+      /** Coinbase's exchange fee on this order, when known. */
+      feeUsd: number | null;
+      networkLabel: string;
+      /** "Apple Pay", "Google Pay", "Coinbase". */
+      payLabel: string;
+      note?: string | null;
     };
 
 /** Build a bet-placed spec from the shape of OrderSuccessNotification's
@@ -400,7 +414,7 @@ function Glyph({
   color = '#fff',
   size = 42,
 }: {
-  name: 'bolt' | 'trophy' | 'ticket' | 'trend-down';
+  name: 'bolt' | 'trophy' | 'ticket' | 'trend-down' | 'cash';
   color?: string;
   size?: number;
 }) {
@@ -438,6 +452,16 @@ function Glyph({
       <svg {...p}>
         <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-4z" />
         <line x1={14} y1={6} x2={14} y2={18} strokeDasharray="1.5 2.5" />
+      </svg>
+    );
+  }
+  if (name === 'cash') {
+    return (
+      <svg {...p}>
+        <rect x={2.5} y={6} width={19} height={12} rx={2.5} />
+        <circle cx={12} cy={12} r={2.6} />
+        <line x1={6} y1={12} x2={6.01} y2={12} />
+        <line x1={18} y1={12} x2={18.01} y2={12} />
       </svg>
     );
   }
@@ -1019,6 +1043,57 @@ function BetClaimedBody({
   );
 }
 
+function CashAddedBody({
+  spec,
+  onDone,
+}: {
+  spec: Extract<TradeCelebrationSpec, { kind: 'cash-added' }>;
+  onDone: () => void;
+}) {
+  const c = DN.green;
+  const delivered = useCountUp(spec.amount, { delay: 280, dur: 1150 });
+  // Coinbase's fee comes out of the charge, so the delivered amount is always
+  // under what was paid. Say so here rather than letting the wallet balance be
+  // the first place the user notices.
+  const items: [string, string, string?][] = [];
+  if (spec.paidUsd != null) items.push(['Paid', `$${money(spec.paidUsd)}`]);
+  if (spec.feeUsd != null) {
+    items.push([
+      'Coinbase fee',
+      spec.feeUsd > 0 ? `$${money(spec.feeUsd)}` : 'None',
+      spec.feeUsd > 0 ? undefined : c,
+    ]);
+  }
+  items.push(['Network', spec.networkLabel]);
+  return (
+    <>
+      <Confetti colors={['#1ba672', '#3ad19a', '#8ef0c6', '#ffffff']} count={30} />
+      <Emblem color={c}>
+        <Glyph name="cash" />
+      </Emblem>
+      <Kicker color={c}>Cash added</Kicker>
+      <div style={{ ...bigNumberStyle, color: c }}>{money(delivered)}</div>
+      <div style={{ ...subLineStyle, color: DN.muted }}>
+        {spec.symbol} on its way to your Swop wallet via {spec.payLabel}
+      </div>
+      <StatRow items={items} />
+      <div
+        style={{
+          marginTop: 14,
+          textAlign: 'center',
+          fontSize: 12,
+          lineHeight: '17px',
+          color: DN.faint,
+        }}
+      >
+        {spec.note ??
+          'Coinbase is settling the purchase — your balance updates in a moment.'}
+      </div>
+      <CTA label="Go to wallet" color={c} onClick={onDone} />
+    </>
+  );
+}
+
 /* ── card scaffold on a dimmed backdrop (design Popup + dnPopIn) ── */
 export function TradeCelebrationOverlay({
   spec,
@@ -1045,6 +1120,7 @@ export function TradeCelebrationOverlay({
         <PerpClosedLossBody spec={spec} onDone={onDone} />
       );
   else if (spec.kind === 'bet-placed') body = <BetPlacedBody spec={spec} onDone={onDone} />;
+  else if (spec.kind === 'cash-added') body = <CashAddedBody spec={spec} onDone={onDone} />;
   else body = <BetClaimedBody spec={spec} onDone={onDone} />;
 
   return (
