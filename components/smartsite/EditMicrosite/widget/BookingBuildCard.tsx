@@ -5,6 +5,8 @@ import Cookies from "js-cookie";
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Link2,
   Loader2,
   Pencil,
@@ -30,6 +32,10 @@ import type { BookingConfig } from "@/components/publicProfile/widgets/BookingCa
  */
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Mon-first, per design
 const HOURS_12 = [
   "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM",
@@ -244,16 +250,47 @@ const BookingBuildCard = ({
     toast.success("Link copied");
   };
 
+  // Months forward from the current one; the preview walks the same bookable
+  // window a visitor sees (today → today + maxDaysAhead).
+  const [monthOffset, setMonthOffset] = useState(0);
+
   const monthPreview = useMemo(() => {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const first = new Date(year, month, 1);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const horizon = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + windowDays,
+    );
+    const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    const year = first.getFullYear();
+    const month = first.getMonth();
     const lead = (first.getDay() + 6) % 7;
     const days = new Date(year, month + 1, 0).getDate();
     const openWeekdays = new Set(hours.filter((h) => h.on).map((h) => h.day));
-    return { year, month, lead, days, openWeekdays, today: now.getDate() };
-  }, [hours]);
+    return {
+      year,
+      month,
+      lead,
+      days,
+      openWeekdays,
+      today,
+      horizon,
+      canPrev: monthOffset > 0,
+      canNext: new Date(year, month + 1, 1) <= horizon,
+    };
+  }, [hours, monthOffset, windowDays]);
+
+  // A shorter bookable window can strand the view past the horizon.
+  useEffect(() => {
+    const now = new Date();
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + windowDays);
+    const maxOffset =
+      (horizon.getFullYear() - now.getFullYear()) * 12 +
+      (horizon.getMonth() - now.getMonth());
+    setMonthOffset((offset) => Math.min(offset, Math.max(0, maxOffset)));
+  }, [windowDays]);
 
   return (
     <div
@@ -354,7 +391,30 @@ const BookingBuildCard = ({
                 {(config.durationsMinutes || [length])[0]} min · Google Meet ·{" "}
                 {hours.filter((h) => h.on).length} days a week
               </p>
-              <div className="mt-3 grid grid-cols-7 gap-[3px]">
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Previous month"
+                  disabled={!monthPreview.canPrev}
+                  onClick={() => setMonthOffset((o) => Math.max(0, o - 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/[0.08] bg-white text-gray-950 disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <p className="flex-1 text-center text-[13px] font-bold text-gray-950">
+                  {MONTH_LABELS[monthPreview.month]} {monthPreview.year}
+                </p>
+                <button
+                  type="button"
+                  aria-label="Next month"
+                  disabled={!monthPreview.canNext}
+                  onClick={() => setMonthOffset((o) => o + 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/[0.08] bg-white text-gray-950 disabled:opacity-30"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-7 gap-[3px]">
                 {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
                   <span key={i} className="text-center font-mono text-[10px] font-bold text-gray-400">
                     {d}
@@ -366,7 +426,9 @@ const BookingBuildCard = ({
                 {Array.from({ length: monthPreview.days }, (_, i) => i + 1).map((d) => {
                   const date = new Date(monthPreview.year, monthPreview.month, d);
                   const open =
-                    d >= monthPreview.today && monthPreview.openWeekdays.has(date.getDay());
+                    date >= monthPreview.today &&
+                    date <= monthPreview.horizon &&
+                    monthPreview.openWeekdays.has(date.getDay());
                   return (
                     <span
                       key={d}
