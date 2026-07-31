@@ -332,7 +332,7 @@ export default function Header() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-emerald-950">
-                        Fund Wallet
+                        Add Cash
                       </span>
                       <span className="block text-xs font-medium text-emerald-700">
                         Buy USDC without leaving Swop
