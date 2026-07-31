@@ -14,6 +14,7 @@ import { CharacterCounter } from "./view/CharacterCountCircle";
 import VisibilityPausedVideo from "./view/VisibilityPausedVideo";
 import feedNft from "@/public/images/feed_nft.png";
 import feedAI from "@/public/images/feed_AI.png";
+import { gifPickerEnabled } from "@/lib/gifs";
 
 type MediaFile = { type: "image" | "video" | "gif"; src: string };
 
@@ -203,24 +204,26 @@ const MediaPreview = ({
           mediaFilesLength={mediaFiles.length}
         />
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (mediaFiles.length !== 4) {
-              setShowGifPicker(!showGifPicker);
-              setShowEmojiPicker(false);
-            }
-          }}
-          className={`${mediaFiles.length > 3 && "cursor-not-allowed disabled"}`}
-        >
-          <HiOutlineGif
-            size={23}
-            className={`${
-              mediaFiles.length > 3 ? "text-gray-400" : "text-gray-700"
-            }`}
-          />
-        </button>
+        {gifPickerEnabled && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (mediaFiles.length !== 4) {
+                setShowGifPicker(!showGifPicker);
+                setShowEmojiPicker(false);
+              }
+            }}
+            className={`${mediaFiles.length > 3 && "cursor-not-allowed disabled"}`}
+          >
+            <HiOutlineGif
+              size={23}
+              className={`${
+                mediaFiles.length > 3 ? "text-gray-400" : "text-gray-700"
+              }`}
+            />
+          </button>
+        )}
 
         <button
           onClick={(e) => {
@@ -274,13 +277,15 @@ const MediaPreview = ({
           </div>
         )}
 
-        <GifPickerContent
-          mediaFilesLength={mediaFiles.length}
-          setMediaFiles={setMediaFiles}
-          setFileError={setFileError}
-          showGifPicker={showGifPicker}
-          setShowGifPicker={setShowGifPicker}
-        />
+        {gifPickerEnabled && (
+          <GifPickerContent
+            mediaFilesLength={mediaFiles.length}
+            setMediaFiles={setMediaFiles}
+            setFileError={setFileError}
+            showGifPicker={showGifPicker}
+            setShowGifPicker={setShowGifPicker}
+          />
+        )}
       </motion.div>
     </>
   );

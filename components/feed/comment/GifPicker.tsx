@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import GifPicker from "gif-picker-react";
+import { GifPicker, type Gif } from "gif-picker-react";
 import { HiOutlineGif } from "react-icons/hi2";
+import { gifProvider } from "@/lib/gifs";
 import { useCommentContentStore } from "@/zustandStore/CommentImgContent";
 import toast from "react-hot-toast";
 
@@ -20,13 +21,13 @@ const CommentGifPickerContent = () => {
     setShowPicker((prev) => !prev);
   };
 
-  const handleGifClick = (gifData: any) => {
+  const handleGifClick = (gifData: Gif) => {
     if (postContent.length >= 4) {
       toast.error("Maximum 4 media items allowed.");
       setShowPicker(false);
       return;
     }
-    addContent({ type: "gif", src: gifData.url });
+    addContent({ type: "gif", src: gifData.imageUrl });
     setShowPicker(false);
   };
 
@@ -45,6 +46,8 @@ const CommentGifPickerContent = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  if (!gifProvider) return null;
 
   return (
     <div className="relative flex items-center">
@@ -65,7 +68,7 @@ const CommentGifPickerContent = () => {
         <div ref={pickerRef} className="absolute top-full mt-2 left-0 z-[9999]">
           <GifPicker
             onGifClick={handleGifClick}
-            tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
+            provider={gifProvider}
           />
         </div>
       )}

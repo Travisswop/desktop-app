@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import GifPicker, { Theme, type TenorImage } from 'gif-picker-react';
+import { GifPicker, Theme, type Gif } from 'gif-picker-react';
+import { gifPickerEnabled, gifProvider } from '@/lib/gifs';
 import {
   Camera,
   FileText,
@@ -24,8 +25,6 @@ interface ChatAttachmentMenuProps {
   onSendGif: (gif: ChatAttachmentGif) => void;
   onTip: () => void;
 }
-
-const TENOR_API_KEY = process.env.NEXT_PUBLIC_TENOR_API_KEY || '';
 
 export default function ChatAttachmentMenu({
   disabled = false,
@@ -75,10 +74,10 @@ export default function ChatAttachmentMenu({
   );
 
   const handleGifClick = useCallback(
-    (gif: TenorImage) => {
+    (gif: Gif) => {
       closeMenu();
       onSendGif({
-        url: gif.url,
+        url: gif.imageUrl,
         width: gif.width,
         height: gif.height,
       });
@@ -118,13 +117,17 @@ export default function ChatAttachmentMenu({
         onTip();
       },
     },
-    {
-      key: 'gif',
-      label: 'Gif',
-      hint: 'search Tenor gifs',
-      icon: Gift,
-      onSelect: () => setView('gif'),
-    },
+    ...(gifPickerEnabled
+      ? [
+          {
+            key: 'gif',
+            label: 'Gif',
+            hint: 'search KLIPY gifs',
+            icon: Gift,
+            onSelect: () => setView('gif'),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -212,17 +215,17 @@ export default function ChatAttachmentMenu({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          {TENOR_API_KEY ? (
+          {gifProvider ? (
             <GifPicker
               onGifClick={handleGifClick}
-              tenorApiKey={TENOR_API_KEY}
+              provider={gifProvider}
               theme={Theme.DARK}
               width="100%"
               height={360}
             />
           ) : (
             <div className="dm-mono px-4 py-6 text-center text-[12px] font-semibold text-[#737783]">
-              Gif search is not configured. Set NEXT_PUBLIC_TENOR_API_KEY to
+              Gif search is not configured. Set NEXT_PUBLIC_KLIPY_API_KEY to
               enable it.
             </div>
           )}

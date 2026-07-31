@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import GifPicker from "gif-picker-react";
+import { GifPicker, type Gif } from "gif-picker-react";
+import { gifProvider } from "@/lib/gifs";
 import CustomModal from "../modal/CustomModal";
 
 interface GifProps {
@@ -26,10 +27,15 @@ const GifPickerContent = ({
     }
   }, [mediaFilesLength, setFileError, setShowGifPicker]);
 
-  const handleGifClick = (gifData: any) => {
-    setMediaFiles((prev: any) => [...prev, { type: "gif", src: gifData.url }]);
+  const handleGifClick = (gifData: Gif) => {
+    setMediaFiles((prev: any) => [
+      ...prev,
+      { type: "gif", src: gifData.imageUrl },
+    ]);
     setShowGifPicker(false); // auto close on select
   };
+
+  if (!gifProvider) return null;
 
   return (
     <CustomModal
@@ -40,7 +46,7 @@ const GifPickerContent = ({
       <div className="p-3">
         <GifPicker
           onGifClick={handleGifClick}
-          tenorApiKey={process.env.NEXT_PUBLIC_TENOR_API_KEY || ""}
+          provider={gifProvider}
           width="100%"
         />
       </div>
