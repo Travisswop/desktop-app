@@ -181,6 +181,7 @@ const CreateProduct = ({
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [image, setImage] = useState('');
   const [extraImages, setExtraImages] = useState<(string | null)[]>([
     null,
@@ -300,6 +301,9 @@ const CreateProduct = ({
         setDescription(
           limitProductDescription(product.description || ''),
         );
+        // Without this the edit form would submit an empty keyword list and
+        // silently wipe the keywords the seller already set.
+        setKeywords((product.keywords || []).join(', '));
         const primary =
           product.primaryImage || product.images?.[0]?.url || '';
         setImage(primary);
@@ -750,6 +754,13 @@ const CreateProduct = ({
         productType,
         title: name,
         description: productDescription,
+        // Comma separated in the UI; the API lowercases, de-duplicates and
+        // caps the list. Named `keywords`, not `tags` — the marketplace API
+        // already returns `tags` built from variant options ("Color: Red").
+        keywords: keywords
+          .split(',')
+          .map((keyword) => keyword.trim())
+          .filter(Boolean),
         primaryImage: image,
         images: [image, ...extraImages.filter(Boolean)].map(
           (url) => ({
@@ -1085,6 +1096,16 @@ const CreateProduct = ({
                           limitProductDescription(e.target.value),
                         )
                       }
+                    />
+                  </Field>
+                  <Field
+                    label="Keywords"
+                    help="Comma separated. Helps buyers find this in Discover search."
+                  >
+                    <TextInput
+                      placeholder="hoodie, vintage, streetwear"
+                      value={keywords}
+                      onChange={(e) => setKeywords(e.target.value)}
                     />
                   </Field>
                 </Card>
