@@ -18,6 +18,10 @@ import { PrivyTransactionSignerProvider } from './PrivyTransactionSigner';
 import SwapModal from './swapModal/SwapModal';
 import { useSwapStore } from '@/zustandStore/tokenSwapProps';
 import { runSponsoredFirst } from '@/lib/wallet/gasSponsorship';
+import {
+  LIFI_INTEGRATOR_NAME,
+  LIFI_PLATFORM_FEE_RATE,
+} from '@/lib/wallet/lifiIntegrator';
 
 // Map numeric chainId → viem Chain object so wallet clients are properly typed.
 // Add chains here whenever new networks are supported.
@@ -150,7 +154,7 @@ interface LiFiModalProps {
 export default function LiFiModal({
   config = defaultConfig,
   onSwapComplete,
-  integrator = 'Swop-Desktop',
+  integrator = LIFI_INTEGRATOR_NAME,
 }: LiFiModalProps) {
   const { wallets } = useWallets();
   const { sendTransaction: sendPrivyTransaction } = useSendTransaction();
@@ -416,6 +420,9 @@ export default function LiFiModal({
     const baseConfig = {
       ...defaultConfig,
       integrator,
+      // Swop's platform fee. Without this the widget quotes at Li.Fi's cut
+      // only and Swop collects nothing on every route it builds.
+      fee: LIFI_PLATFORM_FEE_RATE,
       sdkConfig: {
         // Provide private RPC URLs for all chains LiFi can route through.
         // Without these, the LiFi SDK falls back to public RPCs which are

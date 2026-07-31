@@ -1,6 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { ChainId } from "@lifi/widget";
 import LiFiPrivyWrapper from "./LiFiPrivyWrapper";
 import { SolanaProvider } from "../SolanaProvider";
 import { PrimaryButton } from "../ui/Button/PrimaryButton";
@@ -11,17 +10,11 @@ interface SwapButtonProps {
   tokens: any[];
   accessToken: string;
   onTokenRefresh?: () => void;
-  initialInputToken?: string;
-  initialOutputToken?: string;
-  initialAmount?: string;
 }
 
 export default function SwapButton({
   tokens,
   onTokenRefresh,
-  initialInputToken,
-  initialOutputToken,
-  initialAmount,
 }: SwapButtonProps) {
   const [openSwapModal, setOpenSwapModal] = useState(false);
   const searchParams = useSearchParams();
@@ -86,53 +79,6 @@ export default function SwapButton({
     searchParams,
   ]);
 
-  const config = useMemo(
-    () => ({
-      variant: "expandable",
-      integrator: "nextjs-example",
-      appearance: "light",
-      containerStyle: {
-        width: "100%",
-        height: "100%",
-        border: "none",
-      },
-      theme: {
-        container: {
-          border: "1px solid rgb(234, 234, 234)",
-          borderRadius: "16px",
-        },
-      },
-      walletManagement: {
-        connect: {
-          external: true,
-          enabled: true,
-        },
-        disconnect: {
-          enabled: false,
-        },
-      },
-      sdkConfig: {
-        rpcUrls: {
-          [ChainId.SOL]: [
-            "https://chaotic-restless-putty.solana-mainnet.quiknode.pro/",
-            "https://dacey-pp61jd-fast-mainnet.helius-rpc.com/",
-          ],
-        },
-      },
-      fromToken: inputTokenParam || initialInputToken,
-      toToken: outputTokenParam || initialOutputToken,
-      fromAmount: amountParam || initialAmount,
-    }),
-    [
-      inputTokenParam,
-      initialInputToken,
-      outputTokenParam,
-      initialOutputToken,
-      amountParam,
-      initialAmount,
-    ],
-  );
-
   const handleSwapComplete = () => {
     if (onTokenRefresh) {
       onTokenRefresh();
@@ -161,7 +107,6 @@ export default function SwapButton({
           <div className="p-4">
             <SolanaProvider>
               <LiFiPrivyWrapper
-                config={config}
                 onSwapComplete={handleSwapComplete}
                 onSwapReceiptDismiss={handleSwapReceiptDismiss}
                 tokens={tokens}

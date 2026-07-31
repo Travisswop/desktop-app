@@ -1,8 +1,10 @@
 'use server';
 
+import { LIFI_INTEGRATOR_NAME } from '@/lib/wallet/lifiIntegrator';
+
 const LIFI_API_URL = process.env.LIFI_API_URL || 'https://li.quest/v1';
 const LIFI_API_KEY = process.env.LIFI_API_KEY || '';
-const LIFI_INTEGRATOR = process.env.LIFI_INTEGRATOR || 'Swop-Desktop';
+const LIFI_INTEGRATOR = process.env.LIFI_INTEGRATOR || LIFI_INTEGRATOR_NAME;
 const LIFI_QUOTE_TIMEOUT_MS = 12_000;
 
 async function fetchLiFiWithTimeout(

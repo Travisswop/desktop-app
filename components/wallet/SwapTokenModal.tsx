@@ -29,6 +29,7 @@ import {
   getLifiQuote as fetchLifiQuote,
 } from '@/actions/lifiForTokenSwap';
 import { fetchOndoGlobalMarketsTokens } from '@/actions/ondoGlobalMarketsTokens';
+import { LIFI_INTEGRATOR_NAME } from '@/lib/wallet/lifiIntegrator';
 import { getJupiterBuild as fetchJupiterBuild } from '@/actions/jupiterSwap';
 import { sponsorSolanaTransaction } from '@/actions/sponsorSolanaTransaction';
 import { notifySwapFee } from '@/actions/notifySwapFee';
@@ -4439,7 +4440,7 @@ export default function SwapTokenModal({
                 rewardStatus: 'pending_buyback',
                 feeRouting: 'swop_buyback',
                 rewardToken: SWOP_REWARD_TOKEN,
-                integrator: 'Swop-Desktop',
+                integrator: LIFI_INTEGRATOR_NAME,
               }
             : undefined,
           platformFeeFailure: feeAttachmentFailure

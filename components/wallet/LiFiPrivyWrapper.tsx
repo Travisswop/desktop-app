@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { useWallets as useSolanaWallets } from '@privy-io/react-auth/solana';
 
-// import LiFiModal from "./LiFiModal";
+// Swaps run through SwapTokenModal (Swop's own UI), not the Li.Fi widget —
+// LiFiModal is parked. Nothing here takes a widget `config`: the integrator
+// and platform fee live server-side in actions/lifiForTokenSwap.ts.
 import SwapTokenModal from './SwapTokenModal';
 
 interface LiFiPrivyWrapperProps {
-  config: any;
   tokens?: any;
   preferredSolanaWalletAddress?: string;
   onSwapComplete?: () => void;

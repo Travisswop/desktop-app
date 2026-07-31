@@ -477,9 +477,6 @@ const BalanceChart: React.FC<BalanceChartProps> = ({
                 <SwapButton
                   tokens={tokens}
                   accessToken={accessToken}
-                  initialInputToken=""
-                  initialOutputToken=""
-                  initialAmount=""
                   onTokenRefresh={onTokenRefresh}
                 />
               ) : (
