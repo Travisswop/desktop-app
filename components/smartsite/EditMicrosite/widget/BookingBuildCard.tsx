@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Cookies from "js-cookie";
 import {
   CalendarDays,
@@ -253,6 +253,7 @@ const BookingBuildCard = ({
   // Months forward from the current one; the preview walks the same bookable
   // window a visitor sees (today → today + maxDaysAhead).
   const [monthOffset, setMonthOffset] = useState(0);
+  const monthSwipeStart = useRef<{ x: number; y: number } | null>(null);
 
   const monthPreview = useMemo(() => {
     const now = new Date();
@@ -291,6 +292,35 @@ const BookingBuildCard = ({
       (horizon.getMonth() - now.getMonth());
     setMonthOffset((offset) => Math.min(offset, Math.max(0, maxOffset)));
   }, [windowDays]);
+
+  const showPreviousMonth = () => {
+    if (!monthPreview.canPrev) return;
+    setMonthOffset((offset) => Math.max(0, offset - 1));
+  };
+
+  const showNextMonth = () => {
+    if (!monthPreview.canNext) return;
+    setMonthOffset((offset) => offset + 1);
+  };
+
+  const handleMonthTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    monthSwipeStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+
+  const handleMonthTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = monthSwipeStart.current;
+    const touch = event.changedTouches[0];
+    monthSwipeStart.current = null;
+    if (!start || !touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    if (deltaX < 0) showNextMonth();
+    else showPreviousMonth();
+  };
 
   return (
     <div
@@ -396,25 +426,35 @@ const BookingBuildCard = ({
                   type="button"
                   aria-label="Previous month"
                   disabled={!monthPreview.canPrev}
-                  onClick={() => setMonthOffset((o) => Math.max(0, o - 1))}
+                  onClick={showPreviousMonth}
                   className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/[0.08] bg-white text-gray-950 disabled:opacity-30"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
-                <p className="flex-1 text-center text-[13px] font-bold text-gray-950">
+                <p
+                  aria-live="polite"
+                  className="flex-1 text-center text-[13px] font-bold text-gray-950"
+                >
                   {MONTH_LABELS[monthPreview.month]} {monthPreview.year}
                 </p>
                 <button
                   type="button"
                   aria-label="Next month"
                   disabled={!monthPreview.canNext}
-                  onClick={() => setMonthOffset((o) => o + 1)}
+                  onClick={showNextMonth}
                   className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/[0.08] bg-white text-gray-950 disabled:opacity-30"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <div className="mt-2 grid grid-cols-7 gap-[3px]">
+              <div
+                className="mt-2 grid touch-pan-y grid-cols-7 gap-[3px]"
+                onTouchStart={handleMonthTouchStart}
+                onTouchEnd={handleMonthTouchEnd}
+                onTouchCancel={() => {
+                  monthSwipeStart.current = null;
+                }}
+              >
                 {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
                   <span key={i} className="text-center font-mono text-[10px] font-bold text-gray-400">
                     {d}
