@@ -1,20 +1,11 @@
 import { useState, useCallback } from 'react';
-import {
-  erc20Abi,
-  encodeFunctionData,
-  parseUnits,
-} from 'viem';
+import { erc20Abi, encodeFunctionData, parseUnits } from 'viem';
 import { polygon } from 'viem/chains';
-import {
-  usePolymarketWallet,
-  useTrading,
-} from '@/providers/polymarket';
+import { usePrivy } from '@privy-io/react-auth';
+import { usePolymarketWallet, useTrading } from '@/providers/polymarket';
 import { useUser } from '@/lib/UserContext';
-import {
-  LEGACY_USDC_E_ADDRESS,
-  USDC_E_DECIMALS,
-} from '@/constants/polymarket';
-import { relayWrapExecTransaction } from '@/lib/polymarket/backend-session';
+import { LEGACY_USDC_E_ADDRESS, USDC_E_DECIMALS } from '@/constants/polymarket';
+import { submitSponsoredSafeExecTransaction } from '@/lib/polymarket/sponsored-safe';
 
 const COLLATERAL_ONRAMP_ADDRESS =
   '0x93070a847efEf7F70739046A929D47a521F5B8ee' as const;
@@ -64,8 +55,7 @@ const GNOSIS_SAFE_EXEC_ABI = [
   },
 ] as const;
 
-const ZERO_ADDRESS =
-  '0x0000000000000000000000000000000000000000' as const;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const;
 
 // EIP-712 types for Safe transaction — same structure used by useSafeDeployment
 const SAFE_TX_TYPES = {
@@ -83,34 +73,22 @@ const SAFE_TX_TYPES = {
   ],
 } as const;
 
-export type WrapStep =
-  | 'idle'
-  | 'approving'
-  | 'wrapping'
-  | 'done'
-  | 'error';
+export type WrapStep = 'idle' | 'approving' | 'wrapping' | 'done' | 'error';
 
 export function useWrapUsdcE() {
-  const { publicClient, eoaAddress, walletClient } =
+  const { publicClient, eoaAddress, walletId, walletClient } =
     usePolymarketWallet();
   const { safeAddress, legacySafeAddress, walletType } = useTrading();
   const { accessToken } = useUser();
+  const { getAccessToken: getPrivyAccessToken } = usePrivy();
 
   const [step, setStep] = useState<WrapStep>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  // Signs a Safe transaction via EIP-712 signTypedData, encodes the
-  // execTransaction calldata, then sends it to the backend relay endpoint.
-  //
-  // We CANNOT call walletClient.sendTransaction (or useSendTransaction) here
-  // because Privy v3.18 routes eth_sendTransaction through SignRequestScreen
-  // which crashes with "Cannot destructure property 'method' of 's.signMessage'
-  // as it is undefined" — the screen tries to access signMessage.method but
-  // that property only exists for sign requests, not transaction requests.
-  //
-  // The backend relay wallet pays gas and broadcasts the tx.  The Safe
-  // verifies the user's EIP-712 signature on-chain — the relay wallet is
-  // only the gas payer, not a signer for the Safe operation itself.
+  // Signs a Safe transaction via EIP-712, encodes execTransaction, then sends
+  // the outer EOA transaction through Swop's Privy sponsor. This avoids the
+  // Privy v3.18 browser transaction-screen bug without depending on a separate
+  // backend POL wallet. The Safe still verifies the user's inner signature.
   const executeSafeTx = useCallback(
     async (
       to: `0x${string}`,
@@ -120,7 +98,14 @@ export function useWrapUsdcE() {
       const sourceSafeAddress =
         walletType === 'deposit' ? legacySafeAddress : safeAddress;
 
-      if (!sourceSafeAddress || !eoaAddress || !walletClient || !publicClient || !accessToken)
+      if (
+        !sourceSafeAddress ||
+        !eoaAddress ||
+        !walletId ||
+        !walletClient ||
+        !publicClient ||
+        !accessToken
+      )
         throw new Error('Wallet not ready');
 
       // Sign the SafeTx via EIP-712
@@ -163,16 +148,33 @@ export function useWrapUsdcE() {
         ],
       });
 
-      // Submit via backend relay — avoids Privy v3.18 SignRequestScreen crash
-      const { txHash } = await relayWrapExecTransaction(
-        sourceSafeAddress,
-        execCalldata,
-        accessToken,
-      );
+      const privyAccessToken = await getPrivyAccessToken().catch(() => null);
+      if (!privyAccessToken) {
+        throw new Error(
+          'Privy authorization expired. Refresh the page and try again.',
+        );
+      }
 
-      return txHash;
+      return submitSponsoredSafeExecTransaction({
+        appAccessToken: accessToken,
+        privyAccessToken,
+        walletId,
+        ownerAddress: eoaAddress,
+        safeAddress: sourceSafeAddress as `0x${string}`,
+        execCalldata,
+      });
     },
-    [safeAddress, legacySafeAddress, walletType, eoaAddress, walletClient, publicClient, accessToken],
+    [
+      accessToken,
+      eoaAddress,
+      getPrivyAccessToken,
+      legacySafeAddress,
+      publicClient,
+      safeAddress,
+      walletClient,
+      walletId,
+      walletType,
+    ],
   );
 
   const wrap = useCallback(
@@ -187,33 +189,52 @@ export function useWrapUsdcE() {
       setError(null);
 
       try {
-        const amountInWei = parseUnits(
+        const requestedAmountInWei = parseUnits(
           amount.toFixed(USDC_E_DECIMALS),
           USDC_E_DECIMALS,
         );
+        const currentBalance = (await publicClient.readContract({
+          address: LEGACY_USDC_E_ADDRESS as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [sourceSafeAddress as `0x${string}`],
+        })) as bigint;
+        const amountInWei =
+          currentBalance < requestedAmountInWei
+            ? currentBalance
+            : requestedAmountInWei;
+        if (amountInWei <= BigInt(0)) {
+          setStep('done');
+          return;
+        }
 
-        const nonce = (await publicClient.readContract({
-          address: sourceSafeAddress as `0x${string}`,
-          abi: SAFE_NONCE_ABI,
-          functionName: 'nonce',
+        const allowance = (await publicClient.readContract({
+          address: LEGACY_USDC_E_ADDRESS as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [sourceSafeAddress as `0x${string}`, COLLATERAL_ONRAMP_ADDRESS],
         })) as bigint;
 
-        // Step 1: approve CollateralOnramp to spend USDC.e from the Safe
-        const approveCalldata = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [COLLATERAL_ONRAMP_ADDRESS, amountInWei],
-        });
-
-        const approveTxHash = await executeSafeTx(
-          LEGACY_USDC_E_ADDRESS as `0x${string}`,
-          approveCalldata,
-          nonce,
-        );
-
-        await publicClient.waitForTransactionReceipt({
-          hash: approveTxHash,
-        });
+        if (allowance < amountInWei) {
+          const nonce = (await publicClient.readContract({
+            address: sourceSafeAddress as `0x${string}`,
+            abi: SAFE_NONCE_ABI,
+            functionName: 'nonce',
+          })) as bigint;
+          const approveCalldata = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [COLLATERAL_ONRAMP_ADDRESS, amountInWei],
+          });
+          const approveTxHash = await executeSafeTx(
+            LEGACY_USDC_E_ADDRESS as `0x${string}`,
+            approveCalldata,
+            nonce,
+          );
+          await publicClient.waitForTransactionReceipt({
+            hash: approveTxHash,
+          });
+        }
 
         setStep('wrapping');
 
@@ -248,8 +269,7 @@ export function useWrapUsdcE() {
 
         setStep('done');
       } catch (err: any) {
-        const msg =
-          err?.message || err?.toString() || 'Wrap failed';
+        const msg = err?.message || err?.toString() || 'Wrap failed';
         const isRejected = [
           'rejected',
           'denied',

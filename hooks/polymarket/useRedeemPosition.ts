@@ -8,7 +8,6 @@ import { useUser } from "@/lib/UserContext";
 import {
   getDepositWalletWrapTypedData,
   getRedeemTypedData,
-  relayWrapExecTransaction,
   submitDepositWalletWrap,
   submitRedeem,
 } from "@/lib/polymarket/backend-session";
@@ -18,6 +17,7 @@ import {
   USDC_E_DECIMALS,
 } from "@/constants/polymarket";
 import { isStaleNonceRedeemError } from "@/lib/polymarket/position-payout";
+import { submitSponsoredSafeExecTransaction } from "@/lib/polymarket/sponsored-safe";
 
 export interface RedeemParams {
   conditionId: string;
@@ -62,8 +62,7 @@ type NormalizeLegacyUsdcParams = {
   silentOnly?: boolean;
 };
 
-const ZERO_ADDRESS =
-  "0x0000000000000000000000000000000000000000" as const;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 const WRAP_ABI = [
   {
@@ -125,7 +124,8 @@ const SAFE_TX_TYPES = {
   ],
 } as const;
 
-const swopApiBase = () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+const swopApiBase = () =>
+  (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 const delegatedSignerId =
   process.env.NEXT_PUBLIC_PRIVY_DELEGATED_SIGNER_ID ||
   process.env.NEXT_PUBLIC_PRIVY_SIGNER_WALLET_ID;
@@ -146,7 +146,7 @@ function serializeForJson(value: unknown): unknown {
       Object.entries(value).map(([key, nested]) => [
         key,
         serializeForJson(nested),
-      ])
+      ]),
     );
   }
   return value;
@@ -188,23 +188,23 @@ async function markPredictionFeedRedeemed({
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(
-      body?.message || body?.error || "Failed to mark prediction feed claimed"
+      body?.message || body?.error || "Failed to mark prediction feed claimed",
     );
   }
 }
 
 export function useRedeemPosition() {
   const [isRedeeming, setIsRedeeming] = useState(false);
-  const [isNormalizingCollateral, setIsNormalizingCollateral] =
-    useState(false);
+  const [isNormalizingCollateral, setIsNormalizingCollateral] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [delegatedSignerConfig, setDelegatedSignerConfig] =
     useState<DelegatedSignerConfig | null>(null);
 
-  const { eoaAddress, walletClient, publicClient } = usePolymarketWallet();
+  const { eoaAddress, walletId, walletClient, publicClient } =
+    usePolymarketWallet();
   const { walletType, depositWalletAddress } = useTrading();
   const { accessToken, user } = useUser();
-  const { user: privyUser } = usePrivy();
+  const { user: privyUser, getAccessToken: getPrivyAccessToken } = usePrivy();
   const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
   const queryClient = useQueryClient();
 
@@ -222,7 +222,7 @@ export function useRedeemPosition() {
         );
       });
     },
-    [privyUser]
+    [privyUser],
   );
 
   const getDelegatedSignerConfig = useCallback(async () => {
@@ -242,7 +242,7 @@ export function useRedeemPosition() {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-      }
+      },
     );
 
     if (!response.ok) return null;
@@ -260,18 +260,15 @@ export function useRedeemPosition() {
     return config;
   }, [accessToken, delegatedSignerConfig]);
 
-  const ensureDelegatedSigner = useCallback(
-    async () => {
-      const config = await getDelegatedSignerConfig();
-      return Boolean(config?.signerId);
-    },
-    [getDelegatedSignerConfig]
-  );
+  const ensureDelegatedSigner = useCallback(async () => {
+    const config = await getDelegatedSignerConfig();
+    return Boolean(config?.signerId);
+  }, [getDelegatedSignerConfig]);
 
   const signWithDelegatedPrivy = useCallback(
     async (
       path: "sign-typed-data" | "sign-message",
-      body: Record<string, unknown>
+      body: Record<string, unknown>,
     ) => {
       if (!eoaAddress || !accessToken || !swopApiBase()) {
         throw new Error("Silent redeem signing is not configured.");
@@ -294,7 +291,7 @@ export function useRedeemPosition() {
             address: eoaAddress,
             ...body,
           }),
-        }
+        },
       );
       const data = await response.json().catch(() => ({}));
 
@@ -302,13 +299,13 @@ export function useRedeemPosition() {
         throw new Error(
           data.message ||
             data.error ||
-            "Silent redeem signing failed. Please refresh and try again."
+            "Silent redeem signing failed. Please refresh and try again.",
         );
       }
 
       return data.signature as `0x${string}`;
     },
-    [accessToken, eoaAddress, ensureDelegatedSigner]
+    [accessToken, eoaAddress, ensureDelegatedSigner],
   );
 
   const signTypedDataWithoutPopup = useCallback(
@@ -341,7 +338,7 @@ export function useRedeemPosition() {
       isEmbeddedPrivyWallet,
       signTypedDataWithPrivy,
       signWithDelegatedPrivy,
-    ]
+    ],
   );
 
   const signSafeTxHash = useCallback(
@@ -359,11 +356,13 @@ export function useRedeemPosition() {
           if (silentOnly) {
             throw delegatedError instanceof Error
               ? delegatedError
-              : new Error("Silent redeem signing is not ready for this wallet.");
+              : new Error(
+                  "Silent redeem signing is not ready for this wallet.",
+                );
           }
           console.warn(
             "Silent delegated redeem signing unavailable; falling back to wallet signing:",
-            delegatedError
+            delegatedError,
           );
         }
       }
@@ -379,12 +378,7 @@ export function useRedeemPosition() {
         },
       });
     },
-    [
-      eoaAddress,
-      isEmbeddedPrivyWallet,
-      signWithDelegatedPrivy,
-      walletClient,
-    ]
+    [eoaAddress, isEmbeddedPrivyWallet, signWithDelegatedPrivy, walletClient],
   );
 
   const signRedeemTypedData = useCallback(
@@ -417,11 +411,13 @@ export function useRedeemPosition() {
           if (silentOnly) {
             throw silentError instanceof Error
               ? silentError
-              : new Error("Silent redeem signing is not ready for this wallet.");
+              : new Error(
+                  "Silent redeem signing is not ready for this wallet.",
+                );
           }
           console.warn(
             "Silent delegated redeem typed-data signing unavailable; falling back to wallet signing:",
-            silentError
+            silentError,
           );
         }
       }
@@ -432,10 +428,16 @@ export function useRedeemPosition() {
 
       return walletClient.signTypedData({
         account: eoaAddress as `0x${string}`,
-        domain: domain as Parameters<typeof walletClient.signTypedData>[0]["domain"],
-        types: types as Parameters<typeof walletClient.signTypedData>[0]["types"],
+        domain: domain as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["domain"],
+        types: types as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["types"],
         primaryType,
-        message: message as Parameters<typeof walletClient.signTypedData>[0]["message"],
+        message: message as Parameters<
+          typeof walletClient.signTypedData
+        >[0]["message"],
       });
     },
     [
@@ -443,7 +445,7 @@ export function useRedeemPosition() {
       isEmbeddedPrivyWallet,
       signTypedDataWithoutPopup,
       walletClient,
-    ]
+    ],
   );
 
   const executeLegacySafeTx = useCallback(
@@ -460,8 +462,8 @@ export function useRedeemPosition() {
       nonce: bigint;
       silentOnly: boolean;
     }) => {
-      if (!accessToken) {
-        throw new Error("Not authenticated.");
+      if (!accessToken || !eoaAddress || !walletId) {
+        throw new Error("Privy gas sponsorship is not ready for this wallet.");
       }
 
       const signature = await signRedeemTypedData({
@@ -503,15 +505,29 @@ export function useRedeemPosition() {
         ],
       });
 
-      const { txHash } = await relayWrapExecTransaction(
-        safeAddress,
-        execCalldata,
-        accessToken
-      );
+      const privyAccessToken = await getPrivyAccessToken().catch(() => null);
+      if (!privyAccessToken) {
+        throw new Error(
+          "Privy authorization expired. Refresh the page and try again.",
+        );
+      }
 
-      return txHash;
+      return submitSponsoredSafeExecTransaction({
+        appAccessToken: accessToken,
+        privyAccessToken,
+        walletId,
+        ownerAddress: eoaAddress,
+        safeAddress: safeAddress as `0x${string}`,
+        execCalldata,
+      });
     },
-    [accessToken, signRedeemTypedData]
+    [
+      accessToken,
+      eoaAddress,
+      getPrivyAccessToken,
+      signRedeemTypedData,
+      walletId,
+    ],
   );
 
   const normalizeLegacyUsdcFromSafe = useCallback(
@@ -530,32 +546,57 @@ export function useRedeemPosition() {
         throw new Error("Polygon client not ready.");
       }
 
-      const amountInUnits = BigInt(
-        Math.floor(amount * 10 ** USDC_E_DECIMALS)
+      const requestedAmountInUnits = BigInt(
+        Math.floor(amount * 10 ** USDC_E_DECIMALS),
       );
-      if (amountInUnits <= BigInt(0)) {
+      if (requestedAmountInUnits <= BigInt(0)) {
         throw new Error("Conversion amount must be positive.");
       }
 
-      const nonce = (await publicClient.readContract({
-        address: sourceSafeAddress as `0x${string}`,
-        abi: SAFE_NONCE_ABI,
-        functionName: "nonce",
+      const currentBalance = (await publicClient.readContract({
+        address: LEGACY_USDC_E_ADDRESS,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [sourceSafeAddress as `0x${string}`],
+      })) as bigint;
+      const amountInUnits =
+        currentBalance < requestedAmountInUnits
+          ? currentBalance
+          : requestedAmountInUnits;
+      if (amountInUnits <= BigInt(0)) {
+        return { success: true, alreadyConverted: true };
+      }
+
+      const allowance = (await publicClient.readContract({
+        address: LEGACY_USDC_E_ADDRESS,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [sourceSafeAddress as `0x${string}`, COLLATERAL_ONRAMP_ADDRESS],
       })) as bigint;
 
-      const approveCalldata = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [COLLATERAL_ONRAMP_ADDRESS, amountInUnits],
-      });
-      const approveTxHash = await executeLegacySafeTx({
-        safeAddress: sourceSafeAddress,
-        to: LEGACY_USDC_E_ADDRESS,
-        data: approveCalldata,
-        nonce,
-        silentOnly,
-      });
-      await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
+      // Desktop and mobile can discover the same legacy balance together.
+      // Reuse an existing approval so concurrent sweepers cannot burn gas on
+      // duplicate Safe transactions before the actual wrap runs.
+      if (allowance < amountInUnits) {
+        const nonce = (await publicClient.readContract({
+          address: sourceSafeAddress as `0x${string}`,
+          abi: SAFE_NONCE_ABI,
+          functionName: "nonce",
+        })) as bigint;
+        const approveCalldata = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [COLLATERAL_ONRAMP_ADDRESS, amountInUnits],
+        });
+        const approveTxHash = await executeLegacySafeTx({
+          safeAddress: sourceSafeAddress,
+          to: LEGACY_USDC_E_ADDRESS,
+          data: approveCalldata,
+          nonce,
+          silentOnly,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
+      }
 
       const nextNonce = (await publicClient.readContract({
         address: sourceSafeAddress as `0x${string}`,
@@ -583,7 +624,7 @@ export function useRedeemPosition() {
 
       return { success: true, txHash: wrapTxHash };
     },
-    [executeLegacySafeTx, publicClient]
+    [executeLegacySafeTx, publicClient],
   );
 
   const normalizeLegacyUsdcBalance = useCallback(
@@ -607,7 +648,8 @@ export function useRedeemPosition() {
       setIsNormalizingCollateral(true);
       try {
         const normalizationWalletType: PolymarketWalletType =
-          requestedWalletType ?? (sourceDepositWalletAddress ? "deposit" : "safe");
+          requestedWalletType ??
+          (sourceDepositWalletAddress ? "deposit" : "safe");
 
         if (normalizationWalletType === "safe") {
           if (!sourceSafeAddress) {
@@ -633,7 +675,7 @@ export function useRedeemPosition() {
               destinationAddress ?? sourceDepositWalletAddress,
             amount: wrapAmount,
           },
-          accessToken
+          accessToken,
         );
 
         const wrapTypedDataMessage = {
@@ -665,7 +707,7 @@ export function useRedeemPosition() {
             nonce: wrapData.nonce,
             deadline: wrapData.deadline,
           },
-          accessToken
+          accessToken,
         );
 
         queryClient.invalidateQueries({ queryKey: ["pusdBalance"] });
@@ -683,13 +725,11 @@ export function useRedeemPosition() {
       queryClient,
       signRedeemTypedData,
       walletClient,
-    ]
+    ],
   );
 
   const redeemPosition = useCallback(
-    async (
-      params: RedeemParams,
-    ): Promise<RedeemResult> => {
+    async (params: RedeemParams): Promise<RedeemResult> => {
       if (!eoaAddress || !walletClient || !accessToken) {
         throw new Error("Wallet not connected or not authenticated");
       }
@@ -715,7 +755,10 @@ export function useRedeemPosition() {
           size: params.size,
         };
 
-        console.debug("[Polymarket Redeem] typed-data request", redeemBasePayload);
+        console.debug(
+          "[Polymarket Redeem] typed-data request",
+          redeemBasePayload,
+        );
 
         // Runs the full typed-data → sign → submit sequence once. Extracted so
         // a stale Safe nonce (another Safe tx landed between signing and
@@ -725,7 +768,7 @@ export function useRedeemPosition() {
           // Step 1: Get the SafeTx EIP-712 hash from backend
           const typedData = await getRedeemTypedData(
             redeemBasePayload,
-            accessToken
+            accessToken,
           );
           console.debug("[Polymarket Redeem] typed-data response", {
             walletType: redeemWalletType,
@@ -747,7 +790,11 @@ export function useRedeemPosition() {
           // Step 2: Sign using the active wallet version's required scheme.
           let signature: `0x${string}`;
           if (redeemWalletType === "deposit") {
-            if (!typedData.typedData || !typedData.deadline || !typedData.calls) {
+            if (
+              !typedData.typedData ||
+              !typedData.deadline ||
+              !typedData.calls
+            ) {
               throw new Error("Redeem signing data is incomplete.");
             }
 
@@ -793,7 +840,7 @@ export function useRedeemPosition() {
               nonce: typedData.nonce,
               deadline: typedData.deadline,
             },
-            accessToken
+            accessToken,
           );
         };
 
@@ -831,13 +878,8 @@ export function useRedeemPosition() {
 
         let normalizedCollateral = false;
         let normalizationError: string | undefined;
-        const wrapAmount = Number(
-          result.redeemedAmount ?? params.size ?? 0
-        );
-        if (
-          result.shouldWrapCollateral &&
-          wrapAmount > 0
-        ) {
+        const wrapAmount = Number(result.redeemedAmount ?? params.size ?? 0);
+        if (result.shouldWrapCollateral && wrapAmount > 0) {
           try {
             await normalizeLegacyUsdcBalance({
               safeAddress: params.safeAddress,
@@ -856,12 +898,15 @@ export function useRedeemPosition() {
               wrapError instanceof Error
                 ? wrapError.message
                 : "Failed to convert redeemed USDC.e to pUSD.";
-            console.warn("[Polymarket Redeem] collateral normalization failed", {
-              message: normalizationError,
-              redeemWalletType,
-              redeemDepositWalletAddress,
-              wrapAmount,
-            });
+            console.warn(
+              "[Polymarket Redeem] collateral normalization failed",
+              {
+                message: normalizationError,
+                redeemWalletType,
+                redeemDepositWalletAddress,
+                wrapAmount,
+              },
+            );
           }
         }
 
@@ -878,7 +923,8 @@ export function useRedeemPosition() {
           normalizationError,
         };
       } catch (err) {
-        const error = err instanceof Error ? err : new Error("Failed to redeem position");
+        const error =
+          err instanceof Error ? err : new Error("Failed to redeem position");
         console.debug("[Polymarket Redeem] failed", {
           message: error.message,
           params,
@@ -900,7 +946,7 @@ export function useRedeemPosition() {
       signSafeTxHash,
       signRedeemTypedData,
       normalizeLegacyUsdcBalance,
-    ]
+    ],
   );
 
   return {

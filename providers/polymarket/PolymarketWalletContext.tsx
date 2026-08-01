@@ -31,6 +31,7 @@ const WALLET_PROVIDER_TIMEOUT_MS = 12_000;
 
 export interface PolymarketWalletContextType {
   eoaAddress: `0x${string}` | undefined;
+  walletId: string | undefined;
   walletClient: WalletClient | null;
   publicClient: PublicClient;
   ethersSigner: providers.JsonRpcSigner | null;
@@ -49,6 +50,7 @@ const publicClient = createPublicClient({
 
 const PolymarketWalletContext = createContext<PolymarketWalletContextType>({
   eoaAddress: undefined,
+  walletId: undefined,
   walletClient: null,
   publicClient,
   ethersSigner: null,
@@ -92,7 +94,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export function PolymarketWalletProvider({ children }: { children: ReactNode }) {
+export function PolymarketWalletProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
   const [ethersSigner, setEthersSigner] =
     useState<providers.JsonRpcSigner | null>(null);
@@ -120,6 +126,18 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
 
   const eoaAddress =
     authenticated && wallet ? (wallet.address as `0x${string}`) : undefined;
+  const linkedEoaWallet =
+    authenticated && eoaAddress
+      ? privyUser?.linkedAccounts.find(
+          (account) =>
+            account.type === "wallet" &&
+            account.address.toLowerCase() === eoaAddress.toLowerCase(),
+        )
+      : undefined;
+  const walletId =
+    linkedEoaWallet?.type === "wallet" && typeof linkedEoaWallet.id === "string"
+      ? linkedEoaWallet.id
+      : undefined;
   const walletChainId = wallet?.chainId;
   const walletAddressKey = wallet?.address?.toLowerCase();
   const initializationKey =
@@ -164,7 +182,12 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     let cancelled = false;
 
     async function init() {
-      if (!wallet || !walletAddressKey || !walletChainId || !initializationKey) {
+      if (
+        !wallet ||
+        !walletAddressKey ||
+        !walletChainId ||
+        !initializationKey
+      ) {
         // No EVM wallet available — stop initializing, no error
         setWalletClient(null);
         setEthersSigner(null);
@@ -221,6 +244,7 @@ export function PolymarketWalletProvider({ children }: { children: ReactNode }) 
     <PolymarketWalletContext.Provider
       value={{
         eoaAddress,
+        walletId,
         walletClient,
         publicClient,
         ethersSigner,
