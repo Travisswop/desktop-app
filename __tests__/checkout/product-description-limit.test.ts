@@ -5,6 +5,10 @@ import {
 } from '@/lib/marketplace/product-description';
 
 describe('product description limits', () => {
+  it('allows up to 2,000 characters for marketplace product copy', () => {
+    expect(PRODUCT_DESCRIPTION_MAX_LENGTH).toBe(2000);
+  });
+
   it('caps pasted or agent-prefilled descriptions at the NFT template limit', () => {
     const longDescription = 'a'.repeat(PRODUCT_DESCRIPTION_MAX_LENGTH + 75);
 
