@@ -26,10 +26,12 @@ import {
   Loader2,
   Phone,
   ShieldCheck,
+  Smartphone,
   X,
 } from 'lucide-react';
 import { FaApple } from 'react-icons/fa6';
 import { SiGooglepay } from 'react-icons/si';
+import { QRCodeSVG } from 'qrcode.react';
 
 import CustomModal from '@/components/modal/CustomModal';
 import {
@@ -49,6 +51,7 @@ import {
   embeddedCheckoutFrameHeight,
   embeddedCoinbasePaymentMethod,
   getAddCashPaymentOptions,
+  swopMobileFundingUrl,
   type AddCashPaymentChoice,
 } from '@/lib/wallet/addCashPaymentMethods';
 
@@ -95,7 +98,7 @@ const KEYPAD_ROWS = [
 
 const QUICK_AMOUNTS = ['25', '50', '100', '250'] as const;
 
-type Step = 'amount' | 'phone' | 'checkout' | 'hosted';
+type Step = 'amount' | 'phone' | 'checkout' | 'hosted' | 'mobile';
 type Sheet = 'network' | 'method' | null;
 
 type OnrampEventName =
@@ -267,9 +270,8 @@ export default function AddCashModal({
   // commit_success and polling_success both mean "it worked"; celebrate once.
   const celebratedRef = useRef(false);
 
-  // Safari can raise Apple Pay natively. Coinbase still supports the Apple Pay
-  // choice in Chrome through an iPhone QR handoff, so browser capability only
-  // changes the guidance — it must not disable the option.
+  // Safari can raise Apple Pay natively. Chrome keeps the choice available but
+  // hands it to the approved Swop mobile checkout through an iPhone QR.
   const [supportsApplePay, setSupportsApplePay] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -338,6 +340,10 @@ export default function AddCashModal({
     FUNDING_OPTIONS[0];
   const destination =
     selected.walletType === 'solana' ? solanaAddress : evmAddress;
+  const mobileFundingUrl = useMemo(
+    () => swopMobileFundingUrl(network, amount),
+    [amount, network],
+  );
 
   const amountNumber = Number(amount);
   const amountValid = Number.isFinite(amountNumber) && amountNumber > 0;
@@ -543,6 +549,15 @@ export default function AddCashModal({
       void startHostedCardCheckout();
       return;
     }
+    // Chrome on macOS cannot raise Apple Pay itself. Coinbase's web QR handoff
+    // still depends on web-domain verification, while Swop mobile already has
+    // the approved native Apple Pay checkout. Hand off the same amount/network
+    // to that route and let the user confirm from the native app.
+    if (paymentChoice === 'apple_pay' && !supportsApplePay) {
+      setError(null);
+      setStep('mobile');
+      return;
+    }
     if (needsPhone) {
       setPhoneError(null);
       setStep('phone');
@@ -555,6 +570,7 @@ export default function AddCashModal({
     paymentChoice,
     startGuestCheckout,
     startHostedCardCheckout,
+    supportsApplePay,
   ]);
 
   const sendCode = async () => {
@@ -781,6 +797,8 @@ export default function AddCashModal({
         ? `Confirm with ${payLabel}`
         : step === 'hosted'
           ? 'Complete at Coinbase'
+          : step === 'mobile'
+            ? 'Continue on iPhone'
           : 'Add cash';
 
   const PayGlyph =
@@ -925,6 +943,54 @@ export default function AddCashModal({
                   </button>
                 );
               })}
+            </div>
+          ) : step === 'mobile' ? (
+            <div className="space-y-4 px-5 pb-5 pt-2">
+              <div className="text-center">
+                <p className="font-mono text-[28px] font-semibold tracking-[-0.02em] text-gray-950">
+                  ${amount}
+                </p>
+                <p className="mt-1 text-[12px] text-gray-500">
+                  USDC on {selected.label} · {truncateAddress(destination)}
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <div className="rounded-3xl border border-black/[0.06] bg-white p-3 shadow-sm">
+                  <QRCodeSVG
+                    value={mobileFundingUrl}
+                    size={224}
+                    level="M"
+                    includeMargin
+                    title="Scan to continue in Swop mobile"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 rounded-2xl bg-gray-50 px-3 py-3">
+                <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
+                <p className="text-[12px] leading-[18px] text-gray-600">
+                  Scan with your iPhone Camera. Swop opens to this same purchase;
+                  tap Buy with Apple Pay there to raise the native payment sheet.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentChoice('debit_card');
+                  setError(null);
+                  setStep('amount');
+                }}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-black/[0.08] bg-white text-[14px] font-semibold text-gray-950 transition hover:bg-gray-50"
+              >
+                <CreditCard className="h-4 w-4" />
+                Use Debit card on this Mac
+              </button>
+
+              <p className="text-center text-[11px] leading-[16px] text-gray-400">
+                Requires the Swop app installed and signed in on your iPhone.
+              </p>
             </div>
           ) : step === 'phone' ? (
             <div className="space-y-3 px-5 pb-5 pt-2">

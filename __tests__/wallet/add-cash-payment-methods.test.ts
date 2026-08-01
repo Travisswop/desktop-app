@@ -4,6 +4,7 @@ import {
   embeddedCheckoutFrameHeight,
   embeddedCoinbasePaymentMethod,
   getAddCashPaymentOptions,
+  swopMobileFundingUrl,
 } from '@/lib/wallet/addCashPaymentMethods';
 
 describe('Add Cash payment methods', () => {
@@ -21,7 +22,7 @@ describe('Add Cash payment methods', () => {
     expect(applePay).toEqual(
       expect.objectContaining({
         label: 'Apple Pay',
-        sub: expect.stringMatching(/Scan with your iPhone/),
+        sub: expect.stringMatching(/Swop on your iPhone/),
       }),
     );
     expect(embeddedCoinbasePaymentMethod('apple_pay')).toBe(
@@ -29,6 +30,9 @@ describe('Add Cash payment methods', () => {
     );
     expect(embeddedCheckoutFrameHeight('apple_pay', false)).toBe(
       'clamp(280px, 48vh, 320px)',
+    );
+    expect(swopMobileFundingUrl('base', '25')).toBe(
+      'https://www.swopme.app/fund?network=base&amount=25',
     );
   });
 

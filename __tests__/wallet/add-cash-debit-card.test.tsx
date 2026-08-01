@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AddCashModal from '@/components/wallet/AddCashModal';
 
 const mockCreateSession = jest.fn();
+const mockCreateOrder = jest.fn();
 const mockGetPhoneStatus = jest.fn();
 const mockRouterPush = jest.fn();
 
@@ -38,6 +39,7 @@ jest.mock('@/services/wallet-service', () => ({
   default: {
     createCoinbaseOnrampSession: (...args: unknown[]) =>
       mockCreateSession(...args),
+    createCoinbaseOnrampOrder: (...args: unknown[]) => mockCreateOrder(...args),
     getOnrampPhoneStatus: (...args: unknown[]) =>
       mockGetPhoneStatus(...args),
   },
@@ -61,6 +63,7 @@ jest.mock('@/components/celebrations/TradeCelebration', () => ({
 describe('Add Cash debit-card checkout', () => {
   beforeEach(() => {
     mockCreateSession.mockReset();
+    mockCreateOrder.mockReset();
     mockGetPhoneStatus.mockReset();
     mockRouterPush.mockReset();
     mockGetPhoneStatus.mockResolvedValue({
@@ -152,5 +155,41 @@ describe('Add Cash debit-card checkout', () => {
     expect(
       await screen.findByText(/Allow pop-ups for Swop/),
     ).toBeInTheDocument();
+  });
+
+  it('hands Chrome Apple Pay off to the approved Swop mobile route', async () => {
+    // This path deliberately bypasses desktop phone verification; keep the
+    // background status request pending so the test only observes that branch.
+    mockGetPhoneStatus.mockReturnValue(new Promise(() => {}));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AddCashModal isOpen onClose={jest.fn()} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '$25' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Debit card', exact: true }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /Apple Pay Scan to continue in Swop on your iPhone/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Buy with Apple Pay' }),
+    );
+
+    expect(screen.getByText('Continue on iPhone')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Swop opens to this same purchase/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle('Scan to continue in Swop mobile'),
+    ).toBeInTheDocument();
+    expect(mockCreateOrder).not.toHaveBeenCalled();
   });
 });
