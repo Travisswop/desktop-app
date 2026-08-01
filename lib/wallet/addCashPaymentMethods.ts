@@ -1,7 +1,4 @@
-import type {
-  CoinbaseOnrampNetwork,
-  CoinbaseOnrampPaymentMethod,
-} from '@/services/wallet-service';
+import type { CoinbaseOnrampPaymentMethod } from '@/services/wallet-service';
 
 export type AddCashPaymentChoice =
   | 'debit_card'
@@ -31,22 +28,6 @@ export function embeddedCoinbasePaymentMethod(
 }
 
 /**
- * Chrome cannot raise Apple Pay natively on macOS. Send its iPhone handoff to
- * Swop mobile's approved native checkout instead of Coinbase's web QR flow.
- * `swopme.app` is an associated domain for the iOS app, and the mobile fund
- * route accepts both values so the user lands on the same purchase.
- */
-export function swopMobileFundingUrl(
-  network: CoinbaseOnrampNetwork,
-  amount: string,
-) {
-  const url = new URL('https://www.swopme.app/fund');
-  url.searchParams.set('network', network);
-  url.searchParams.set('amount', amount);
-  return url.toString();
-}
-
-/**
  * Coinbase's desktop Apple Pay fallback renders a circular QR code inside the
  * iframe. It needs more vertical room than the native Safari / Google Pay
  * buttons; otherwise the QR boundary is cropped and cannot be scanned.
@@ -56,15 +37,15 @@ export function embeddedCheckoutFrameHeight(
   supportsNativeApplePay: boolean,
 ) {
   if (choice === 'apple_pay' && !supportsNativeApplePay) {
-    return 'clamp(280px, 48vh, 320px)';
+    return '500px';
   }
 
   return '220px';
 }
 
-// Coinbase Headless Onramp renders native Apple Pay in Safari. Other desktop
-// browsers hand off to Swop mobile's native checkout. Debit-card entry belongs
-// to Coinbase Hosted Onramp, which must open in a popup/new tab (not an iframe).
+// Coinbase Headless Onramp renders native Apple Pay in Safari and Apple's
+// scan-to-pay QR in other desktop browsers. Debit-card entry belongs to
+// Coinbase Hosted Onramp, which must open in a popup/new tab (not an iframe).
 export function getAddCashPaymentOptions(
   supportsNativeApplePay: boolean,
 ): AddCashPaymentOption[] {
@@ -79,7 +60,7 @@ export function getAddCashPaymentOptions(
       label: 'Apple Pay',
       sub: supportsNativeApplePay
         ? 'Pay directly on this Mac'
-        : 'Scan to continue in Swop on your iPhone',
+        : 'Scan with your iPhone to confirm with Apple Pay',
     },
     {
       key: 'google_pay',

@@ -62,6 +62,7 @@ jest.mock('@/components/celebrations/TradeCelebration', () => ({
 
 describe('Add Cash debit-card checkout', () => {
   beforeEach(() => {
+    delete (window as Window & { ApplePaySession?: unknown }).ApplePaySession;
     mockCreateSession.mockReset();
     mockCreateOrder.mockReset();
     mockGetPhoneStatus.mockReset();
@@ -157,10 +158,35 @@ describe('Add Cash debit-card checkout', () => {
     ).toBeInTheDocument();
   });
 
-  it('hands Chrome Apple Pay off to the approved Swop mobile route', async () => {
-    // This path deliberately bypasses desktop phone verification; keep the
-    // background status request pending so the test only observes that branch.
-    mockGetPhoneStatus.mockReturnValue(new Promise(() => {}));
+  it('opens Coinbase Apple Pay scan-to-pay directly in Chrome', async () => {
+    const replace = jest.fn();
+    const close = jest.fn();
+    const checkoutWindow = {
+      close,
+      location: { replace },
+      opener: window,
+    } as unknown as Window;
+    jest.spyOn(window, 'open').mockReturnValue(checkoutWindow);
+    mockGetPhoneStatus.mockResolvedValue({
+      otpRequired: true,
+      verified: true,
+      phoneNumberMasked: '(***) ***-1234',
+      verifiedAt: new Date().toISOString(),
+    });
+    mockCreateOrder.mockResolvedValue({
+      paymentLink: {
+        url: 'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
+        paymentLinkType: 'PAYMENT_LINK_TYPE_APPLE_PAY_BUTTON',
+      },
+      order: {},
+      destinationAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      destinationNetwork: 'base',
+      purchaseCurrency: 'USDC',
+      paymentCurrency: 'USD',
+      paymentAmount: '25',
+      paymentMethod: 'GUEST_CHECKOUT_APPLE_PAY',
+      sandbox: false,
+    });
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -172,24 +198,105 @@ describe('Add Cash debit-card checkout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '$25' }));
     fireEvent.click(
-      screen.getByRole('button', { name: 'Debit card', exact: true }),
+      screen.getByRole('button', { name: 'Debit card' }),
     );
     fireEvent.click(
       screen.getByRole('button', {
-        name: /Apple Pay Scan to continue in Swop on your iPhone/,
+        name: /Apple Pay Scan with your iPhone to confirm with Apple Pay/,
       }),
+    );
+    await waitFor(() =>
+      expect(mockGetPhoneStatus).toHaveBeenCalledWith('access-token'),
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Buy with Apple Pay' }),
     );
 
-    expect(screen.getByText('Continue on iPhone')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Swop opens to this same purchase/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTitle('Scan to continue in Swop mobile'),
-    ).toBeInTheDocument();
-    expect(mockCreateOrder).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+    expect(mockCreateOrder).toHaveBeenCalledWith(
+      expect.not.objectContaining({ domain: expect.anything() }),
+      'access-token',
+    );
+    expect(mockCreateOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network: 'base',
+        paymentAmount: '25',
+        paymentMethod: 'GUEST_CHECKOUT_APPLE_PAY',
+      }),
+      'access-token',
+    );
+    expect(window.open).toHaveBeenCalledWith(
+      'about:blank',
+      'swop-apple-pay',
+      expect.stringContaining('popup=yes'),
+    );
+    expect(replace).toHaveBeenCalledWith(
+      'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
+    );
+    expect(close).not.toHaveBeenCalled();
+    expect(await screen.findByText('Apple Pay is ready')).toBeInTheDocument();
+    expect(screen.getByText(/Swop app is not required/)).toBeInTheDocument();
+  });
+
+  it('keeps Safari Apple Pay embedded with the required iframe policy', async () => {
+    Object.defineProperty(window, 'ApplePaySession', {
+      configurable: true,
+      value: { canMakePayments: () => true },
+    });
+    mockGetPhoneStatus.mockResolvedValue({
+      otpRequired: true,
+      verified: true,
+      phoneNumberMasked: '(***) ***-1234',
+      verifiedAt: new Date().toISOString(),
+    });
+    mockCreateOrder.mockResolvedValue({
+      paymentLink: {
+        url: 'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
+        paymentLinkType: 'PAYMENT_LINK_TYPE_APPLE_PAY_BUTTON',
+      },
+      order: {},
+      destinationAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      destinationNetwork: 'base',
+      purchaseCurrency: 'USDC',
+      paymentCurrency: 'USD',
+      paymentAmount: '25',
+      paymentMethod: 'GUEST_CHECKOUT_APPLE_PAY',
+      sandbox: false,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AddCashModal isOpen onClose={jest.fn()} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '$25' }));
+    await waitFor(() =>
+      expect(mockGetPhoneStatus).toHaveBeenCalledWith('access-token'),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Buy with Apple Pay' }),
+    );
+
+    await waitFor(() => expect(mockCreateOrder).toHaveBeenCalledTimes(1));
+    expect(mockCreateOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentMethod: 'GUEST_CHECKOUT_APPLE_PAY',
+        domain: 'localhost',
+      }),
+      'access-token',
+    );
+
+    const paymentFrame = await screen.findByTitle('Coinbase payment');
+    expect(paymentFrame).toHaveAttribute('allow', 'payment');
+    expect(paymentFrame).toHaveAttribute(
+      'sandbox',
+      'allow-scripts allow-same-origin',
+    );
+    expect(paymentFrame).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(paymentFrame).toHaveStyle({ height: '220px' });
   });
 });

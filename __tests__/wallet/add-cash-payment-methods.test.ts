@@ -4,7 +4,6 @@ import {
   embeddedCheckoutFrameHeight,
   embeddedCoinbasePaymentMethod,
   getAddCashPaymentOptions,
-  swopMobileFundingUrl,
 } from '@/lib/wallet/addCashPaymentMethods';
 
 describe('Add Cash payment methods', () => {
@@ -14,7 +13,7 @@ describe('Add Cash payment methods', () => {
     expect(embeddedCoinbasePaymentMethod(DEFAULT_ADD_CASH_PAYMENT)).toBeNull();
   });
 
-  it('keeps Apple Pay available when Chrome needs the iPhone QR handoff', () => {
+  it('keeps Apple Pay available for Chrome scan-to-pay', () => {
     const applePay = getAddCashPaymentOptions(false).find(
       (option) => option.key === 'apple_pay',
     );
@@ -22,18 +21,13 @@ describe('Add Cash payment methods', () => {
     expect(applePay).toEqual(
       expect.objectContaining({
         label: 'Apple Pay',
-        sub: expect.stringMatching(/Swop on your iPhone/),
+        sub: expect.stringMatching(/iPhone to confirm with Apple Pay/),
       }),
     );
     expect(embeddedCoinbasePaymentMethod('apple_pay')).toBe(
       'GUEST_CHECKOUT_APPLE_PAY',
     );
-    expect(embeddedCheckoutFrameHeight('apple_pay', false)).toBe(
-      'clamp(280px, 48vh, 320px)',
-    );
-    expect(swopMobileFundingUrl('base', '25')).toBe(
-      'https://www.swopme.app/fund?network=base&amount=25',
-    );
+    expect(embeddedCheckoutFrameHeight('apple_pay', false)).toBe('500px');
   });
 
   it('explains that native Apple Pay is available when Safari exposes it', () => {
