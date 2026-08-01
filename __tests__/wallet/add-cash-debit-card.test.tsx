@@ -8,6 +8,7 @@ import AddCashModal from '@/components/wallet/AddCashModal';
 
 const mockCreateSession = jest.fn();
 const mockCreateOrder = jest.fn();
+const mockGetOrder = jest.fn();
 const mockGetPhoneStatus = jest.fn();
 const mockRouterPush = jest.fn();
 
@@ -40,6 +41,7 @@ jest.mock('@/services/wallet-service', () => ({
     createCoinbaseOnrampSession: (...args: unknown[]) =>
       mockCreateSession(...args),
     createCoinbaseOnrampOrder: (...args: unknown[]) => mockCreateOrder(...args),
+    getCoinbaseOnrampOrder: (...args: unknown[]) => mockGetOrder(...args),
     getOnrampPhoneStatus: (...args: unknown[]) =>
       mockGetPhoneStatus(...args),
   },
@@ -57,7 +59,18 @@ jest.mock('@/components/modal/CustomModal', () => ({
 }));
 
 jest.mock('@/components/celebrations/TradeCelebration', () => ({
-  TradeCelebrationOverlay: () => null,
+  TradeCelebrationOverlay: ({
+    spec,
+    onDone,
+  }: {
+    spec: { amount: number };
+    onDone: () => void;
+  }) => (
+    <div>
+      <span>{`You just added ${spec.amount}`}</span>
+      <button type="button" onClick={onDone}>Go to wallet</button>
+    </div>
+  ),
 }));
 
 describe('Add Cash debit-card checkout', () => {
@@ -65,6 +78,7 @@ describe('Add Cash debit-card checkout', () => {
     delete (window as Window & { ApplePaySession?: unknown }).ApplePaySession;
     mockCreateSession.mockReset();
     mockCreateOrder.mockReset();
+    mockGetOrder.mockReset();
     mockGetPhoneStatus.mockReset();
     mockRouterPush.mockReset();
     mockGetPhoneStatus.mockResolvedValue({
@@ -72,6 +86,9 @@ describe('Add Cash debit-card checkout', () => {
       verified: false,
       phoneNumberMasked: null,
       verifiedAt: null,
+    });
+    mockGetOrder.mockResolvedValue({
+      order: { status: 'ONRAMP_ORDER_STATUS_PENDING' },
     });
   });
 
@@ -178,7 +195,7 @@ describe('Add Cash debit-card checkout', () => {
         url: 'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
         paymentLinkType: 'PAYMENT_LINK_TYPE_APPLE_PAY_BUTTON',
       },
-      order: {},
+      order: { orderId: '123e4567-e89b-12d3-a456-426614174000' },
       destinationAddress: '0x1234567890abcdef1234567890abcdef12345678',
       destinationNetwork: 'base',
       purchaseCurrency: 'USDC',
@@ -236,6 +253,81 @@ describe('Add Cash debit-card checkout', () => {
     expect(close).not.toHaveBeenCalled();
     expect(await screen.findByText('Apple Pay is ready')).toBeInTheDocument();
     expect(screen.getByText(/Swop app is not required/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockGetOrder).toHaveBeenCalledWith(
+        '123e4567-e89b-12d3-a456-426614174000',
+        'access-token',
+      ),
+    );
+  });
+
+  it('closes the Apple Pay window, celebrates, and returns to Wallet after payment', async () => {
+    const replace = jest.fn();
+    const close = jest.fn();
+    const checkoutWindow = {
+      close,
+      location: { replace },
+      opener: window,
+    } as unknown as Window;
+    jest.spyOn(window, 'open').mockReturnValue(checkoutWindow);
+    mockGetPhoneStatus.mockResolvedValue({
+      otpRequired: true,
+      verified: true,
+      phoneNumberMasked: '(***) ***-1234',
+      verifiedAt: new Date().toISOString(),
+    });
+    mockCreateOrder.mockResolvedValue({
+      paymentLink: {
+        url: 'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
+        paymentLinkType: 'PAYMENT_LINK_TYPE_APPLE_PAY_BUTTON',
+      },
+      order: {
+        orderId: '123e4567-e89b-12d3-a456-426614174000',
+        purchaseAmount: '24.15',
+        paymentTotal: '25',
+      },
+      destinationAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      destinationNetwork: 'base',
+      purchaseCurrency: 'USDC',
+      paymentCurrency: 'USD',
+      paymentAmount: '25',
+      paymentMethod: 'GUEST_CHECKOUT_APPLE_PAY',
+      sandbox: false,
+    });
+    mockGetOrder.mockResolvedValue({
+      order: {
+        orderId: '123e4567-e89b-12d3-a456-426614174000',
+        status: 'ONRAMP_ORDER_STATUS_PROCESSING',
+        purchaseAmount: '24.15',
+        paymentTotal: '25',
+        fees: [{ type: 'FEE_TYPE_EXCHANGE', amount: '0.85' }],
+      },
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AddCashModal isOpen onClose={jest.fn()} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '$25' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Debit card' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /Apple Pay Scan with your iPhone to confirm with Apple Pay/,
+      }),
+    );
+    await waitFor(() =>
+      expect(mockGetPhoneStatus).toHaveBeenCalledWith('access-token'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Buy with Apple Pay' }));
+
+    expect(await screen.findByText('You just added 24.15')).toBeInTheDocument();
+    expect(close).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to wallet' }));
+    expect(mockRouterPush).toHaveBeenCalledWith('/wallet');
   });
 
   it('keeps Safari Apple Pay embedded with the required iframe policy', async () => {
@@ -254,7 +346,7 @@ describe('Add Cash debit-card checkout', () => {
         url: 'https://pay.coinbase.com/v2/api-onramp/apple-pay?sessionToken=test',
         paymentLinkType: 'PAYMENT_LINK_TYPE_APPLE_PAY_BUTTON',
       },
-      order: {},
+      order: { orderId: '123e4567-e89b-12d3-a456-426614174000' },
       destinationAddress: '0x1234567890abcdef1234567890abcdef12345678',
       destinationNetwork: 'base',
       purchaseCurrency: 'USDC',

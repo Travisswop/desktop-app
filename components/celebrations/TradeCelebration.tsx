@@ -1071,7 +1071,7 @@ function CashAddedBody({
       <Emblem color={c}>
         <Glyph name="cash" />
       </Emblem>
-      <Kicker color={c}>Cash added</Kicker>
+      <Kicker color={c}>You just added</Kicker>
       <div style={{ ...bigNumberStyle, color: c }}>{money(delivered)}</div>
       <div style={{ ...subLineStyle, color: DN.muted }}>
         {spec.symbol} on its way to your Swop wallet via {spec.payLabel}

@@ -126,6 +126,10 @@ export interface CoinbaseOnrampOrderResponse {
   sandbox?: boolean;
 }
 
+export interface CoinbaseOnrampOrderStatusResponse {
+  order: any;
+}
+
 export interface OnrampPhoneStatus {
   otpRequired: boolean;
   verified: boolean;
@@ -358,6 +362,32 @@ export class WalletService {
     if (!response.ok || !result.success) {
       throw new Error(
         result.message || 'Unable to start embedded Coinbase funding.'
+      );
+    }
+
+    return result.data;
+  }
+
+  static async getCoinbaseOnrampOrder(
+    orderId: string,
+    accessToken?: string | null
+  ): Promise<CoinbaseOnrampOrderStatusResponse> {
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    const response = await apiFetch(
+      buildSwopApiUrl(
+        `/api/v5/wallet/onramp/coinbase/order/${encodeURIComponent(orderId)}`
+      ),
+      { headers, signal: AbortSignal.timeout(20000) }
+    );
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || 'Unable to check Coinbase payment status.'
       );
     }
 

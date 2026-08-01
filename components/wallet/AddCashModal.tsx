@@ -39,7 +39,6 @@ import {
 import { useUser } from '@/lib/UserContext';
 import WalletService, {
   type CoinbaseOnrampNetwork,
-  type CoinbaseOnrampOrderResponse,
   type CoinbaseOnrampPaymentMethod,
   type OnrampPhoneStatus,
 } from '@/services/wallet-service';
@@ -186,7 +185,10 @@ type OrderQuote = {
  * buy-quote API rejects GUEST_CHECKOUT_*), so this committed quote on the order
  * is the only place the real numbers exist. Surface them, never assume 1:1.
  */
-function readOrderQuote(order: CoinbaseOnrampOrderResponse): OrderQuote {
+function readOrderQuote(order: {
+  order?: any | null;
+  paymentAmount?: unknown;
+}): OrderQuote {
   const raw = (order.order ?? {}) as Record<string, any>;
   const fees: { type?: string; amount?: unknown }[] = Array.isArray(raw.fees)
     ? raw.fees
@@ -249,6 +251,12 @@ export default function AddCashModal({
   const [error, setError] = useState<string | null>(null);
 
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [hostedApplePayUrl, setHostedApplePayUrl] = useState<string | null>(
+    null,
+  );
+  const [hostedApplePayOrderId, setHostedApplePayOrderId] = useState<
+    string | null
+  >(null);
   const [paymentEvent, setPaymentEvent] = useState<OnrampEventName | null>(null);
   const [celebration, setCelebration] = useState<TradeCelebrationSpec | null>(
     null,
@@ -264,6 +272,7 @@ export default function AddCashModal({
   // Committed quote from the order Coinbase priced — the only place the real
   // delivered amount and fee exist for this rail.
   const quoteRef = useRef<OrderQuote | null>(null);
+  const checkoutWindowRef = useRef<Window | null>(null);
   // commit_success and polling_success both mean "it worked"; celebrate once.
   const celebratedRef = useRef(false);
 
@@ -374,6 +383,7 @@ export default function AddCashModal({
     }
 
     checkoutWindow.opener = null;
+    checkoutWindowRef.current = checkoutWindow;
     return checkoutWindow;
   }, []);
 
@@ -400,6 +410,8 @@ export default function AddCashModal({
     setError(null);
     setLoading(false);
     setPaymentUrl(null);
+    setHostedApplePayUrl(null);
+    setHostedApplePayOrderId(null);
     setPaymentEvent(null);
     setCelebration(null);
     setPhoneCode('');
@@ -407,6 +419,8 @@ export default function AddCashModal({
     setPhoneError(null);
     quoteRef.current = null;
     celebratedRef.current = false;
+    checkoutWindowRef.current?.close();
+    checkoutWindowRef.current = null;
   }, []);
 
   const handleClose = useCallback(() => {
@@ -475,6 +489,14 @@ export default function AddCashModal({
         : paymentLinkUrl;
 
       if (hostedApplePay && checkoutWindow) {
+        const orderId = String(order.order?.orderId || '');
+        if (!orderId) {
+          throw new Error(
+            'Coinbase did not return an order ID to confirm this payment.',
+          );
+        }
+        setHostedApplePayUrl(checkoutUrl);
+        setHostedApplePayOrderId(orderId);
         checkoutWindow.location.replace(checkoutUrl);
         setStep('apple-hosted');
       } else {
@@ -532,6 +554,13 @@ export default function AddCashModal({
     if (!checkoutWindow) return;
     void startGuestCheckout(checkoutWindow);
   }, [openApplePayCheckoutWindow, startGuestCheckout]);
+
+  const reopenHostedApplePayCheckout = useCallback(() => {
+    if (!hostedApplePayUrl) return;
+    const checkoutWindow = openApplePayCheckoutWindow();
+    if (!checkoutWindow) return;
+    checkoutWindow.location.replace(hostedApplePayUrl);
+  }, [hostedApplePayUrl, openApplePayCheckoutWindow]);
 
   const startHostedCardCheckout = useCallback(async () => {
     if (!accessToken || !amountValid) return;
@@ -682,6 +711,8 @@ export default function AddCashModal({
     (eventName: OnrampEventName) => {
       if (celebratedRef.current) return;
       celebratedRef.current = true;
+      checkoutWindowRef.current?.close();
+      checkoutWindowRef.current = null;
       const quote = quoteRef.current;
       const paidUsd = quote?.paidUsd ?? amountNumber;
       const delivered = quote?.purchaseAmount ?? paidUsd;
@@ -782,6 +813,97 @@ export default function AddCashModal({
     return () => window.removeEventListener('message', handleMessage);
   }, [handleSuccess, paymentChoice, paymentUrl]);
 
+  // Chrome's Apple Pay QR runs on Coinbase's top-level domain, outside the
+  // embedded frame that emits postMessage events. Poll the authenticated order
+  // record instead, and celebrate as soon as Coinbase marks the charge
+  // PROCESSING (the equivalent of commit_success) or COMPLETED.
+  useEffect(() => {
+    if (
+      !isOpen ||
+      step !== 'apple-hosted' ||
+      !hostedApplePayOrderId ||
+      !accessToken ||
+      celebration
+    ) {
+      return;
+    }
+
+    let stopped = false;
+    let timer: number | undefined;
+    let consecutiveErrors = 0;
+    const startedAt = Date.now();
+
+    const poll = async () => {
+      try {
+        const result = await WalletService.getCoinbaseOnrampOrder(
+          hostedApplePayOrderId,
+          accessToken,
+        );
+        if (stopped) return;
+
+        consecutiveErrors = 0;
+        const order = result.order ?? {};
+        const status = String(order.status || '').toUpperCase();
+        const completed = status.endsWith('_COMPLETED');
+        const processing = status.endsWith('_PROCESSING');
+        const failed =
+          status.endsWith('_FAILED') ||
+          status.endsWith('_CANCELED') ||
+          status.endsWith('_CANCELLED') ||
+          status.endsWith('_EXPIRED');
+
+        if (completed || processing) {
+          quoteRef.current = readOrderQuote({ order });
+          setError(null);
+          const eventName: OnrampEventName = completed
+            ? 'onramp_api.polling_success'
+            : 'onramp_api.commit_success';
+          setPaymentEvent(eventName);
+          handleSuccess(eventName);
+          return;
+        }
+
+        if (failed) {
+          checkoutWindowRef.current?.close();
+          checkoutWindowRef.current = null;
+          setError(
+            'Apple Pay could not complete this purchase. Try again or choose another payment method.',
+          );
+          return;
+        }
+      } catch {
+        if (stopped) return;
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) {
+          setError(
+            'Swop is still checking this Apple Pay purchase. Keep this window open while Coinbase confirms it.',
+          );
+        }
+      }
+
+      if (!stopped && Date.now() - startedAt < 15 * 60 * 1000) {
+        timer = window.setTimeout(poll, 2500);
+      } else if (!stopped) {
+        setError(
+          'Coinbase is taking longer than expected. Your purchase can still complete; check Wallet for the updated balance.',
+        );
+      }
+    };
+
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [
+    accessToken,
+    celebration,
+    handleSuccess,
+    hostedApplePayOrderId,
+    isOpen,
+    step,
+  ]);
+
   // Physical keyboard drives the keypad — this is a desktop app, typing an
   // amount should just work. Escape remains available from every step.
   useEffect(() => {
@@ -834,12 +956,20 @@ export default function AddCashModal({
 
   // Coinbase has the money; the wallet is where the user wants to land. Refresh
   // balances on the way so the new USDC shows up.
-  const finishToWallet = () => {
+  const finishToWallet = useCallback(() => {
     handleClose();
     queryClient.invalidateQueries({ queryKey: ['walletTokens'] });
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     router.push('/wallet');
-  };
+  }, [handleClose, queryClient, router]);
+
+  // Let the cash-added animation breathe, then return to Wallet automatically.
+  // The CTA remains available for users who want to continue immediately.
+  useEffect(() => {
+    if (!celebration) return;
+    const timer = window.setTimeout(finishToWallet, 4500);
+    return () => window.clearTimeout(timer);
+  }, [celebration, finishToWallet]);
 
   if (!isOpen) return null;
 
@@ -1016,7 +1146,7 @@ export default function AddCashModal({
 
               <button
                 type="button"
-                onClick={startHostedApplePayCheckout}
+                onClick={reopenHostedApplePayCheckout}
                 disabled={loading}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-black/[0.08] bg-white text-[14px] font-semibold text-gray-950 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1025,15 +1155,12 @@ export default function AddCashModal({
                 ) : (
                   <ExternalLink className="h-4 w-4" />
                 )}
-                Open a new Apple Pay window
+                Reopen Apple Pay window
               </button>
-              <button
-                type="button"
-                onClick={finishToWallet}
-                className="flex h-12 w-full items-center justify-center rounded-full bg-gray-950 text-[14px] font-semibold text-white transition hover:bg-gray-800"
-              >
-                I&apos;ve finished
-              </button>
+              <div className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gray-950 text-[14px] font-semibold text-white">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking payment status…
+              </div>
               <p className="text-center text-[11px] leading-[16px] text-gray-400">
                 Apple Pay and Coinbase handle the card confirmation securely.
                 Swop never sees or stores your card details.
