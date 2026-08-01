@@ -257,6 +257,18 @@ const sellerConfirmedDelivery = (order: OrderDetail) => {
   );
 };
 
+const sellerStartedShipping = (order: OrderDetail) => {
+  const fulfillment = order.fulfillment;
+  return Boolean(
+    fulfillment?.releaseConditions?.shippingConfirmed ||
+      fulfillment?.shippedAt ||
+      fulfillment?.deliveredAt ||
+      ['shipped', 'out_for_delivery', 'delivered', 'receipt_confirmed'].includes(
+        fulfillment?.status || ''
+      )
+  );
+};
+
 const buttonStyle = (base: CSSProperties, disabled?: boolean): CSSProperties => ({
   ...base,
   padding: '12px 32px',
@@ -417,6 +429,7 @@ export default function OrderDetailScreen({
     order.settlement?.royalty?.name || order.settlement?.royalty?.ens || '';
   const paymentComplete = order.payment === 'completed';
   const requiresShipping = Boolean(order.fulfillment?.requiresShipping);
+  const shippingStarted = sellerStartedShipping(order);
   const deliveryConfirmed = sellerConfirmedDelivery(order);
   const escrowReleased = order.settlement?.status === 'released';
   const disputeHold = Boolean(order.settlement?.disputeHold);
@@ -428,7 +441,7 @@ export default function OrderDetailScreen({
     canActAsBuyer &&
     requiresShipping &&
     paymentComplete &&
-    deliveryConfirmed &&
+    shippingStarted &&
     !receiptConfirmed &&
     !escrowReleased &&
     !disputeHold;
@@ -469,14 +482,17 @@ export default function OrderDetailScreen({
     }
     if (disputeHold) return 'Dispute open. Escrow release is paused.';
     if (escrowReleased) return 'Funds have already been released to the seller.';
-    if (!deliveryConfirmed) {
-      return 'Awaiting seller delivery confirmation before funds can release.';
+    if (!shippingStarted) {
+      return 'Awaiting the seller to mark this order shipped.';
     }
-    if (order.settlement?.autoReleaseAt) {
+    if (deliveryConfirmed && order.settlement?.autoReleaseAt) {
       const autoReleaseAt = formatTime(order.settlement.autoReleaseAt);
       return `Delivered. Confirm receipt to release funds now, or escrow auto-releases ${autoReleaseAt}.`;
     }
-    return 'Delivered. Confirm receipt to release funds.';
+    if (deliveryConfirmed) {
+      return 'Delivered. Confirm receipt to release funds.';
+    }
+    return 'In transit. Confirm receipt after it arrives to release funds.';
   })();
 
   const submitShipping = async () => {

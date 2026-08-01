@@ -116,6 +116,32 @@ describe('self-purchase order actions', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('allows buyer confirmation once the seller marks the order shipped', () => {
+    render(
+      <OrderDetailScreen
+        order={{
+          ...baseOrder,
+          fulfillment: {
+            requiresShipping: true,
+            status: 'shipped',
+            shippedAt: '2026-07-31T12:30:00.000Z',
+            releaseConditions: { shippingConfirmed: false },
+          },
+        }}
+        onConfirmReceipt={jest.fn().mockResolvedValue(undefined)}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Confirm order received' })
+    ).toBeEnabled();
+    expect(
+      screen.getByText(
+        'In transit. Confirm receipt after it arrives to release funds.'
+      )
+    ).toBeInTheDocument();
+  });
+
   it('does not expose shipping controls to a buyer who is not the seller', () => {
     render(
       <OrderDetailScreen
