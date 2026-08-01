@@ -496,6 +496,7 @@ const CreateProduct = ({
   const handleExtraImagePick =
     (idx: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
+      e.target.value = '';
       if (!file) return;
       processImage(file, (url) =>
         setExtraImages((prev) => {
@@ -505,6 +506,14 @@ const CreateProduct = ({
         }),
       );
     };
+
+  const removeExtraImage = (idx: number) => {
+    setExtraImages((prev) =>
+      prev.map((url, imageIndex) =>
+        imageIndex === idx ? null : url,
+      ),
+    );
+  };
 
   const handleDigitalAssetPick = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -1270,48 +1279,83 @@ const CreateProduct = ({
                     }}
                   >
                     {extraImages.map((url, i) => (
-                      <label
-                        key={i}
-                        htmlFor={`extra-image-${i}`}
+                      <div
+                        key={`extra-image-${i}`}
                         style={{
+                          position: 'relative',
                           aspectRatio: '1 / 1',
-                          borderRadius: 10,
-                          background: '#f0f0ee',
-                          border: `1px dashed ${hair}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          overflow: 'hidden',
                         }}
                       >
+                        <label
+                          htmlFor={`extra-image-${i}`}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            borderRadius: 10,
+                            background: '#f0f0ee',
+                            border: `1px dashed ${hair}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {url ? (
+                            <Image
+                              src={url}
+                              alt={`Extra ${i + 1}`}
+                              width={120}
+                              height={120}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            <ImagePlus
+                              size={22}
+                              color="#aaa"
+                              strokeWidth={1.5}
+                            />
+                          )}
+                          <input
+                            id={`extra-image-${i}`}
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png"
+                            onChange={handleExtraImagePick(i)}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
                         {url ? (
-                          <Image
-                            src={url}
-                            alt={`Extra ${i + 1}`}
-                            width={120}
-                            height={120}
+                          <button
+                            type="button"
+                            aria-label={`Remove extra image ${i + 1}`}
+                            title="Remove image"
+                            onClick={() => removeExtraImage(i)}
                             style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
+                              position: 'absolute',
+                              top: 7,
+                              right: 7,
+                              zIndex: 1,
+                              width: 28,
+                              height: 28,
+                              borderRadius: 10,
+                              border: '1px solid rgba(255,255,255,0.75)',
+                              background: 'rgba(10,10,12,0.82)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
                             }}
-                          />
-                        ) : (
-                          <ImagePlus
-                            size={22}
-                            color="#aaa"
-                            strokeWidth={1.5}
-                          />
-                        )}
-                        <input
-                          id={`extra-image-${i}`}
-                          type="file"
-                          accept="image/jpeg,image/jpg,image/png"
-                          onChange={handleExtraImagePick(i)}
-                          style={{ display: 'none' }}
-                        />
-                      </label>
+                          >
+                            <X size={15} aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </div>
                     ))}
                   </div>
                 </Card>
