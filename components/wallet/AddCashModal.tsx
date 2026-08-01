@@ -46,6 +46,7 @@ import WalletService, {
 import {
   DEFAULT_ADD_CASH_PAYMENT,
   addCashPaymentLabel,
+  embeddedCheckoutFrameHeight,
   embeddedCoinbasePaymentMethod,
   getAddCashPaymentOptions,
   type AddCashPaymentChoice,
@@ -1053,7 +1054,13 @@ export default function AddCashModal({
                   // the sandbox must permit popups and forms as well as scripts.
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
                   referrerPolicy="no-referrer"
-                  className="h-[220px] w-full border-0 bg-transparent"
+                  className="w-full border-0 bg-transparent"
+                  style={{
+                    height: embeddedCheckoutFrameHeight(
+                      paymentChoice,
+                      supportsApplePay,
+                    ),
+                  }}
                 />
               </div>
               <div className="flex items-center gap-2 rounded-2xl bg-gray-50 px-3 py-2.5 text-[12px] text-gray-600">

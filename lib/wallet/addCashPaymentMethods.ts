@@ -27,6 +27,22 @@ export function embeddedCoinbasePaymentMethod(
   return null;
 }
 
+/**
+ * Coinbase's desktop Apple Pay fallback renders a circular QR code inside the
+ * iframe. It needs more vertical room than the native Safari / Google Pay
+ * buttons; otherwise the QR boundary is cropped and cannot be scanned.
+ */
+export function embeddedCheckoutFrameHeight(
+  choice: AddCashPaymentChoice,
+  supportsNativeApplePay: boolean,
+) {
+  if (choice === 'apple_pay' && !supportsNativeApplePay) {
+    return 'clamp(280px, 48vh, 320px)';
+  }
+
+  return '220px';
+}
+
 // Coinbase Headless Onramp renders native Apple Pay in Safari and falls back
 // to an iPhone QR handoff in other desktop browsers. Debit-card entry belongs
 // to Coinbase Hosted Onramp, which must open in a popup/new tab (not an iframe).

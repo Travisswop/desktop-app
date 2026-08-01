@@ -1,6 +1,7 @@
 import {
   DEFAULT_ADD_CASH_PAYMENT,
   addCashPaymentLabel,
+  embeddedCheckoutFrameHeight,
   embeddedCoinbasePaymentMethod,
   getAddCashPaymentOptions,
 } from '@/lib/wallet/addCashPaymentMethods';
@@ -26,6 +27,9 @@ describe('Add Cash payment methods', () => {
     expect(embeddedCoinbasePaymentMethod('apple_pay')).toBe(
       'GUEST_CHECKOUT_APPLE_PAY',
     );
+    expect(embeddedCheckoutFrameHeight('apple_pay', false)).toBe(
+      'clamp(280px, 48vh, 320px)',
+    );
   });
 
   it('explains that native Apple Pay is available when Safari exposes it', () => {
@@ -34,6 +38,7 @@ describe('Add Cash payment methods', () => {
     );
 
     expect(applePay?.sub).toMatch(/directly on this Mac/);
+    expect(embeddedCheckoutFrameHeight('apple_pay', true)).toBe('220px');
   });
 
   it('retains Google Pay as an embedded choice with setup guidance', () => {
@@ -45,5 +50,6 @@ describe('Add Cash payment methods', () => {
     expect(embeddedCoinbasePaymentMethod('google_pay')).toBe(
       'GUEST_CHECKOUT_GOOGLE_PAY',
     );
+    expect(embeddedCheckoutFrameHeight('google_pay', false)).toBe('220px');
   });
 });
