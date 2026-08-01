@@ -36,14 +36,7 @@ import { RiCustomerService2Line, RiShieldKeyholeLine } from 'react-icons/ri';
 import { LuWallet } from 'react-icons/lu';
 import { IoLogOutOutline } from 'react-icons/io5';
 import { BsWalletFill } from 'react-icons/bs';
-import dynamic from 'next/dynamic';
-
-// Funding pulls in Privy wallet hooks and the Coinbase checkout frame — keep it
-// out of the header bundle until someone actually opens it.
-const AddCashModal = dynamic(
-  () => import('@/components/wallet/AddCashModal'),
-  { ssr: false },
-);
+import AddCashModal from '@/components/wallet/AddCashModal';
 
 const profileMenuItemClass =
   'h-11 cursor-pointer rounded-xl px-3 text-sm font-medium text-slate-900 focus:bg-slate-100 focus:text-slate-950 [&_svg]:size-5 [&_svg]:text-slate-950';
@@ -78,6 +71,7 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isAddCashOpen, setIsAddCashOpen] = useState(false);
   const [isOpeningMessages, setIsOpeningMessages] = useState(false);
   const [isMessageRoutePending, startMessageRouteTransition] =
@@ -104,6 +98,14 @@ export default function Header() {
     : null;
   const profileName = user?.name?.trim() || 'Swop profile';
   const profileInitial = profileName.charAt(0).toUpperCase();
+
+  const handleAddCashSelect = () => {
+    // Let Radix finish tearing down the dropdown before mounting the modal.
+    // Opening both in the same select event can hand focus back to the trigger
+    // and swallow the newly mounted dialog on some desktop browsers.
+    setIsProfileMenuOpen(false);
+    window.requestAnimationFrame(() => setIsAddCashOpen(true));
+  };
 
   useEffect(() => {
     router.prefetch('/dashboard/chat');
@@ -245,10 +247,14 @@ export default function Header() {
             <NotificationBell />
           </div>
           {user && (
-            <DropdownMenu>
+            <DropdownMenu
+              open={isProfileMenuOpen}
+              onOpenChange={setIsProfileMenuOpen}
+            >
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
+                  aria-label={`Open account menu for ${profileName}`}
                   className="relative flex h-14 items-center gap-2 rounded-full bg-[#F7F7F9] px-3 py-2 text-slate-950 transition-colors hover:bg-[#EFEFF3] data-[state=open]:bg-[#EFEFF3] disabled:opacity-70"
                   disabled={isLoggingOut}
                 >
@@ -321,9 +327,7 @@ export default function Header() {
                   </div>
                 </div>
                 <DropdownMenuItem
-                  onSelect={() => {
-                    setIsAddCashOpen(true);
-                  }}
+                  onSelect={handleAddCashSelect}
                   className="mt-1 h-auto cursor-pointer rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 focus:border-emerald-200 focus:bg-emerald-100"
                 >
                   <span className="flex w-full items-center gap-3">
