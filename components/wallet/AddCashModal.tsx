@@ -20,7 +20,9 @@ import {
   ArrowLeft,
   Check,
   ChevronRight,
+  CreditCard,
   Delete,
+  ExternalLink,
   Loader2,
   Phone,
   ShieldCheck,
@@ -41,6 +43,13 @@ import WalletService, {
   type CoinbaseOnrampPaymentMethod,
   type OnrampPhoneStatus,
 } from '@/services/wallet-service';
+import {
+  DEFAULT_ADD_CASH_PAYMENT,
+  addCashPaymentLabel,
+  embeddedCoinbasePaymentMethod,
+  getAddCashPaymentOptions,
+  type AddCashPaymentChoice,
+} from '@/lib/wallet/addCashPaymentMethods';
 
 type FundingOption = {
   network: CoinbaseOnrampNetwork;
@@ -85,7 +94,7 @@ const KEYPAD_ROWS = [
 
 const QUICK_AMOUNTS = ['25', '50', '100', '250'] as const;
 
-type Step = 'amount' | 'phone' | 'checkout';
+type Step = 'amount' | 'phone' | 'checkout' | 'hosted';
 type Sheet = 'network' | 'method' | null;
 
 type OnrampEventName =
@@ -231,8 +240,9 @@ export default function AddCashModal({
       ? initialNetwork
       : 'base',
   );
-  const [guestMethod, setGuestMethod] =
-    useState<CoinbaseOnrampPaymentMethod>('GUEST_CHECKOUT_GOOGLE_PAY');
+  const [paymentChoice, setPaymentChoice] = useState<AddCashPaymentChoice>(
+    DEFAULT_ADD_CASH_PAYMENT,
+  );
   const [amount, setAmount] = useState('0');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,20 +266,20 @@ export default function AddCashModal({
   // commit_success and polling_success both mean "it worked"; celebrate once.
   const celebratedRef = useRef(false);
 
-  // Which wallet rail this browser can actually raise. Safari (and Chrome on a
-  // Mac with a paired device) exposes ApplePaySession; everything else gets
-  // Google Pay, which Coinbase renders in the same payment link.
+  // Safari can raise Apple Pay natively. Coinbase still supports the Apple Pay
+  // choice in Chrome through an iPhone QR handoff, so browser capability only
+  // changes the guidance — it must not disable the option.
   const [supportsApplePay, setSupportsApplePay] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const applePay = (window as any).ApplePaySession;
     const supported = Boolean(applePay?.canMakePayments?.());
     setSupportsApplePay(supported);
-    if (supported) setGuestMethod('GUEST_CHECKOUT_APPLE_PAY');
+    if (supported) setPaymentChoice('apple_pay');
   }, []);
 
-  const payLabel =
-    guestMethod === 'GUEST_CHECKOUT_APPLE_PAY' ? 'Apple Pay' : 'Google Pay';
+  const guestMethod = embeddedCoinbasePaymentMethod(paymentChoice);
+  const payLabel = addCashPaymentLabel(paymentChoice);
 
   useEffect(() => {
     if (!isOpen || !accessToken) return;
@@ -330,7 +340,9 @@ export default function AddCashModal({
 
   const amountNumber = Number(amount);
   const amountValid = Number.isFinite(amountNumber) && amountNumber > 0;
-  const overGuestLimit = amountNumber > GUEST_CHECKOUT_MAX_USD;
+  const overGuestLimit =
+    paymentChoice !== 'debit_card' &&
+    amountNumber > GUEST_CHECKOUT_MAX_USD;
   const canBuy =
     Boolean(accessToken) &&
     amountValid &&
@@ -376,6 +388,11 @@ export default function AddCashModal({
   }, [onClose, resetFlow]);
 
   const startGuestCheckout = useCallback(async () => {
+    if (!guestMethod) {
+      setError('Choose Apple Pay or Google Pay for embedded checkout.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setPaymentEvent(null);
@@ -460,15 +477,84 @@ export default function AddCashModal({
     phoneInput,
   ]);
 
+  const startHostedCardCheckout = useCallback(async () => {
+    if (!accessToken || !amountValid) return;
+
+    // Coinbase Hosted Onramp cannot run in an iframe. Open a same-origin blank
+    // popup during the user's click, then navigate it once the single-use
+    // session token arrives so desktop popup blockers do not eat the flow.
+    const popupWidth = 520;
+    const popupHeight = 760;
+    const left = Math.max(
+      0,
+      window.screenX + Math.round((window.outerWidth - popupWidth) / 2),
+    );
+    const top = Math.max(
+      0,
+      window.screenY + Math.round((window.outerHeight - popupHeight) / 2),
+    );
+    const checkoutWindow = window.open(
+      'about:blank',
+      'swop-coinbase-onramp',
+      `popup=yes,width=${popupWidth},height=${popupHeight},left=${left},top=${top}`,
+    );
+
+    if (!checkoutWindow) {
+      setError(
+        'Your browser blocked the Coinbase checkout window. Allow pop-ups for Swop and try Debit card again.',
+      );
+      return;
+    }
+
+    checkoutWindow.opener = null;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const session = await WalletService.createCoinbaseOnrampSession(
+        {
+          network,
+          purchaseCurrency: 'USDC',
+          paymentCurrency: 'USD',
+          paymentAmount: amount,
+          redirectUrl: window.location.href,
+        },
+        accessToken,
+      );
+
+      if (!session.onrampUrl) {
+        throw new Error('Coinbase did not return a debit-card checkout link.');
+      }
+
+      checkoutWindow.location.replace(session.onrampUrl);
+      setStep('hosted');
+    } catch (err: any) {
+      checkoutWindow.close();
+      setError(err?.message || 'Unable to open Coinbase debit-card checkout.');
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken, amount, amountValid, network]);
+
   const handleBuy = useCallback(() => {
     if (!canBuy) return;
+    if (paymentChoice === 'debit_card') {
+      void startHostedCardCheckout();
+      return;
+    }
     if (needsPhone) {
       setPhoneError(null);
       setStep('phone');
       return;
     }
     void startGuestCheckout();
-  }, [canBuy, needsPhone, startGuestCheckout]);
+  }, [
+    canBuy,
+    needsPhone,
+    paymentChoice,
+    startGuestCheckout,
+    startHostedCardCheckout,
+  ]);
 
   const sendCode = async () => {
     const normalized = toUsE164(phoneInput);
@@ -574,7 +660,27 @@ export default function AddCashModal({
       setPaymentEvent(eventName);
 
       const errorMessage = payload?.data?.errorMessage;
-      if (errorMessage) {
+      const errorCode = payload?.data?.errorCode;
+      if (
+        errorCode === 'ERROR_CODE_GUEST_APPLE_PAY_NOT_SUPPORTED' &&
+        paymentChoice === 'apple_pay'
+      ) {
+        // On web Coinbase follows this signal with its supported iPhone QR
+        // fallback, so do not replace that useful handoff with a red error.
+        setError(null);
+      } else if (
+        errorCode === 'ERROR_CODE_GUEST_GOOGLE_PAY_NOT_SUPPORTED'
+      ) {
+        setError(
+          'Google Pay is not available in this browser or has no eligible card. Go back and choose Debit card.',
+        );
+      } else if (
+        errorCode === 'ERROR_CODE_GUEST_APPLE_PAY_NOT_SETUP'
+      ) {
+        setError(
+          'Apple Pay is not set up on this Mac or paired device. Go back and choose Debit card.',
+        );
+      } else if (errorMessage) {
         setError(errorMessage);
       } else if (eventName === 'onramp_api.load_error') {
         setError('Coinbase checkout could not load. Go back and try again.');
@@ -585,7 +691,11 @@ export default function AddCashModal({
           'Coinbase is still confirming delivery. Check your wallet shortly.',
         );
       } else if (eventName === 'onramp_api.cancel') {
-        setError('Payment canceled. Go back to change the amount or try again.');
+        setError(
+          paymentChoice === 'google_pay'
+            ? 'Google Pay was closed or no card was selected. Add an eligible card to Google Pay, or go back and choose Debit card.'
+            : 'Apple Pay was closed before payment. Try again, scan the iPhone QR code in Chrome, or go back and choose Debit card.',
+        );
       }
 
       if (
@@ -598,7 +708,7 @@ export default function AddCashModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [handleSuccess, paymentUrl]);
+  }, [handleSuccess, paymentChoice, paymentUrl]);
 
   // Physical keyboard drives the keypad — this is a desktop app, typing an
   // amount should just work. Escape remains available from every step.
@@ -668,10 +778,16 @@ export default function AddCashModal({
       ? 'Verify your phone'
       : step === 'checkout'
         ? `Confirm with ${payLabel}`
-        : 'Add cash';
+        : step === 'hosted'
+          ? 'Complete at Coinbase'
+          : 'Add cash';
 
   const PayGlyph =
-    guestMethod === 'GUEST_CHECKOUT_APPLE_PAY' ? FaApple : SiGooglepay;
+    paymentChoice === 'debit_card'
+      ? CreditCard
+      : paymentChoice === 'apple_pay'
+        ? FaApple
+        : SiGooglepay;
 
   return (
     <>
@@ -764,57 +880,50 @@ export default function AddCashModal({
             </div>
           ) : sheet === 'method' ? (
             <div className="space-y-2 p-4">
-              {(
-                [
-                  {
-                    key: 'GUEST_CHECKOUT_APPLE_PAY' as const,
-                    label: 'Apple Pay',
-                    sub: supportsApplePay
-                      ? `Embedded in Swop · Coinbase fee ~3% · up to $${GUEST_CHECKOUT_MAX_USD}`
-                      : 'Requires Safari with Apple Pay enabled',
-                    disabled: !supportsApplePay,
-                  },
-                  {
-                    key: 'GUEST_CHECKOUT_GOOGLE_PAY' as const,
-                    label: 'Google Pay',
-                    sub: `Embedded in Swop · Coinbase fee ~3% · up to $${GUEST_CHECKOUT_MAX_USD}`,
-                    disabled: false,
-                  },
-                ] as {
-                  key: CoinbaseOnrampPaymentMethod;
-                  label: string;
-                  sub: string;
-                  disabled: boolean;
-                }[]
-              ).map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  disabled={loading || option.disabled}
-                  onClick={() => {
-                    setGuestMethod(option.key);
-                    setSheet(null);
-                    setError(null);
-                  }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    option.key === guestMethod
-                      ? 'border-gray-900 bg-gray-50'
-                      : 'border-black/[0.06] hover:border-black/[0.15]'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block text-[14px] font-semibold text-gray-950">
-                      {option.label}
+              {getAddCashPaymentOptions(supportsApplePay).map((option) => {
+                const OptionGlyph =
+                  option.key === 'debit_card'
+                    ? CreditCard
+                    : option.key === 'apple_pay'
+                      ? FaApple
+                      : SiGooglepay;
+                const active = option.key === paymentChoice;
+
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setPaymentChoice(option.key);
+                      setSheet(null);
+                      setError(null);
+                    }}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      active
+                        ? 'border-gray-900 bg-gray-50'
+                        : 'border-black/[0.06] hover:border-black/[0.15]'
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-900">
+                        <OptionGlyph className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[14px] font-semibold text-gray-950">
+                          {option.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-gray-400">
+                          {option.sub}
+                        </span>
+                      </span>
                     </span>
-                    <span className="mt-0.5 block text-[11px] text-gray-400">
-                      {option.sub}
-                    </span>
-                  </span>
-                  {option.key === guestMethod ? (
-                    <Check className="h-[18px] w-[18px] shrink-0 text-emerald-600" />
-                  ) : null}
-                </button>
-              ))}
+                    {active ? (
+                      <Check className="h-[18px] w-[18px] shrink-0 text-emerald-600" />
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           ) : step === 'phone' ? (
             <div className="space-y-3 px-5 pb-5 pt-2">
@@ -883,6 +992,47 @@ export default function AddCashModal({
                   Use a different number
                 </button>
               ) : null}
+            </div>
+          ) : step === 'hosted' ? (
+            <div className="space-y-4 px-5 pb-5 pt-3">
+              <div className="flex flex-col items-center text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                  <ExternalLink className="h-6 w-6" />
+                </span>
+                <h3 className="mt-3 text-[17px] font-semibold text-gray-950">
+                  Coinbase checkout opened
+                </h3>
+                <p className="mt-1 max-w-[320px] text-[13px] leading-[19px] text-gray-500">
+                  Enter your debit card in the secure Coinbase window. Your
+                  USDC will be sent to {selected.label} at{' '}
+                  {truncateAddress(destination)}.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void startHostedCardCheckout()}
+                disabled={loading}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-black/[0.08] bg-white text-[14px] font-semibold text-gray-950 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                Open a new Coinbase window
+              </button>
+              <button
+                type="button"
+                onClick={finishToWallet}
+                className="flex h-12 w-full items-center justify-center rounded-full bg-gray-950 text-[14px] font-semibold text-white transition hover:bg-gray-800"
+              >
+                I&apos;ve finished
+              </button>
+              <p className="text-center text-[11px] leading-[16px] text-gray-400">
+                Coinbase hosts debit-card entry for security. Swop never sees
+                or stores your card details.
+              </p>
             </div>
           ) : step === 'checkout' ? (
             <div className="space-y-3 px-5 pb-5 pt-2">
