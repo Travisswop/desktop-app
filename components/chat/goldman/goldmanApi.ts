@@ -350,6 +350,34 @@ export type GoldmanClosedPrediction = {
  * balance at the live price through the vault's own signing path. A resolved
  * market is rejected by the backend — those are redeemed, not sold.
  */
+/**
+ * Remove a stored strategy plan from the console lists (server-side soft
+ * archive; running plans must be stopped first — the server enforces it).
+ */
+export async function archiveGoldmanStrategy({
+  groupId,
+  accessToken,
+  strategyId,
+}: {
+  groupId: string;
+  accessToken: string;
+  strategyId: string;
+}): Promise<void> {
+  const response = await apiFetch(
+    goldmanAgentUrl(groupId, `/strategies/${encodeURIComponent(strategyId)}`),
+    {
+      method: 'DELETE',
+      headers: authHeaders(accessToken),
+    }
+  );
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      body?.message || `Could not remove the plan (${response.status}).`
+    );
+  }
+}
+
 export async function closeGoldmanPredictionPosition({
   groupId,
   accessToken,

@@ -197,6 +197,7 @@ import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFe
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import {
+  archiveGoldmanStrategy,
   closeGoldmanPosition,
   closeGoldmanPredictionPosition,
 } from '@/components/chat/goldman/goldmanApi';
@@ -3594,6 +3595,27 @@ export default function ChatArea({
     (strategyId: string, action: 'run' | 'stop') =>
       handleToggleGoldmanStrategy(action, strategyId),
     [handleToggleGoldmanStrategy]
+  );
+  const handleArchiveGoldmanStrategyById = useCallback(
+    async (strategyId: string) => {
+      if (!goldmanGroupId || !accessToken) return;
+      try {
+        await archiveGoldmanStrategy({
+          groupId: goldmanGroupId,
+          accessToken,
+          strategyId,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: goldmanStrategyVaultQueryKey,
+        });
+        toast.success('Plan removed.');
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : 'Could not remove the plan.'
+        );
+      }
+    },
+    [accessToken, goldmanGroupId, goldmanStrategyVaultQueryKey, queryClient]
   );
   const handleSaveGoldmanStrategyFile = useCallback(
     async (fileName: string, content: string) => {
@@ -7306,6 +7328,7 @@ export default function ChatArea({
         onRunGoldmanStrategy={handleRunGoldmanStrategy}
         onStopGoldmanStrategy={handleStopGoldmanStrategy}
         onToggleGoldmanStrategyById={handleToggleGoldmanStrategyById}
+        onArchiveGoldmanStrategyById={handleArchiveGoldmanStrategyById}
         onPositionClick={handleAstroConsolePositionClick}
         accessToken={accessToken}
         goldmanSessionActivity={goldmanSessionActivity}
@@ -8731,6 +8754,7 @@ function GoldmanAccessStation({
   onRunStrategy,
   onStopStrategy,
   onToggleStrategyById,
+  onArchiveStrategyById,
   accessToken,
   sessionActivity,
 }: {
@@ -8759,6 +8783,7 @@ function GoldmanAccessStation({
   onRunStrategy?: () => void;
   onStopStrategy?: () => void;
   onToggleStrategyById?: (strategyId: string, action: 'run' | 'stop') => void;
+  onArchiveStrategyById?: (strategyId: string) => void;
   accessToken?: string | null;
   sessionActivity?: GoldmanActivityEntry[];
 }) {
@@ -9390,15 +9415,6 @@ function GoldmanAccessStation({
               <Zap className="h-3.5 w-3.5 text-[#f4c95d]" />
               {activeStrategy ? 'Explain' : 'Ideas'}
             </button>
-            <button
-              type="button"
-              disabled={!onQuickCommand}
-              onClick={handlePublishStrategyFiles}
-              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
-            >
-              <Check className="h-3.5 w-3.5" />
-              Publish
-            </button>
           </div>
         </div>
 
@@ -9456,6 +9472,21 @@ function GoldmanAccessStation({
                           )}
                           {isRunning ? 'Stop' : 'Run'}
                         </button>
+                        {onArchiveStrategyById && !isRunning && (
+                          <button
+                            type="button"
+                            disabled={isTogglingStrategy}
+                            data-testid={`goldman-plan-remove-${strategy.id}`}
+                            title="Remove this plan"
+                            aria-label={`Remove ${strategy.title || 'plan'}`}
+                            onClick={() =>
+                              onArchiveStrategyById(strategy.id as string)
+                            }
+                            className="dm-btn dm-mono grid h-7 w-7 flex-shrink-0 place-items-center rounded-[7px] border border-white/[0.08] bg-black/25 text-[11px] font-bold text-[#737783] transition hover:border-[#ff8585]/35 hover:text-[#ff8585] disabled:cursor-default disabled:opacity-50"
+                          >
+                            ×
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -9998,7 +10029,7 @@ function GoldmanAccessStation({
         onClick={() => setShowAdvancedAccess((current) => !current)}
         className="dm-btn dm-mono mt-1 flex w-full items-center justify-between rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#737783]"
       >
-        <span>Advanced venue controls</span>
+        <span>Advanced controls</span>
         <span>{showAdvancedAccess ? '−' : '+'}</span>
       </button>
 
@@ -10150,6 +10181,11 @@ function GoldmanAccessStation({
 
       <GoldmanBrainControls groupId={groupId} accessToken={accessToken} />
 
+      {/* Stage-2 simplification: the plan is the only authoring surface in
+          the main flow — the raw rulebook files (and their Publish compile
+          step) live behind Advanced with the venue matrix. */}
+      {showAdvancedAccess && (
+      <>
       <SectionLabel>strategy md files</SectionLabel>
       <ConsoleCard padClass="p-0">
         {strategyFiles.map((file) => (
@@ -10196,6 +10232,8 @@ function GoldmanAccessStation({
           </button>
         </div>
       </ConsoleCard>
+      </>
+      )}
 
       <SectionLabel>audit</SectionLabel>
       <ConsoleCard padClass="p-0">
@@ -10376,6 +10414,7 @@ function DmContextPanel({
   onRunGoldmanStrategy,
   onStopGoldmanStrategy,
   onToggleGoldmanStrategyById,
+  onArchiveGoldmanStrategyById,
   onPositionClick,
   accessToken,
   goldmanSessionActivity,
@@ -10410,6 +10449,7 @@ function DmContextPanel({
     strategyId: string,
     action: 'run' | 'stop'
   ) => void;
+  onArchiveGoldmanStrategyById?: (strategyId: string) => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
   accessToken?: string | null;
   goldmanSessionActivity?: GoldmanActivityEntry[];
@@ -10449,6 +10489,7 @@ function DmContextPanel({
         onRunStrategy={onRunGoldmanStrategy}
         onStopStrategy={onStopGoldmanStrategy}
         onToggleStrategyById={onToggleGoldmanStrategyById}
+        onArchiveStrategyById={onArchiveGoldmanStrategyById}
         accessToken={accessToken}
         sessionActivity={goldmanSessionActivity}
       />
