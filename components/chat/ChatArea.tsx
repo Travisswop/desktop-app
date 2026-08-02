@@ -9493,7 +9493,7 @@ function GoldmanAccessStation({
                 )}
               </div>
               <div className="dm-mono mt-2 text-[9px] font-medium leading-snug text-[#5a5e69]">
-                Running a plan stops any other running plan on this vault.
+                Each venue runs one plan — starting a plan replaces only running plans on the same venues.
               </div>
             </div>
           )}
