@@ -3387,10 +3387,16 @@ export default function ChatArea({
   } = useQuery({
     queryKey: goldmanStrategyVaultQueryKey,
     queryFn: () =>
+      // GET, not the read-or-create POST: this query re-fires on every
+      // console open/invalidation, and the POST path is heavy (vault
+      // upsert + ENS backfill). During the Aug 2 incident a refetch storm
+      // of these POSTs pegged the API. Creation stays an explicit act via
+      // ensureGoldmanStrategyVault (Fund/Run). GET 404s resolve to null,
+      // which the console already renders as the activation state.
       readGoldmanStrategyVault({
         groupId: goldmanGroupId,
         accessToken: accessToken!,
-        method: 'POST',
+        method: 'GET',
       }),
     enabled: isGoldmanConsoleChat && Boolean(goldmanGroupId && accessToken),
     retry: false,
