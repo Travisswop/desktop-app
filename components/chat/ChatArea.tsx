@@ -8077,12 +8077,14 @@ const DEFAULT_GOLDMAN_ACCESS: GoldmanAccessState = {
   strategy: { enabled: true, approvalRequired: true },
 };
 
+// Empty string = uncapped: risk lives in each approved plan; station limits
+// are optional Advanced backstops.
 const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
-  maxSendUsd: '250',
-  dailyCapUsd: '750',
-  maxLeverage: '2',
-  predictionExposureUsd: '500',
-  reserveUsd: '0',
+  maxSendUsd: '',
+  dailyCapUsd: '',
+  maxLeverage: '',
+  predictionExposureUsd: '',
+  reserveUsd: '',
 };
 
 // Plain-language explanations shown by the console's info (i) button.
@@ -10138,10 +10140,12 @@ function GoldmanAccessStation({
           );
         })}
       </ConsoleCard>
-      </>
-      )}
 
       <SectionLabel>risk limits</SectionLabel>
+      <p className="dm-mono mb-1.5 px-1 text-[10px] font-medium leading-snug text-[#5a5e69]">
+        Optional global backstops. Leave a field empty for no cap — each
+        approved plan carries its own budget and risk.
+      </p>
       <ConsoleCard padClass="p-3">
         <div className="grid grid-cols-2 gap-2">
           {GOLDMAN_LIMIT_ROWS.map((item) => (
@@ -10162,6 +10166,7 @@ function GoldmanAccessStation({
                   type="number"
                   min={item.min}
                   step={item.step}
+                  placeholder="uncapped"
                   value={limits[item.key]}
                   onChange={(event) =>
                     setLimitValue(item.key, event.target.value)
@@ -10178,6 +10183,8 @@ function GoldmanAccessStation({
           ))}
         </div>
       </ConsoleCard>
+      </>
+      )}
 
       <GoldmanBrainControls groupId={groupId} accessToken={accessToken} />
 
