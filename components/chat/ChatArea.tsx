@@ -8787,6 +8787,9 @@ function GoldmanAccessStation({
     'console'
   );
   const [showHelp, setShowHelp] = useState(false);
+  // Stage-1 simplification: the per-venue toggle matrix defaults hidden
+  // behind the Autopilot switch.
+  const [showAdvancedAccess, setShowAdvancedAccess] = useState(false);
   const strategyFiles = useMemo(
     () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
     [strategyVault?.strategyFiles]
@@ -9979,6 +9982,28 @@ function GoldmanAccessStation({
         access={access}
       />
 
+      {/* Stage-1 simplification: Autopilot is THE control. The per-venue
+          toggle matrix stays available but folded under Advanced — eight
+          switches collapsed into one decision. */}
+      <GoldmanAutonomyControl
+        groupId={groupId}
+        accessToken={accessToken}
+        isFullAutonomy={isFullAutonomy}
+        onApplyAccessStation={applyAccessStationFromServer}
+      />
+
+      <button
+        type="button"
+        data-testid="goldman-advanced-access-toggle"
+        onClick={() => setShowAdvancedAccess((current) => !current)}
+        className="dm-btn dm-mono mt-1 flex w-full items-center justify-between rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#737783]"
+      >
+        <span>Advanced venue controls</span>
+        <span>{showAdvancedAccess ? '−' : '+'}</span>
+      </button>
+
+      {showAdvancedAccess && (
+      <>
       <ConsoleCard padClass="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -10082,13 +10107,8 @@ function GoldmanAccessStation({
           );
         })}
       </ConsoleCard>
-
-      <GoldmanAutonomyControl
-        groupId={groupId}
-        accessToken={accessToken}
-        isFullAutonomy={isFullAutonomy}
-        onApplyAccessStation={applyAccessStationFromServer}
-      />
+      </>
+      )}
 
       <SectionLabel>risk limits</SectionLabel>
       <ConsoleCard padClass="p-3">

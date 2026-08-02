@@ -90,7 +90,7 @@ export function GoldmanAutonomyControl({
 
   return (
     <div data-testid="goldman-autonomy-control">
-      <GoldmanSectionLabel>autonomy</GoldmanSectionLabel>
+      <GoldmanSectionLabel>autopilot</GoldmanSectionLabel>
       <GoldmanConsoleCard padClass="px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -109,10 +109,10 @@ export function GoldmanAutonomyControl({
             </span>
             <div>
               <div className="text-[12.5px] font-semibold leading-tight text-[#eceef2]">
-                Full autonomy
+                Autopilot
               </div>
               <div className="dm-mono mt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
-                {showingFull ? 'trades on its own' : 'approves each trade'}
+                {showingFull ? 'on — trades and funds venues on its own' : 'off — asks before each trade'}
               </div>
             </div>
           </div>
@@ -137,7 +137,7 @@ export function GoldmanAutonomyControl({
                 : 'border-white/[0.07] bg-black/20 text-[#9396a0]'
             }`}
           >
-            Proposal mode
+            Ask me first
           </button>
           <button
             type="button"
@@ -151,15 +151,15 @@ export function GoldmanAutonomyControl({
                 : 'border-white/[0.07] bg-black/20 text-[#9396a0]'
             }`}
           >
-            Full autonomy
+            Autopilot
           </button>
         </div>
 
         {showEnableConfirm && !showingFull && (
           <div className="mt-3 rounded-[9px] border border-[#3fe08f]/25 bg-[#3fe08f]/10 px-3 py-2.5">
             <div className="text-[10.5px] font-semibold leading-snug text-[#9af7c4]">
-              Goldman will place trades on its own, within your risk limits. You
-              can switch back anytime.
+              Goldman will trade and move collateral between venues on his own,
+              within your plan's budget and risk limits. Switch back anytime.
             </div>
             <div className="mt-2 flex gap-2">
               <button
@@ -174,7 +174,7 @@ export function GoldmanAutonomyControl({
                 ) : (
                   <Zap className="h-3 w-3" />
                 )}
-                Enable full autonomy
+                Turn on autopilot
               </button>
               <button
                 type="button"
