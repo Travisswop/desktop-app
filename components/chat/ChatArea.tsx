@@ -3505,7 +3505,7 @@ export default function ChatArea({
     queryClient,
   ]);
   const handleToggleGoldmanStrategy = useCallback(
-    async (action: 'run' | 'stop') => {
+    async (action: 'run' | 'stop', strategyId?: string) => {
       if (!goldmanGroupId || !accessToken) {
         toast.error('Goldman Sacks group or auth session is not ready.');
         return;
@@ -3525,7 +3525,12 @@ export default function ChatArea({
         }
       }
 
-      const strategy = getRunnableGoldmanStrategy(vault);
+      // An explicit strategyId (from the plans list) wins; the header button
+      // falls back to the running/newest strategy.
+      const strategy = strategyId
+        ? (vault?.strategies || []).find((item) => item.id === strategyId) ||
+          null
+        : getRunnableGoldmanStrategy(vault);
       if (!strategy?.id) {
         toast.error('Approve a Goldman strategy before pressing Run.');
         return;
@@ -3577,6 +3582,11 @@ export default function ChatArea({
   );
   const handleStopGoldmanStrategy = useCallback(
     () => handleToggleGoldmanStrategy('stop'),
+    [handleToggleGoldmanStrategy]
+  );
+  const handleToggleGoldmanStrategyById = useCallback(
+    (strategyId: string, action: 'run' | 'stop') =>
+      handleToggleGoldmanStrategy(action, strategyId),
     [handleToggleGoldmanStrategy]
   );
   const handleSaveGoldmanStrategyFile = useCallback(
@@ -7289,6 +7299,7 @@ export default function ChatArea({
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
         onRunGoldmanStrategy={handleRunGoldmanStrategy}
         onStopGoldmanStrategy={handleStopGoldmanStrategy}
+        onToggleGoldmanStrategyById={handleToggleGoldmanStrategyById}
         onPositionClick={handleAstroConsolePositionClick}
         accessToken={accessToken}
         goldmanSessionActivity={goldmanSessionActivity}
@@ -8492,20 +8503,18 @@ function getGoldmanFundingAddress(
 }
 
 function sortGoldmanStrategies(strategies: GoldmanTradingStrategy[] = []) {
-  const rank = (strategy: GoldmanTradingStrategy) => {
-    if (strategy.runtime?.state === 'running') return 0;
-    if (strategy.status === 'active') return 1;
-    if (strategy.status === 'pending_authorization') return 2;
-    if (strategy.status === 'paused') return 3;
-    return 4;
-  };
+  // Running first (Stop must target it); otherwise the NEWEST plan wins, so a
+  // freshly approved strategy is what Run starts — status ranking here used to
+  // bury a new pending_authorization plan under an old 'active' one forever.
+  const rank = (strategy: GoldmanTradingStrategy) =>
+    strategy.runtime?.state === 'running' ? 0 : 1;
 
   return [...strategies].sort((left, right) => {
     const rankDiff = rank(left) - rank(right);
     if (rankDiff !== 0) return rankDiff;
     return (
-      new Date(right.updatedAt || right.createdAt || 0).getTime() -
-      new Date(left.updatedAt || left.createdAt || 0).getTime()
+      new Date(right.createdAt || right.updatedAt || 0).getTime() -
+      new Date(left.createdAt || left.updatedAt || 0).getTime()
     );
   });
 }
@@ -8715,6 +8724,7 @@ function GoldmanAccessStation({
   onSaveStrategyFile,
   onRunStrategy,
   onStopStrategy,
+  onToggleStrategyById,
   accessToken,
   sessionActivity,
 }: {
@@ -8742,6 +8752,7 @@ function GoldmanAccessStation({
   ) => Promise<GoldmanStrategyFile | null>;
   onRunStrategy?: () => void;
   onStopStrategy?: () => void;
+  onToggleStrategyById?: (strategyId: string, action: 'run' | 'stop') => void;
   accessToken?: string | null;
   sessionActivity?: GoldmanActivityEntry[];
 }) {
@@ -9381,6 +9392,71 @@ function GoldmanAccessStation({
             </button>
           </div>
         </div>
+
+        {onToggleStrategyById &&
+          (strategyVault?.strategies || []).length > 1 && (
+            <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2.5">
+              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                strategy plans
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {sortGoldmanStrategies(strategyVault?.strategies || []).map(
+                  (strategy) => {
+                    if (!strategy.id) return null;
+                    const isRunning = strategy.runtime?.state === 'running';
+                    return (
+                      <div
+                        key={strategy.id}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-[11.5px] font-semibold text-[#eceef2]">
+                            {strategy.title || 'Untitled strategy'}
+                          </div>
+                          <div className="dm-mono mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
+                            {isRunning
+                              ? 'running'
+                              : strategy.status || 'draft'}
+                            {strategy.createdAt
+                              ? ` · ${new Date(
+                                  strategy.createdAt
+                                ).toLocaleDateString()}`
+                              : ''}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isTogglingStrategy}
+                          data-testid={`goldman-plan-toggle-${strategy.id}`}
+                          onClick={() =>
+                            onToggleStrategyById(
+                              strategy.id as string,
+                              isRunning ? 'stop' : 'run'
+                            )
+                          }
+                          className={`dm-btn dm-mono flex h-7 min-w-[58px] items-center justify-center gap-1 rounded-[7px] border px-2 text-[9px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
+                            isRunning
+                              ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
+                              : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                          }`}
+                        >
+                          {isRunning ? (
+                            <Square className="h-3 w-3" />
+                          ) : (
+                            <Play className="h-3 w-3" />
+                          )}
+                          {isRunning ? 'Stop' : 'Run'}
+                        </button>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+              <div className="dm-mono mt-2 text-[9px] font-medium leading-snug text-[#5a5e69]">
+                Running a plan stops any other running plan on this vault.
+              </div>
+            </div>
+          )}
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           {[
@@ -10273,6 +10349,7 @@ function DmContextPanel({
   isTogglingGoldmanStrategy,
   onRunGoldmanStrategy,
   onStopGoldmanStrategy,
+  onToggleGoldmanStrategyById,
   onPositionClick,
   accessToken,
   goldmanSessionActivity,
@@ -10303,6 +10380,10 @@ function DmContextPanel({
   isTogglingGoldmanStrategy?: boolean;
   onRunGoldmanStrategy?: () => void;
   onStopGoldmanStrategy?: () => void;
+  onToggleGoldmanStrategyById?: (
+    strategyId: string,
+    action: 'run' | 'stop'
+  ) => void;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
   accessToken?: string | null;
   goldmanSessionActivity?: GoldmanActivityEntry[];
@@ -10341,6 +10422,7 @@ function DmContextPanel({
         onSaveStrategyFile={onSaveGoldmanStrategyFile}
         onRunStrategy={onRunGoldmanStrategy}
         onStopStrategy={onStopGoldmanStrategy}
+        onToggleStrategyById={onToggleGoldmanStrategyById}
         accessToken={accessToken}
         sessionActivity={goldmanSessionActivity}
       />
