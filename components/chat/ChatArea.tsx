@@ -9195,14 +9195,25 @@ function GoldmanAccessStation({
       .map((row) => row.shortLabel)
       .join(', ') || 'none';
   const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
-  // Full vault balance = liquid wallet tokens (incl. pUSD, now valued at $1) +
-  // deployed prediction positions + Hyperliquid perps account value. Idle pUSD
-  // is counted once, as a wallet token; the predictions bucket is the value of
-  // OPEN Polymarket positions so the same pUSD isn't double-counted.
-  const vaultWalletUsd = toFiniteNumber(consoleData?.walletPortfolioBalance);
-  const vaultPredictionsUsd = (consoleData?.predictionPositions || [])
-    .filter(isOpenPredictionConsolePosition)
-    .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
+  // Full vault balance = liquid wallet tokens + prediction collateral +
+  // Hyperliquid perps account value. pUSD is Polymarket-only collateral, so
+  // it reads as "deposited to predictions": the predictions bucket = idle
+  // pUSD + open position value, and pUSD is EXCLUDED from the wallet bucket
+  // so the same dollars aren't double-counted.
+  const vaultPusdUsd = (consoleData?.walletPortfolioTokens || [])
+    .filter(
+      (token) => String(token?.symbol || '').toUpperCase() === 'PUSD'
+    )
+    .reduce((sum, token) => sum + getTokenDataUsdValue(token), 0);
+  const vaultWalletUsd = Math.max(
+    0,
+    toFiniteNumber(consoleData?.walletPortfolioBalance) - vaultPusdUsd
+  );
+  const vaultPredictionsUsd =
+    vaultPusdUsd +
+    (consoleData?.predictionPositions || [])
+      .filter(isOpenPredictionConsolePosition)
+      .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
   const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
   const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
   const vaultTokenRows = (consoleData?.walletPortfolioTokens || [])
