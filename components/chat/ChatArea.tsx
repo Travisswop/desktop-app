@@ -9224,7 +9224,27 @@ function GoldmanAccessStation({
     : 'Vault inactive';
   const goldmanWalletCard = (
     <>
-      <SectionLabel>strategy vault</SectionLabel>
+      <div className="flex items-center justify-between">
+        <SectionLabel>strategy vault</SectionLabel>
+        <button
+          type="button"
+          title="Refresh balances"
+          aria-label="Refresh balances"
+          data-testid="goldman-refresh-balances"
+          onClick={() => {
+            void perpsQueryClient.invalidateQueries({
+              predicate: (query) =>
+                String(query.queryKey?.[0] ?? '')
+                  .toLowerCase()
+                  .includes('goldman') || query.queryKey?.[0] === 'hl-positions',
+            });
+            toast.success('Refreshing balances…');
+          }}
+          className="dm-btn dm-mono mb-1.5 grid h-6 w-6 place-items-center rounded-[6px] border border-white/[0.07] bg-black/20 text-[#9396a0]"
+        >
+          <RefreshCw className="h-3 w-3" />
+        </button>
+      </div>
       <ConsoleCard padClass="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>
