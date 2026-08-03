@@ -164,6 +164,16 @@ forward. If `origin/main` and `origin/Codex` have diverged, merge or otherwise
 integrate latest `origin/main` first in a clean worktree, resolve conflicts, run
 the relevant checks, and only then push to `Codex`.
 
+### Worktree / Validation Quirks
+
+- `npm ci` fails in a fresh worktree (lockfile drift on origin/main) — use
+  `npm install --no-audit --no-fund` instead; leave `package-lock.json` /
+  `next-env.d.ts` unstaged; run tests via `./node_modules/.bin/jest`.
+- For a worktree dev server, `cp -Rc` (not symlink) node_modules — Turbopack panics
+  on an out-of-root symlink.
+- Auth middleware only renders unauthenticated on `PUBLIC_ROUTES` prefixes (e.g.
+  `/sp`) — put temporary harness/QA pages there.
+
 ### Astro Card Smoke QA
 
 Astro card production QA lives in `scripts/qa/`.

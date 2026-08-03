@@ -12,7 +12,10 @@ Swop Desktop Application is a comprehensive Next.js web3 platform that enables u
 - `npm run dev` - Start the development server at http://localhost:3000
 - `npm run build` - Build the application for production
 - `npm run start` - Start the production server
-- `npm run lint` - Run ESLint to check for code style and type issues
+- `npm run lint` - Run ESLint to check for code style and type issues. Repo is on
+  ESLint 9 flat config — `next lint` errors here; run `npx eslint .` directly if
+  `npm run lint` misbehaves. No prettier config exists — running prettier reformats
+  whole files, don't.
 
 ### Key Technologies
 - **Next.js 15** with App Router for routing and SSR
@@ -138,6 +141,53 @@ When building or updating components, follow the **"bento" design system** docum
 - Payment orders must be created before payment UI is shown
 - Swap quotes need their provider API keys set, or they intermittently time out (see "Swap Quote Reliability" below)
 - `.env` is loaded only at process start — restart `npm run dev` (or redeploy) after changing any key, or the running app keeps the old value
+
+### Landmines (hard-won, don't rediscover these)
+- If a component seeds state from a React Query cache, the save/mutation must update
+  that SAME cache key, not a sibling store — otherwise a remount within `staleTime`
+  re-seeds the pre-mutation snapshot and looks like the save silently reverted.
+- Privy's prod app uses a custom auth domain (`privy.swopme.app`) with HttpOnly
+  cookie sessions — on `localhost:3000` those are third-party cookies. Unless Chrome
+  allows 3P cookies for `localhost:3000`, `getAccessToken()` silently returns null
+  while `authenticated` stays true. Looks like a stale session but isn't — fix once
+  per dev machine in `chrome://settings/cookies`.
+- Socket.io clients against `apps.apiswop.co` must set
+  `transports: ['websocket','polling']`, `tryAllTransports: true`,
+  `withCredentials: true` — prod runs multiple ECS tasks behind an ALB; polling
+  without the `AWSALB` sticky cookie round-robins between instances (400 "Session ID
+  unknown").
+- LiFi swap quotes/executions must always pass `integrator='SWOP'` + `fee=0.005` —
+  verify no demo integrator string (e.g. `nextjs-example`) is hardcoded anywhere a
+  fee is supposed to accrue. Swop EVM swaps are ERC-4337 UserOps, so `tx.from` is the
+  bundler — never bind a user to a swap via `receipt.from`; use the LI.FI `receiver`
+  or `UserOperationEvent.sender`.
+- Never base64-encode large file bodies for Cloudinary unsigned uploads — nginx 413s
+  around ~110MB request body (base64 inflates size 4/3×), and naive `.json()` error
+  handling swallows it as an HTML parse failure. Use raw binary multipart + chunked
+  `upload_large` above ~60MB.
+- iOS universal-link deep-linking only works for `swopme.app`/`www.swopme.app`
+  (`public/.well-known/apple-app-site-association`) — `swop.id` is NOT an associated
+  domain; a chip/QR programmed with a `swop.id/<handle>` URL opens Safari, not the
+  app.
+- SmartSites must always scroll as ONE webpage — no nested/internal scroll regions,
+  ever (standing rule). Full-page templates use grow-in-flex-column + a bottom
+  sentinel for pagination, never a fixed-height inner scrollbox.
+- Dapp/WalletConnect transactions are deliberately NOT gas-sponsored — user pays
+  native gas on the target chain. Only in-app flows (sends, swaps, checkout, Aave)
+  use the sponsored relay; don't route WC `eth_sendTransaction` through it.
+- Hyperliquid stock/commodity/forex perps live on HIP-3 builder DEXs (mostly `xyz`)
+  with isolated collateral — fetch `clearinghouseState`/`openOrders` per-DEX and sum,
+  or positions/balance go missing. Builder-DEX coin keys are case-sensitive
+  (`xyz:SPCX` works, `XYZ:SPCX`/bare `SPCX` return null) — never blind-uppercase a
+  dex-prefixed symbol.
+- Perps TP/SL fills happen on-exchange, so a feed post's DB status never updates —
+  infer the close at render time from candle high/low since `updatedAt`, then freeze
+  price/return at the trigger price.
+- Apex `swopme.app` redirects to `www.swopme.app` — always test/link the `www` host;
+  a stray apex tab can strand a zombie SPA that retry-storms and trips Vercel's DDoS
+  mitigation. Check the project's Vercel Firewall page before assuming a backend
+  outage. Any new modal/portal in the chat dashboard must exceed `z-[99999]` — the
+  dashboard wraps in a fixed z-99999 layer that buries lower dialogs invisibly.
 
 ## Key Integration Points
 
