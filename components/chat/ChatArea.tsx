@@ -9451,11 +9451,71 @@ function GoldmanAccessStation({
               {isStrategyRunning ? 'Stop' : 'Run'}
             </button>
           </div>
-          {activeStrategy?.runtime?.lastActivity && (
+          {activeStrategy?.runtime?.state === 'running' &&
+          activeStrategy?.runtime?.lastEvaluation ? (
+            <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/25 px-2.5 py-2">
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3fe08f] opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3fe08f]" />
+                </span>
+                <span className="dm-mono text-[8.5px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                  thinking
+                </span>
+                {activeStrategy.runtime.lastEvaluation.at && (
+                  <span className="dm-mono ml-auto text-[8.5px] text-[#5a5e69]">
+                    {new Date(
+                      activeStrategy.runtime.lastEvaluation.at
+                    ).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {(activeStrategy.runtime.lastEvaluation.checks || [])
+                  .slice(0, 6)
+                  .map((check, index) => (
+                    <div
+                      key={`${check.label || index}`}
+                      className="flex items-start gap-1.5"
+                    >
+                      <span
+                        className={`mt-[3px] h-1 w-1 shrink-0 rounded-full ${
+                          check.status === 'ok' || check.status === 'open'
+                            ? 'bg-[#3fe08f]'
+                            : check.status === 'blocked'
+                            ? 'bg-[#ff5d63]'
+                            : 'bg-[#5a5e69]'
+                        }`}
+                      />
+                      <span className="line-clamp-1 text-[9.5px] leading-snug text-[#9aa0ab]">
+                        <span className="font-semibold text-[#c9cdd6]">
+                          {check.label}
+                        </span>{' '}
+                        {check.detail}
+                      </span>
+                    </div>
+                  ))}
+                {(activeStrategy.runtime.lastEvaluation.predictionsMarkets || [])
+                  .length > 0 && (
+                  <div className="line-clamp-2 pl-2.5 text-[9px] italic leading-snug text-[#7b8290]">
+                    {(
+                      activeStrategy.runtime.lastEvaluation
+                        .predictionsMarkets || []
+                    )
+                      .slice(0, 3)
+                      .join(' · ')}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeStrategy?.runtime?.lastActivity ? (
             <div className="mt-2 line-clamp-2 text-[10.5px] font-semibold leading-snug text-[#d7c987]">
               {activeStrategy.runtime.lastActivity}
             </div>
-          )}
+          ) : null}
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"

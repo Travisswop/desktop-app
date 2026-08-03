@@ -12,6 +12,22 @@ export type GoldmanStrategyRuntimeState =
   | 'stopped'
   | 'error';
 
+export type GoldmanEvaluationCheck = {
+  label?: string | null;
+  status?: string | null;
+  detail?: string | null;
+};
+
+export type GoldmanStrategyEvaluation = {
+  at?: string | null;
+  detail?: string | null;
+  checks?: GoldmanEvaluationCheck[];
+  actions?: GoldmanEvaluationCheck[];
+  predictionsMarkets?: string[];
+  perpsMarketCount?: number | null;
+  openPositions?: { predictions?: number | null; perps?: number | null } | null;
+};
+
 export type GoldmanStrategyRuntime = {
   state?: GoldmanStrategyRuntimeState;
   runId?: string | null;
@@ -22,6 +38,7 @@ export type GoldmanStrategyRuntime = {
   lastActivity?: string | null;
   lastError?: string | null;
   cycleCount?: number | null;
+  lastEvaluation?: GoldmanStrategyEvaluation | null;
 };
 
 export type GoldmanTakeProfitRung = {
