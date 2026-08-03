@@ -8061,7 +8061,9 @@ type GoldmanLimitKey =
   | 'dailyCapUsd'
   | 'maxLeverage'
   | 'predictionExposureUsd'
-  | 'reserveUsd';
+  | 'reserveUsd'
+  | 'perpsAllocationUsd'
+  | 'predictionsAllocationUsd';
 
 type GoldmanLimits = Record<GoldmanLimitKey, string>;
 
@@ -8084,6 +8086,8 @@ const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
   maxLeverage: '',
   predictionExposureUsd: '',
   reserveUsd: '',
+  perpsAllocationUsd: '',
+  predictionsAllocationUsd: '',
 };
 
 // Plain-language explanations shown by the console's info (i) button.
@@ -9306,6 +9310,46 @@ function GoldmanAccessStation({
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+          <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+            allocation targets
+          </div>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            {(
+              [
+                { key: 'predictionsAllocationUsd', label: 'predictions' },
+                { key: 'perpsAllocationUsd', label: 'perps' },
+              ] as const
+            ).map((target) => (
+              <label key={target.key} className="block">
+                <span className="dm-mono block text-[8px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                  {target.label}
+                </span>
+                <span className="mt-1 flex items-center gap-1">
+                  <span className="dm-mono text-[10px] font-bold text-[#5a5e69]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    placeholder="plan-driven"
+                    value={limits[target.key]}
+                    onChange={(event) =>
+                      setLimitValue(target.key, event.target.value)
+                    }
+                    className="dm-mono h-7 w-full rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[11px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+                  />
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="dm-mono mt-1.5 text-[8.5px] leading-snug text-[#5a5e69]">
+            Goldman funds each venue toward its target; wallet keeps the rest.
+            Blank = sized by the running plan.
+          </div>
         </div>
 
         {vaultTokenRows.length > 0 && (
