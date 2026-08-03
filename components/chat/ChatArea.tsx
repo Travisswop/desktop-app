@@ -3755,9 +3755,8 @@ export default function ChatArea({
   const predictionActiveWalletAddress = useMemo(() => {
     if (!shouldLoadAstroConsoleData) return undefined;
     if (isGoldmanConsoleChat) {
-      if (predictionWalletInfo?.recommendedWalletType === 'safe') {
-        return predictionWalletInfo.safeAddress;
-      }
+      // Goldman trades through the Polymarket deposit wallet — positions and
+      // collateral live there, so it always wins over the legacy Safe.
       if (predictionWalletInfo?.depositWalletAddress) {
         return predictionWalletInfo.depositWalletAddress;
       }
@@ -9211,6 +9210,7 @@ function GoldmanAccessStation({
   );
   const vaultPredictionsUsd =
     vaultPusdUsd +
+    toFiniteNumber(consoleData?.predictionPortfolioUsdcBalance) +
     (consoleData?.predictionPositions || [])
       .filter(isOpenPredictionConsolePosition)
       .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
