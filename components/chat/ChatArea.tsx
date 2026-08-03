@@ -8533,6 +8533,35 @@ function getGoldmanFundingAddress(
   return goldmanVaultToFundingDetails(vault);
 }
 
+const GOLDMAN_LANE_LABELS: Record<string, string> = {
+  polymarket: 'Predictions',
+  predictions: 'Predictions',
+  perps: 'Perps',
+  hyperliquid: 'Perps',
+  lifi: 'Swaps',
+  swaps: 'Swaps',
+  evm: 'Swaps',
+  limit_orders: 'Limit orders',
+  aave: 'DeFi',
+  defi: 'DeFi',
+};
+
+// A plan's lane = its first recognized venue; multi-venue plans group under
+// 'Multi-venue'. Venue lanes mirror the backend's one-plan-per-venue rule.
+function goldmanStrategyLane(strategy: GoldmanTradingStrategy): string {
+  const venues = Array.isArray(strategy.venues) ? strategy.venues : [];
+  const labels = Array.from(
+    new Set(
+      venues
+        .map((venue) => GOLDMAN_LANE_LABELS[String(venue).toLowerCase()])
+        .filter(Boolean)
+    )
+  );
+  if (labels.length === 1) return labels[0] as string;
+  if (labels.length > 1) return 'Multi-venue';
+  return 'Other';
+}
+
 function sortGoldmanStrategies(strategies: GoldmanTradingStrategy[] = []) {
   // Running first (Stop must target it); otherwise the NEWEST plan wins, so a
   // freshly approved strategy is what Run starts — status ranking here used to
@@ -9426,8 +9455,23 @@ function GoldmanAccessStation({
               <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
                 strategy plans
               </div>
-              <div className="mt-2 space-y-1.5">
-                {sortGoldmanStrategies(strategyVault?.strategies || []).map(
+              <div className="mt-2 space-y-2">
+                {Array.from(
+                  sortGoldmanStrategies(strategyVault?.strategies || []).reduce(
+                    (lanes, strategy) => {
+                      const lane = goldmanStrategyLane(strategy);
+                      lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
+                      return lanes;
+                    },
+                    new Map<string, GoldmanTradingStrategy[]>()
+                  )
+                ).map(([lane, laneStrategies]) => (
+                  <div key={lane}>
+                    <div className="dm-mono mb-1 text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#737783]">
+                      {lane}
+                    </div>
+                    <div className="space-y-1.5">
+                {laneStrategies.map(
                   (strategy) => {
                     if (!strategy.id) return null;
                     const isRunning = strategy.runtime?.state === 'running';
@@ -9493,9 +9537,12 @@ function GoldmanAccessStation({
                     );
                   }
                 )}
+                    </div>
+                  </div>
+                ))}
               </div>
               <div className="dm-mono mt-2 text-[9px] font-medium leading-snug text-[#5a5e69]">
-                Each venue runs one plan — starting a plan replaces only running plans on the same venues.
+                Each venue lane runs one plan — starting a plan replaces only running plans on the same venues.
               </div>
             </div>
           )}
