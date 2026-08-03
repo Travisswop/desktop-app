@@ -9216,7 +9216,14 @@ function GoldmanAccessStation({
     vaultPusdUsd +
     toFiniteNumber(consoleData?.predictionPortfolioUsdcBalance) +
     (consoleData?.predictionPositions || [])
-      .filter(isOpenPredictionConsolePosition)
+      // Open bets AND settled-but-unclaimed winnings are both real value —
+      // excluding redeemable positions made won bets vanish from the total
+      // until the redemption transaction landed.
+      .filter(
+        (position) =>
+          isOpenPredictionConsolePosition(position) ||
+          position.redeemable === true
+      )
       .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
   const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
   const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
