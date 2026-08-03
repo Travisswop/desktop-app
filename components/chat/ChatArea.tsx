@@ -9587,6 +9587,30 @@ function GoldmanAccessStation({
                       .join(' · ')}
                   </div>
                 )}
+                {(() => {
+                  // Allocation-target snapshot — only written when the user set targets.
+                  const allocation =
+                    activeStrategy.runtime.lastEvaluation.allocation;
+                  if (!allocation) return null;
+                  const parts: string[] = [];
+                  const predictionsTarget =
+                    Number(allocation.predictionsTargetPct) || 0;
+                  const perpsTarget = Number(allocation.perpsTargetPct) || 0;
+                  if (predictionsTarget > 0) {
+                    parts.push(`predictions ${predictionsTarget}%`);
+                  }
+                  if (perpsTarget > 0) parts.push(`perps ${perpsTarget}%`);
+                  const perpsNow = Number(allocation.perpsCurrentUsd) || 0;
+                  if (parts.length > 0 && perpsNow > 0) {
+                    parts.push(`perps now ${formatCompactUsd(perpsNow)}`);
+                  }
+                  if (parts.length === 0) return null;
+                  return (
+                    <div className="line-clamp-1 pl-2.5 text-[9px] leading-snug text-[#7b8290]">
+                      targets: {parts.join(' · ')}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ) : activeStrategy?.runtime?.lastActivity ? (

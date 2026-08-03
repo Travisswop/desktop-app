@@ -26,6 +26,13 @@ export type GoldmanStrategyEvaluation = {
   predictionsMarkets?: string[];
   perpsMarketCount?: number | null;
   openPositions?: { predictions?: number | null; perps?: number | null } | null;
+  // Allocation-target snapshot — only written when the user set targets.
+  allocation?: {
+    perpsTargetPct?: number | null;
+    predictionsTargetPct?: number | null;
+    perpsCurrentUsd?: number | null;
+    detail?: string | null;
+  } | null;
 };
 
 export type GoldmanStrategyRuntime = {
