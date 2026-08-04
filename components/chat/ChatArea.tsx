@@ -8063,7 +8063,11 @@ type GoldmanLimitKey =
   | 'predictionExposureUsd'
   | 'reserveUsd'
   | 'perpsAllocationPct'
-  | 'predictionsAllocationPct';
+  | 'predictionsAllocationPct'
+  | 'predictionsMaxBetUsd'
+  | 'predictionsMinBetUsd'
+  | 'predictionsMaxBetPctOfBankroll'
+  | 'perpsMaxPositionUsd';
 
 type GoldmanLimits = Record<GoldmanLimitKey, string>;
 
@@ -8088,6 +8092,10 @@ const DEFAULT_GOLDMAN_LIMITS: GoldmanLimits = {
   reserveUsd: '',
   perpsAllocationPct: '',
   predictionsAllocationPct: '',
+  predictionsMaxBetUsd: '',
+  predictionsMinBetUsd: '',
+  predictionsMaxBetPctOfBankroll: '',
+  perpsMaxPositionUsd: '',
 };
 
 // Plain-language explanations shown by the console's info (i) button.
@@ -9319,62 +9327,6 @@ function GoldmanAccessStation({
           ))}
         </div>
 
-        <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
-          <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
-            allocation targets
-          </div>
-          <div className="mt-1.5 grid grid-cols-2 gap-2">
-            {(
-              [
-                { key: 'predictionsAllocationPct', label: 'predictions' },
-                { key: 'perpsAllocationPct', label: 'perps' },
-              ] as const
-            ).map((target) => (
-              <label key={target.key} className="block">
-                <span className="dm-mono block text-[8px] font-bold uppercase tracking-[0.1em] text-[#737783]">
-                  {target.label}
-                </span>
-                <span className="mt-1 flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="5"
-                    placeholder="auto"
-                    value={limits[target.key]}
-                    onChange={(event) =>
-                      setLimitValue(target.key, event.target.value)
-                    }
-                    className="dm-mono h-7 w-full rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[11px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
-                  />
-                  <span className="dm-mono text-[10px] font-bold text-[#5a5e69]">
-                    %
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-          {(() => {
-            const perpsPct = Number(limits.perpsAllocationPct) || 0;
-            const predictionsPct = Number(limits.predictionsAllocationPct) || 0;
-            const overAllocated = perpsPct + predictionsPct > 100;
-            const walletPct = Math.max(0, 100 - perpsPct - predictionsPct);
-            return (
-              <div
-                className={`dm-mono mt-1.5 text-[8.5px] leading-snug ${
-                  overAllocated ? 'text-[#ff8585]' : 'text-[#5a5e69]'
-                }`}
-              >
-                {overAllocated
-                  ? `Targets add to ${perpsPct + predictionsPct}% — cap the two at 100% combined.`
-                  : perpsPct + predictionsPct > 0
-                  ? `% of total vault value. Wallet keeps the remaining ${walletPct}%. Goldman rebalances one step per cycle.`
-                  : 'Set a % of total vault value for each venue; wallet keeps the rest. Blank = sized by the running plan.'}
-              </div>
-            );
-          })()}
-        </div>
-
         {vaultTokenRows.length > 0 && (
           <div className="mt-2 max-h-[128px] overflow-y-auto rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
             <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
@@ -9632,68 +9584,165 @@ function GoldmanAccessStation({
         </div>
 
         {onToggleStrategyById &&
-          (strategyVault?.strategies || []).length > 1 && (
-            <div className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2.5">
-              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
-                strategy plans
-              </div>
-              <div className="mt-2 space-y-2">
-                {(() => {
-                  const laneMap = sortGoldmanStrategies(
-                    strategyVault?.strategies || []
-                  ).reduce((lanes, strategy) => {
-                    const lane = goldmanStrategyLane(strategy);
-                    lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
-                    return lanes;
-                  }, new Map<string, GoldmanTradingStrategy[]>());
-                  // Every venue gets its own slot, populated or not — plans
-                  // attach independently per venue and run concurrently.
-                  const CORE_LANES = ['Perps', 'Predictions', 'Swaps'];
-                  const orderedLanes: Array<[string, GoldmanTradingStrategy[]]> = [
-                    ...CORE_LANES.map(
-                      (lane) =>
-                        [lane, laneMap.get(lane) || []] as [
-                          string,
-                          GoldmanTradingStrategy[]
-                        ]
-                    ),
-                    ...Array.from(laneMap.entries()).filter(
-                      ([lane]) => !CORE_LANES.includes(lane)
-                    ),
-                  ];
-                  return orderedLanes;
-                })().map(([lane, laneStrategies]) => (
-                  <div key={lane}>
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="dm-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#737783]">
-                        {lane}
-                        {laneStrategies.some(
-                          (strategy) => strategy.runtime?.state === 'running'
-                        )
-                          ? ' · active'
-                          : ''}
-                      </span>
-                      {['Perps', 'Predictions', 'Swaps'].includes(lane) && (
-                        <button
-                          type="button"
-                          disabled={!onQuickCommand}
-                          onClick={() =>
-                            onQuickCommand?.(
-                              `Draft a new ${lane.toLowerCase()} plan`
-                            )
-                          }
-                          className="dm-mono rounded-[6px] border border-white/[0.08] bg-black/30 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#9aa0ab] hover:border-[#f4c95d]/40 hover:text-[#f4c95d] disabled:cursor-default disabled:opacity-40"
-                        >
-                          + new
-                        </button>
+          (() => {
+            const laneMap = sortGoldmanStrategies(
+              strategyVault?.strategies || []
+            ).reduce((lanes, strategy) => {
+              const lane = goldmanStrategyLane(strategy);
+              lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
+              return lanes;
+            }, new Map<string, GoldmanTradingStrategy[]>());
+            const CORE_LANES = ['Perps', 'Predictions', 'Swaps'] as const;
+            const laneBalance: Record<string, number> = {
+              Perps: vaultPerpsUsd,
+              Predictions: vaultPredictionsUsd,
+              Swaps: vaultWalletUsd,
+            };
+            const laneAllocationKey: Record<string, GoldmanLimitKey | null> = {
+              Perps: 'perpsAllocationPct',
+              Predictions: 'predictionsAllocationPct',
+              Swaps: null,
+            };
+            const laneRules: Record<
+              string,
+              Array<{ key: GoldmanLimitKey; label: string; unit: '$' | '%'; ph: string }>
+            > = {
+              Predictions: [
+                { key: 'predictionsMaxBetUsd', label: 'max bet', unit: '$', ph: 'uncapped' },
+                { key: 'predictionsMinBetUsd', label: 'min bet', unit: '$', ph: '5' },
+                { key: 'predictionsMaxBetPctOfBankroll', label: 'max %/bet', unit: '%', ph: '25' },
+              ],
+              Perps: [
+                { key: 'perpsMaxPositionUsd', label: 'max position', unit: '$', ph: 'uncapped' },
+                { key: 'maxLeverage', label: 'max leverage', unit: '%', ph: 'plan' },
+              ],
+              Swaps: [
+                { key: 'reserveUsd', label: 'reserve', unit: '$', ph: '0' },
+              ],
+            };
+            const orderedLanes: Array<[string, GoldmanTradingStrategy[]]> = [
+              ...CORE_LANES.map(
+                (lane) =>
+                  [lane, laneMap.get(lane) || []] as [
+                    string,
+                    GoldmanTradingStrategy[]
+                  ]
+              ),
+              ...Array.from(laneMap.entries()).filter(
+                ([lane]) => !(CORE_LANES as readonly string[]).includes(lane)
+              ),
+            ];
+            const perpsPct = Number(limits.perpsAllocationPct) || 0;
+            const predictionsPct = Number(limits.predictionsAllocationPct) || 0;
+            const walletPct = Math.max(0, 100 - perpsPct - predictionsPct);
+            return orderedLanes.map(([lane, laneStrategies]) => {
+              const allocationKey = laneAllocationKey[lane];
+              const rules = laneRules[lane] || [];
+              const hasRunning = laneStrategies.some(
+                (strategy) => strategy.runtime?.state === 'running'
+              );
+              return (
+                <div
+                  key={lane}
+                  className="mt-3 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#eceef2]">
+                      {lane}
+                      {hasRunning && (
+                        <span className="ml-1.5 text-[#3fe08f]">· active</span>
                       )}
-                    </div>
-                    {laneStrategies.length === 0 && (
-                      <div className="dm-mono rounded-[8px] border border-dashed border-white/[0.07] bg-black/10 px-2.5 py-2 text-[9px] leading-snug text-[#5a5e69]">
-                        No {lane.toLowerCase()} plan attached — hit + new, or
-                        say &quot;for {lane.toLowerCase()}: …&quot; in chat.
-                      </div>
+                    </span>
+                    <span className="dm-mono text-[11px] font-semibold text-[#c9cdd6]">
+                      {laneBalance[lane] !== undefined
+                        ? formatCompactUsd(laneBalance[lane])
+                        : ''}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="dm-mono block text-[8px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                        allocation
+                      </span>
+                      {allocationKey ? (
+                        <span className="mt-1 flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="5"
+                            placeholder="auto"
+                            value={limits[allocationKey]}
+                            onChange={(event) =>
+                              setLimitValue(allocationKey, event.target.value)
+                            }
+                            className="dm-mono h-7 w-full rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[11px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+                          />
+                          <span className="dm-mono text-[10px] font-bold text-[#5a5e69]">
+                            %
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="dm-mono mt-1 block h-7 rounded-[7px] border border-white/[0.05] bg-black/10 px-2 text-right text-[11px] font-semibold leading-7 text-[#737783]">
+                          {perpsPct + predictionsPct > 0
+                            ? `${walletPct}% (rest)`
+                            : 'remainder'}
+                        </span>
+                      )}
+                    </label>
+                    {rules.map((rule) => (
+                      <label key={rule.key} className="block">
+                        <span className="dm-mono block text-[8px] font-bold uppercase tracking-[0.1em] text-[#737783]">
+                          {rule.label}
+                        </span>
+                        <span className="mt-1 flex items-center gap-1">
+                          {rule.unit === '$' && (
+                            <span className="dm-mono text-[10px] font-bold text-[#5a5e69]">
+                              $
+                            </span>
+                          )}
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={rule.ph}
+                            value={limits[rule.key]}
+                            onChange={(event) =>
+                              setLimitValue(rule.key, event.target.value)
+                            }
+                            className="dm-mono h-7 w-full rounded-[7px] border border-white/[0.07] bg-[#0e1014] px-2 text-right text-[11px] font-semibold text-[#eceef2] outline-none focus:border-[#f4c95d]/45"
+                          />
+                          {rule.unit === '%' && (
+                            <span className="dm-mono text-[10px] font-bold text-[#5a5e69]">
+                              %
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mb-1 mt-2 flex items-center justify-between">
+                    <span className="dm-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#737783]">
+                      strategy
+                    </span>
+                    {(CORE_LANES as readonly string[]).includes(lane) && (
+                      <button
+                        type="button"
+                        disabled={!onQuickCommand}
+                        onClick={() =>
+                          onQuickCommand?.(`Draft a new ${lane.toLowerCase()} plan`)
+                        }
+                        className="dm-mono rounded-[6px] border border-white/[0.08] bg-black/30 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#9aa0ab] hover:border-[#f4c95d]/40 hover:text-[#f4c95d] disabled:cursor-default disabled:opacity-40"
+                      >
+                        + new
+                      </button>
                     )}
+                  </div>
+                  {laneStrategies.length === 0 ? (
+                    <div className="dm-mono rounded-[8px] border border-dashed border-white/[0.07] bg-black/10 px-2.5 py-2 text-[9px] leading-snug text-[#5a5e69]">
+                      No {lane.toLowerCase()} plan attached — hit + new, or say
+                      &quot;for {lane.toLowerCase()}: …&quot; in chat.
+                    </div>
+                  ) : (
                     <div className="space-y-1.5">
                 {laneStrategies.map(
                   (strategy) => {
@@ -9762,14 +9811,11 @@ function GoldmanAccessStation({
                   }
                 )}
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className="dm-mono mt-2 text-[9px] font-medium leading-snug text-[#5a5e69]">
-                Each venue lane runs one plan — starting a plan replaces only running plans on the same venues.
-              </div>
-            </div>
-          )}
+                  )}
+                </div>
+              );
+            });
+          })()}
 
         <div className="mt-3 grid grid-cols-3 gap-2">
           {[
