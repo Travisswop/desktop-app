@@ -9638,20 +9638,62 @@ function GoldmanAccessStation({
                 strategy plans
               </div>
               <div className="mt-2 space-y-2">
-                {Array.from(
-                  sortGoldmanStrategies(strategyVault?.strategies || []).reduce(
-                    (lanes, strategy) => {
-                      const lane = goldmanStrategyLane(strategy);
-                      lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
-                      return lanes;
-                    },
-                    new Map<string, GoldmanTradingStrategy[]>()
-                  )
-                ).map(([lane, laneStrategies]) => (
+                {(() => {
+                  const laneMap = sortGoldmanStrategies(
+                    strategyVault?.strategies || []
+                  ).reduce((lanes, strategy) => {
+                    const lane = goldmanStrategyLane(strategy);
+                    lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
+                    return lanes;
+                  }, new Map<string, GoldmanTradingStrategy[]>());
+                  // Every venue gets its own slot, populated or not — plans
+                  // attach independently per venue and run concurrently.
+                  const CORE_LANES = ['Perps', 'Predictions', 'Swaps'];
+                  const orderedLanes: Array<[string, GoldmanTradingStrategy[]]> = [
+                    ...CORE_LANES.map(
+                      (lane) =>
+                        [lane, laneMap.get(lane) || []] as [
+                          string,
+                          GoldmanTradingStrategy[]
+                        ]
+                    ),
+                    ...Array.from(laneMap.entries()).filter(
+                      ([lane]) => !CORE_LANES.includes(lane)
+                    ),
+                  ];
+                  return orderedLanes;
+                })().map(([lane, laneStrategies]) => (
                   <div key={lane}>
-                    <div className="dm-mono mb-1 text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#737783]">
-                      {lane}
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="dm-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#737783]">
+                        {lane}
+                        {laneStrategies.some(
+                          (strategy) => strategy.runtime?.state === 'running'
+                        )
+                          ? ' · active'
+                          : ''}
+                      </span>
+                      {['Perps', 'Predictions', 'Swaps'].includes(lane) && (
+                        <button
+                          type="button"
+                          disabled={!onQuickCommand}
+                          onClick={() =>
+                            onQuickCommand?.(
+                              `Draft a new ${lane.toLowerCase()} plan`
+                            )
+                          }
+                          className="dm-mono rounded-[6px] border border-white/[0.08] bg-black/30 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#9aa0ab] hover:border-[#f4c95d]/40 hover:text-[#f4c95d] disabled:cursor-default disabled:opacity-40"
+                        >
+                          + new
+                        </button>
+                      )}
                     </div>
+                    {laneStrategies.length === 0 && (
+                      <div className="dm-mono rounded-[8px] border border-dashed border-white/[0.07] bg-black/10 px-2.5 py-2 text-[9px] leading-snug text-[#5a5e69]">
+                        No {lane.toLowerCase()} plan attached — hit + new, or
+                        say &quot;for {lane.toLowerCase()}: …&quot; in chat.
+                      </div>
+                    )}
                     <div className="space-y-1.5">
                 {laneStrategies.map(
                   (strategy) => {
