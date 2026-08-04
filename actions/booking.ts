@@ -101,6 +101,20 @@ export interface OwnerBooking {
   meetLink?: string;
 }
 
+export interface GoogleCalendarEvent {
+  id: string;
+  title: string;
+  /** ISO datetime for timed events; null for all-day events. */
+  startTime: string | null;
+  endTime: string | null;
+  allDay: boolean;
+  /** Date-only strings (YYYY-MM-DD, end exclusive) for all-day events. */
+  date: string | null;
+  endDate: string | null;
+  meetLink: string | null;
+  location: string;
+}
+
 export interface BookingSummary {
   google: { connected: boolean; email: string };
   widget: {
@@ -120,6 +134,11 @@ export interface BookingSummary {
   past: OwnerBooking[];
   /** All confirmed bookings, start of current month → +60d (month grid). */
   calendarBookings?: OwnerBooking[];
+  /**
+   * Non-Swop events from the connected Google Calendar over the same window;
+   * null/absent when Google is disconnected or unreachable.
+   */
+  googleEvents?: GoogleCalendarEvent[] | null;
 }
 
 /** Owner dashboard: Calendar tile + bookings screen data (authed). */

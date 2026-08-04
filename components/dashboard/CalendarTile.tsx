@@ -7,9 +7,12 @@ import { CalendarDays, Video } from "lucide-react";
 import {
   getBookingSummary,
   type BookingSummary,
+  type GoogleCalendarEvent,
+  type OwnerBooking,
 } from "@/actions/booking";
 
 const SWATCH = "#E7EDD6";
+const GOOGLE_SWATCH = "#E3ECFA";
 
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", {
@@ -53,7 +56,29 @@ export default function CalendarTile() {
 
   if (loading) return null;
 
-  const next = (summary?.upcoming ?? []).slice(0, 3);
+  // Next-up list merges Swop bookings with synced Google Calendar events.
+  type NextItem =
+    | { kind: "booking"; startMs: number; b: OwnerBooking }
+    | { kind: "google"; startMs: number; g: GoogleCalendarEvent };
+  const nowMs = Date.now();
+  const googleNext: NextItem[] = (summary?.googleEvents ?? [])
+    .filter((g) => !g.allDay && g.startTime)
+    .map((g) => ({
+      kind: "google" as const,
+      startMs: new Date(g.startTime!).getTime(),
+      g,
+    }))
+    .filter((it) => it.startMs >= nowMs);
+  const next: NextItem[] = [
+    ...(summary?.upcoming ?? []).map((b) => ({
+      kind: "booking" as const,
+      startMs: new Date(b.startTime).getTime(),
+      b,
+    })),
+    ...googleNext,
+  ]
+    .sort((a, b) => a.startMs - b.startMs)
+    .slice(0, 3);
   const upcoming = summary?.counts.upcoming30d ?? 0;
   const thisWeek = summary?.counts.thisWeek ?? 0;
   const hasWidget = Boolean(summary?.widget);
@@ -109,30 +134,51 @@ export default function CalendarTile() {
 
         {next.length ? (
           <div className="flex flex-col">
-            {next.map((b, i) => (
+            {next.map((item, i) => (
               <div
-                key={b._id}
+                key={item.kind === "booking" ? item.b._id : item.g.id}
                 className={`grid grid-cols-[72px_1fr_auto] items-center gap-3 py-[9px] sm:grid-cols-[96px_150px_1fr_auto] ${
                   i ? "border-t border-black/[0.04]" : ""
                 }`}
               >
                 <span className="font-mono text-[12.5px] font-semibold text-gray-950">
-                  {timeOf(b.startTime)}
+                  {timeOf(new Date(item.startMs).toISOString())}
                 </span>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#e8e8e6] text-[10px] font-semibold text-gray-950">
-                    {initialsOf(b.visitorName)}
-                  </span>
-                  <span className="truncate text-[12.5px] font-medium text-gray-950">
-                    {b.visitorName}
-                  </span>
-                </span>
-                <span className="hidden truncate text-[12px] text-gray-500 sm:block">
-                  {b.note || b.visitorEmail}
-                </span>
+                {item.kind === "booking" ? (
+                  <>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#e8e8e6] text-[10px] font-semibold text-gray-950">
+                        {initialsOf(item.b.visitorName)}
+                      </span>
+                      <span className="truncate text-[12.5px] font-medium text-gray-950">
+                        {item.b.visitorName}
+                      </span>
+                    </span>
+                    <span className="hidden truncate text-[12px] text-gray-500 sm:block">
+                      {item.b.note || item.b.visitorEmail}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-gray-950"
+                        style={{ backgroundColor: GOOGLE_SWATCH }}
+                      >
+                        <CalendarDays className="h-[12px] w-[12px]" />
+                      </span>
+                      <span className="truncate text-[12.5px] font-medium text-gray-950">
+                        {item.g.title}
+                      </span>
+                    </span>
+                    <span className="hidden truncate text-[12px] text-gray-500 sm:block">
+                      {item.g.location || "Google Calendar"}
+                    </span>
+                  </>
+                )}
                 <span className="inline-flex items-center gap-1.5 text-[11.5px] text-gray-500">
                   <Video className="h-[13px] w-[13px]" />
-                  {dayOf(b.startTime)}
+                  {dayOf(new Date(item.startMs).toISOString())}
                 </span>
               </div>
             ))}

@@ -15,10 +15,12 @@ import toast from "react-hot-toast";
 import {
   getBookingSummary,
   type BookingSummary,
+  type GoogleCalendarEvent,
   type OwnerBooking,
 } from "@/actions/booking";
 
 const SWATCH = "#E7EDD6";
+const GOOGLE_SWATCH = "#E3ECFA";
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const timeOf = (iso: string) =>
@@ -49,12 +51,60 @@ const availabilitySummary = (
  * Owner bookings screen (design: Dashboard Calendar Canvas) — upcoming/past
  * agenda plus connection, settings, and booking-link rail.
  */
-const dayKeyOf = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+const localDayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
   ).padStart(2, "0")}`;
+const dayKeyOf = (iso: string) => localDayKey(new Date(iso));
+// All-day Google events carry date-only strings; parse in local time so the
+// day never shifts across timezones.
+const localDateOf = (dateStr: string) => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
 };
+
+/** A calendar entry: either a Swop booking or a synced Google Calendar event. */
+type CalItem =
+  | { kind: "booking"; startMs: number; b: OwnerBooking }
+  | { kind: "google"; startMs: number; endMs: number; g: GoogleCalendarEvent };
+type GoogleCalItem = Extract<CalItem, { kind: "google" }>;
+
+const googleItemOf = (g: GoogleCalendarEvent): GoogleCalItem | null => {
+  if (g.allDay && g.date) {
+    const start = localDateOf(g.date);
+    const end = g.endDate ? localDateOf(g.endDate) : null;
+    return {
+      kind: "google",
+      startMs: start.getTime(),
+      endMs:
+        end && end > start ? end.getTime() : start.getTime() + 24 * 3600 * 1000,
+      g,
+    };
+  }
+  if (!g.startTime) return null;
+  const startMs = new Date(g.startTime).getTime();
+  return {
+    kind: "google",
+    startMs,
+    endMs: g.endTime ? new Date(g.endTime).getTime() : startMs,
+    g,
+  };
+};
+
+const bookingItemOf = (b: OwnerBooking): CalItem => ({
+  kind: "booking",
+  startMs: new Date(b.startTime).getTime(),
+  b,
+});
+
+const keyOfItem = (it: CalItem) => (it.kind === "booking" ? it.b._id : it.g.id);
+// All-day events first, then chronological — matches Google's own day layout.
+const sortDayList = (list: CalItem[]) =>
+  list.sort((a, b) => {
+    const aAll = a.kind === "google" && a.g.allDay ? 0 : 1;
+    const bAll = b.kind === "google" && b.g.allDay ? 0 : 1;
+    return aAll - bAll || a.startMs - b.startMs;
+  });
 const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -83,23 +133,52 @@ export default function DashboardCalendarPage() {
   }, []);
 
   const groups = useMemo(() => {
-    const list = view === "past" ? summary?.past : summary?.upcoming;
-    const map = new Map<string, OwnerBooking[]>();
-    for (const b of list ?? []) {
-      const key = longDayOf(b.startTime);
+    // Upcoming merges Swop bookings with synced Google Calendar events;
+    // Past stays bookings-only (that view is the booking history).
+    let items: CalItem[];
+    if (view === "past") {
+      items = (summary?.past ?? []).map(bookingItemOf);
+    } else {
+      const google = (summary?.googleEvents ?? [])
+        .map(googleItemOf)
+        .filter((it): it is GoogleCalItem => it !== null && it.endMs > now.getTime());
+      items = [...(summary?.upcoming ?? []).map(bookingItemOf), ...google].sort(
+        (a, b) => a.startMs - b.startMs,
+      );
+    }
+    const map = new Map<string, CalItem[]>();
+    for (const it of items) {
+      const key = longDayOf(new Date(it.startMs).toISOString());
       if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(b);
+      map.get(key)!.push(it);
     }
     return [...map.entries()];
-  }, [summary, view]);
+  }, [summary, view, now]);
 
   const byDay = useMemo(() => {
-    const map = new Map<string, OwnerBooking[]>();
-    for (const b of summary?.calendarBookings ?? []) {
-      const key = dayKeyOf(b.startTime);
+    const map = new Map<string, CalItem[]>();
+    const push = (key: string, it: CalItem) => {
       if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(b);
+      map.get(key)!.push(it);
+    };
+    for (const b of summary?.calendarBookings ?? []) {
+      push(dayKeyOf(b.startTime), bookingItemOf(b));
     }
+    for (const g of summary?.googleEvents ?? []) {
+      const it = googleItemOf(g);
+      if (!it) continue;
+      if (g.allDay && g.date) {
+        // Multi-day all-day events appear on every day they span.
+        const cursor = localDateOf(g.date);
+        for (let i = 0; cursor.getTime() < it.endMs && i < 62; i += 1) {
+          push(localDayKey(cursor), it);
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      } else {
+        push(localDayKey(new Date(it.startMs)), it);
+      }
+    }
+    for (const list of map.values()) sortDayList(list);
     return map;
   }, [summary]);
 
@@ -165,7 +244,7 @@ export default function DashboardCalendarPage() {
           <p className="text-[12.5px] text-gray-500">
             {summary?.counts.upcoming30d ?? 0} upcoming ·{" "}
             {summary?.google.connected
-              ? "Google Calendar connected"
+              ? "Google Calendar synced"
               : "Google Calendar not connected"}
             {widget ? ` · ${widget.durationsMinutes[0]} min default` : ""}
           </p>
@@ -320,14 +399,20 @@ export default function DashboardCalendarPage() {
                           >
                             {d}
                           </span>
-                          {list.slice(0, 2).map((b) => (
+                          {list.slice(0, 2).map((it) => (
                             <span
-                              key={b._id}
+                              key={keyOfItem(it)}
                               className="block truncate rounded-[4px] px-1 py-0.5 text-[9.5px] font-semibold text-gray-950"
-                              style={{ backgroundColor: SWATCH }}
+                              style={{
+                                backgroundColor:
+                                  it.kind === "booking" ? SWATCH : GOOGLE_SWATCH,
+                              }}
                             >
-                              {timeOf(b.startTime).replace(":00", "")}{" "}
-                              {b.visitorName.split(" ")[0]}
+                              {it.kind === "booking"
+                                ? `${timeOf(it.b.startTime).replace(":00", "")} ${it.b.visitorName.split(" ")[0]}`
+                                : it.g.allDay
+                                  ? it.g.title
+                                  : `${timeOf(it.g.startTime!).replace(":00", "")} ${it.g.title}`}
                             </span>
                           ))}
                           {list.length > 2 && (
@@ -346,22 +431,40 @@ export default function DashboardCalendarPage() {
                   {selectedDayLabel}
                 </p>
                 <div className="mt-2.5 flex flex-col gap-2">
-                  {selectedDayBookings.map((b) => (
-                    <div
-                      key={b._id}
-                      className="rounded-xl border border-black/[0.06] p-[11px]"
-                    >
-                      <p className="font-mono text-[12px] font-semibold text-gray-950">
-                        {timeOf(b.startTime)}
-                      </p>
-                      <p className="mt-0.5 text-[12.5px] font-medium text-gray-950">
-                        {b.visitorName}
-                      </p>
-                      <p className="mt-0.5 truncate text-[11.5px] text-gray-500">
-                        {b.note || b.visitorEmail}
-                      </p>
-                    </div>
-                  ))}
+                  {selectedDayBookings.map((it) =>
+                    it.kind === "booking" ? (
+                      <div
+                        key={it.b._id}
+                        className="rounded-xl border border-black/[0.06] p-[11px]"
+                      >
+                        <p className="font-mono text-[12px] font-semibold text-gray-950">
+                          {timeOf(it.b.startTime)}
+                        </p>
+                        <p className="mt-0.5 text-[12.5px] font-medium text-gray-950">
+                          {it.b.visitorName}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11.5px] text-gray-500">
+                          {it.b.note || it.b.visitorEmail}
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        key={it.g.id}
+                        className="rounded-xl border border-black/[0.06] p-[11px]"
+                        style={{ backgroundColor: "#FBFCFE" }}
+                      >
+                        <p className="font-mono text-[12px] font-semibold text-gray-950">
+                          {it.g.allDay ? "All day" : timeOf(it.g.startTime!)}
+                        </p>
+                        <p className="mt-0.5 text-[12.5px] font-medium text-gray-950">
+                          {it.g.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11.5px] text-gray-500">
+                          {it.g.location || "Google Calendar"}
+                        </p>
+                      </div>
+                    ),
+                  )}
                   {selectedDayBookings.length === 0 && (
                     <p className="text-[12.5px] text-gray-500">
                       Nothing booked. Times are still open on your SmartSite.
@@ -387,10 +490,67 @@ export default function DashboardCalendarPage() {
                   {date}
                 </span>
                 <span className="text-[11.5px] text-gray-500">
-                  {list.length} booking{list.length > 1 ? "s" : ""}
+                  {list.length} event{list.length > 1 ? "s" : ""}
                 </span>
               </div>
-              {list.map((b) => {
+              {list.map((item) => {
+                if (item.kind === "google") {
+                  const g = item.g;
+                  const mins = g.allDay
+                    ? 0
+                    : Math.max(
+                        0,
+                        Math.round((item.endMs - item.startMs) / 60000),
+                      );
+                  return (
+                    <div key={g.id} className="border-b border-black/[0.04]">
+                      <div className="grid w-full grid-cols-[80px_1fr_auto] items-center gap-3 px-5 py-3 text-left sm:grid-cols-[104px_1.4fr_1.6fr_auto]">
+                        <span>
+                          <span className="block font-mono text-[13px] font-semibold text-gray-950">
+                            {g.allDay ? "All day" : timeOf(g.startTime!)}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-gray-500">
+                            {g.allDay ? "Google" : `${mins} min`}
+                          </span>
+                        </span>
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-gray-950"
+                            style={{ backgroundColor: GOOGLE_SWATCH }}
+                          >
+                            <CalendarDays className="h-[14px] w-[14px]" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[13px] font-medium text-gray-950">
+                              {g.title}
+                            </span>
+                            <span className="block truncate text-[11.5px] text-gray-500">
+                              Google Calendar
+                            </span>
+                          </span>
+                        </span>
+                        <span className="hidden truncate text-[12.5px] text-gray-700 sm:block">
+                          {g.location || "—"}
+                        </span>
+                        {g.meetLink ? (
+                          <a
+                            href={g.meetLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 justify-self-end rounded-full bg-gray-950 px-3 py-1.5 text-[11.5px] font-semibold text-white no-underline"
+                          >
+                            <Video className="h-[13px] w-[13px]" /> Join
+                          </a>
+                        ) : (
+                          <span className="justify-self-end text-[11.5px] text-gray-400">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                const b = item.b;
                 const isOpen = open === b._id;
                 return (
                   <div key={b._id} className="border-b border-black/[0.04]">
@@ -503,7 +663,7 @@ export default function DashboardCalendarPage() {
                 </span>
                 <span className="block text-[11.5px] text-gray-500">
                   {summary?.google.connected
-                    ? "Primary · busy times synced"
+                    ? "Primary · events synced"
                     : "Connect from your SmartSite"}
                 </span>
               </span>
@@ -550,7 +710,9 @@ export default function DashboardCalendarPage() {
                 {MONTH_LABELS[monthCursor.month]} {monthCursor.year}
               </p>
               <span className="text-[11.5px] text-gray-500">
-                {summary?.calendarBookings?.length ?? 0} booked
+                {(summary?.calendarBookings?.length ?? 0) +
+                  (summary?.googleEvents?.length ?? 0)}{" "}
+                on calendar
               </span>
             </div>
             <div className="mb-1 grid grid-cols-7 gap-[2px]">
