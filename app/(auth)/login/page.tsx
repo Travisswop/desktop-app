@@ -55,6 +55,8 @@ import {
   SWOP_ID_ONBOARDING_PATH,
 } from '@/lib/onboardingStatus';
 import { consumeExplicitLogoutRedirect } from '@/lib/authSession';
+import PrivyOutageNotice from '@/components/ui/privy-outage-notice';
+import { usePrivyStatus } from '@/hooks/usePrivyStatus';
 
 // Login flow states
 enum LoginFlow {
@@ -357,6 +359,7 @@ const Login: React.FC = () => {
 
   // Custom hooks
   const router = useRouter();
+  const { hasIssues: privyOutage } = usePrivyStatus();
 
   // State management
   const [loginFlow, setLoginFlow] = useState<LoginFlow>(
@@ -1120,6 +1123,7 @@ const Login: React.FC = () => {
           <h2 className="text-xl font-semibold text-red-500 mb-4">
             Login Error
           </h2>
+          <PrivyOutageNotice className="mb-4 text-left" />
           <p className="text-gray-700 mb-6">{loginError}</p>
           <button
             className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors"
@@ -1140,6 +1144,7 @@ const Login: React.FC = () => {
     <div className="relative w-full max-w-2xl mx-auto p-8 flex justify-center items-center">
       {loginFlow === LoginFlow.EMAIL_INPUT && (
         <Card className="w-full bg-white shadow-small shadow-white rounded-3xl max-w-lg mx-auto p-10">
+          <PrivyOutageNotice />
           <div className="flex flex-col items-center space-y-6 text-center pt-24 pb-20">
             <div className="flex items-center gap-2">
               <Image
@@ -1279,6 +1284,7 @@ const Login: React.FC = () => {
           </div>
           {/* Title */}
           <h2 className="font-semibold text-xl pt-6">Enter Code</h2>
+          <PrivyOutageNotice className="w-full" />
           {/* OTP Input Fields */}
           <div className="flex justify-center gap-3">
             {otp.map((_, index) => (
@@ -1330,7 +1336,11 @@ const Login: React.FC = () => {
           {/* Error */}
           <div className="h-3">
             {state.status === 'error' && (
-              <p className="text-red-400 text-sm mt-2">Invalid OTP</p>
+              <p className="text-red-400 text-sm mt-2">
+                {privyOutage
+                  ? 'Verification failed — our wallet provider is having issues. Your code may be fine; please retry in a bit.'
+                  : 'Invalid OTP'}
+              </p>
             )}
           </div>
         </div>

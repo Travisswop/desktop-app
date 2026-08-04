@@ -29,6 +29,8 @@ import { Connection } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import bs58 from 'bs58';
 import { useToast } from '@/hooks/use-toast';
+import { usePrivyStatus } from '@/hooks/usePrivyStatus';
+import PrivyOutageNotice from '@/components/ui/privy-outage-notice';
 
 import { TokenData } from '@/types/token';
 import { NFT } from '@/types/nft';
@@ -860,6 +862,8 @@ const WalletContentInner = () => {
     });
   }, [toast]);
 
+  const { hasIssues: privyOutage } = usePrivyStatus();
+
   const queryClient = useQueryClient();
   const { user, accessToken: userAccessToken } = useUser();
   const accessToken = userAccessToken || '';
@@ -1582,7 +1586,9 @@ const WalletContentInner = () => {
       // send — EVM or Solana — not after a confusing mid-flight failure.
       if (!authenticated) {
         throw new Error(
-          'Your wallet session has expired. Please verify your wallet again, then retry the send.',
+          privyOutage
+            ? 'Our wallet provider (Privy) is currently having an outage, so wallet verification is failing. This is not a problem with your account — please retry once the outage is resolved (status.privy.io).'
+            : 'Your wallet session has expired. Please verify your wallet again, then retry the send.',
         );
       }
 
@@ -1941,6 +1947,7 @@ const WalletContentInner = () => {
     sendSolanaWallet,
     authenticated,
     getAccessToken,
+    privyOutage,
   ]);
 
   // Main transaction handler
@@ -2253,15 +2260,41 @@ const WalletContentInner = () => {
       <div className="max-w-[855px] w-full mx-auto pb-8">
         {/* <TokenTicker /> */}
 
+        {/* ───────── PRIVY PROVIDER OUTAGE ───────── */}
+        {!(ready && !authenticated && user) && (
+          <PrivyOutageNotice className="mt-4" />
+        )}
+
         {/* ───────── PRIVY SESSION EXPIRED ───────── */}
         {ready && !authenticated && user && (
           <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[13px] leading-relaxed text-amber-800">
-              <span className="font-semibold">
-                Wallet session expired.
-              </span>{' '}
-              Your balances are shown, but sends and swaps need a quick
-              re-verification first.
+              {privyOutage ? (
+                <>
+                  <span className="font-semibold">
+                    Our wallet provider is having issues.
+                  </span>{' '}
+                  Wallet verification is failing on their end right now —
+                  this is not a problem with your account. Sends, swaps, and
+                  predictions may not work until it&apos;s resolved.{' '}
+                  <a
+                    href="https://status.privy.io"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold underline underline-offset-2 hover:text-amber-900"
+                  >
+                    Check status
+                  </a>
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">
+                    Wallet session expired.
+                  </span>{' '}
+                  Your balances are shown, but sends and swaps need a quick
+                  re-verification first.
+                </>
+              )}
             </p>
             <button
               type="button"
