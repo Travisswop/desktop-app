@@ -3117,13 +3117,9 @@ function PredictionPositionPanel({
     !entryIsEstimate && shares !== undefined
       ? shares * currentPrice
       : undefined;
-  const delta =
+  const liveDelta =
     currentValue !== undefined && Number.isFinite(currentValue)
       ? currentValue - cost
-      : undefined;
-  const deltaPct =
-    delta !== undefined && cost > 0
-      ? (delta / cost) * 100
       : undefined;
   const open =
     tradeState.state === 'open' || tradeState.state === 'live';
@@ -3131,8 +3127,16 @@ function PredictionPositionPanel({
     entryIsEstimate,
     isOpen: open,
     tradeState,
-    liveDelta: delta,
+    liveDelta,
   });
+  // Settled cards stop polling, so the mark freezes at the entry price and the
+  // raw mark delta reads +$0.00 on decided bets — the pick line must show the
+  // settled amount (same source as the RESULT block).
+  const delta = !open && selectedPnl !== undefined ? selectedPnl : liveDelta;
+  const deltaPct =
+    delta !== undefined && cost > 0
+      ? (delta / cost) * 100
+      : undefined;
   const summaryValue = resolvePredictionSummaryValue({
     entryIsEstimate,
     isOpen: open,
