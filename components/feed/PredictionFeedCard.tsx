@@ -1128,6 +1128,112 @@ function CopyBetButton({
   );
 }
 
+/**
+ * Agent cards' primary action: close the Goldman vault's position directly
+ * (two-tap confirm) — the personal sell ticket can't touch vault positions.
+ */
+function AgentCloseBetButton({
+  tokenId,
+  accessToken,
+}: {
+  tokenId?: string;
+  accessToken?: string;
+}) {
+  const [phase, setPhase] = useState<
+    'idle' | 'confirm' | 'working' | 'done' | 'error'
+  >('idle');
+  const [error, setError] = useState<string | null>(null);
+  const classes =
+    'flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-[13px] font-extrabold transition-colors';
+
+  if (!tokenId || !accessToken) {
+    return (
+      <button
+        type="button"
+        disabled
+        className={`${classes} border border-gray-100 bg-white text-gray-400`}
+      >
+        Close Position
+      </button>
+    );
+  }
+
+  const submit = async () => {
+    setPhase('working');
+    setError(null);
+    try {
+      const response = await apiFetch(
+        buildSwopApiUrl('/api/v5/messages/agents/goldman-sacks/positions/close'),
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ tokenId }),
+        },
+      );
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          body?.message || `Close failed (${response.status}).`,
+        );
+      }
+      setPhase('done');
+    } catch (closeError) {
+      setError(
+        closeError instanceof Error
+          ? closeError.message
+          : 'Close failed — try again.',
+      );
+      setPhase('error');
+    }
+  };
+
+  if (phase === 'done') {
+    return (
+      <button
+        type="button"
+        disabled
+        className={`${classes} border border-[#51AD7D]/30 bg-[#51AD7D]/10 text-[#2E7D5B]`}
+      >
+        Close submitted ✓
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={phase === 'working'}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (phase === 'confirm') void submit();
+          else setPhase('confirm');
+        }}
+        className={`${classes} ${
+          phase === 'confirm'
+            ? 'bg-[#D64545] text-white hover:bg-[#B93A3A]'
+            : 'bg-[#2F7ED8] text-white hover:bg-[#2569B8]'
+        }`}
+      >
+        {phase === 'working'
+          ? 'Closing…'
+          : phase === 'confirm'
+          ? 'Tap again to confirm close'
+          : 'Close Position'}
+        <span aria-hidden="true">→</span>
+      </button>
+      {phase === 'error' && error && (
+        <p className="mt-1 text-center text-[11px] font-bold text-[#D64545]">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function isBtcFiveMinutePrediction(content: PredictionContent): boolean {
   const source = [
     content.marketType,
@@ -2383,6 +2489,8 @@ function SportsMiniPanel({
   agent,
   ownerHandle,
   streak,
+  accessToken,
+  agentTokenId,
 }: {
   marketTitle: string;
   eventSlug?: string;
@@ -2419,6 +2527,8 @@ function SportsMiniPanel({
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
   streak?: AuthorStreak | null;
+  accessToken?: string;
+  agentTokenId?: string;
 }) {
   const { yesHistory, noHistory, loading } = usePriceHistory(
     yesTokenId,
@@ -2898,11 +3008,18 @@ function SportsMiniPanel({
 
       {open ? (
         <div className="mt-4">
-          <CopyBetButton
-            href={copyBetHref}
-            onClick={onCopyBetClick}
-            label={copyBetLabel}
-          />
+          {agent?.isAgentTrade ? (
+            <AgentCloseBetButton
+              tokenId={agentTokenId}
+              accessToken={accessToken}
+            />
+          ) : (
+            <CopyBetButton
+              href={copyBetHref}
+              onClick={onCopyBetClick}
+              label={copyBetLabel}
+            />
+          )}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2959,6 +3076,8 @@ function PredictionPositionPanel({
   agent,
   ownerHandle,
   streak,
+  accessToken,
+  agentTokenId,
 }: {
   marketTitle: string;
   outcome: string;
@@ -2985,6 +3104,8 @@ function PredictionPositionPanel({
   agent?: AgentBadgeAgent | null;
   ownerHandle?: string | null;
   streak?: AuthorStreak | null;
+  accessToken?: string;
+  agentTokenId?: string;
 }) {
   const shares =
     positionShares !== undefined && Number.isFinite(positionShares)
@@ -3365,11 +3486,18 @@ function PredictionPositionPanel({
 
       {open ? (
         <div className="mt-4">
-          <CopyBetButton
-            href={copyBetHref}
-            onClick={onCopyBetClick}
-            label={copyBetLabel}
-          />
+          {agent?.isAgentTrade ? (
+            <AgentCloseBetButton
+              tokenId={agentTokenId}
+              accessToken={accessToken}
+            />
+          ) : (
+            <CopyBetButton
+              href={copyBetHref}
+              onClick={onCopyBetClick}
+              label={copyBetLabel}
+            />
+          )}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -3607,6 +3735,14 @@ function RegularPredictionFeedCard({
           agent={agent}
           ownerHandle={ownerHandle}
           streak={streak}
+          accessToken={accessToken}
+          agentTokenId={
+            (content.outcome && content.yesOutcome
+              ? content.outcome === content.yesOutcome
+                ? content.yesTokenId
+                : content.noTokenId
+              : content.yesTokenId) || undefined
+          }
         />
       )}
 
@@ -3634,6 +3770,14 @@ function RegularPredictionFeedCard({
           agent={agent}
           ownerHandle={ownerHandle}
           streak={streak}
+          accessToken={accessToken}
+          agentTokenId={
+            (content.outcome && content.yesOutcome
+              ? content.outcome === content.yesOutcome
+                ? content.yesTokenId
+                : content.noTokenId
+              : content.yesTokenId) || undefined
+          }
         />
       )}
 
