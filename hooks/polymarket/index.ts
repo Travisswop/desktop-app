@@ -9,8 +9,10 @@ export { useClobClient } from "./useClobClient";
 export { useMarkets, type PolymarketMarket } from "./useMarkets";
 export {
   useClobOrder,
+  getPriceMovedRequote,
   type OrderParams,
   type OrderSubmissionStage,
+  type PriceMovedRequote,
 } from "./useClobOrder";
 export { useActiveOrders, type PolymarketOrder } from "./useActiveOrders";
 export { useUserPositions, type PolymarketPosition } from "./useUserPositions";

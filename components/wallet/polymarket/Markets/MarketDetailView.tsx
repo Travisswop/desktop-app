@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   useClobOrder,
   useTickSize,
+  getPriceMovedRequote,
   type OrderSubmissionStage,
 } from '@/hooks/polymarket';
 import { usePolymarketWallet } from '@/providers/polymarket';
@@ -158,6 +159,10 @@ function toAmericanOdds(p: number): string {
   return p > 0.5
     ? String(Math.round(-(p / (1 - p)) * 100))
     : `+${Math.round(((1 - p) / p) * 100)}`;
+}
+
+function formatCents(p: number): string {
+  return Number.isFinite(p) ? `${Math.round(p * 100)}¢` : '—';
 }
 
 function getAbbr(name: string): string {
@@ -5494,7 +5499,13 @@ export default function MarketDetailView({
 
   const LIMIT_MIN_SHARES = market.orderMinSize ?? MIN_ORDER_SIZE;
 
-  const handlePlaceOrder = async () => {
+  // A PRICE_MOVED rejection carries the live execution price, so the error
+  // card can re-quote (new odds, shares, payout) and offer to place at it.
+  const orderRequote = orderError ? getPriceMovedRequote(orderError) : null;
+
+  // The price-moved re-quote card resubmits at the execution price the
+  // backend reported; the slippage window is re-anchored to it.
+  const handlePlaceOrder = async (priceOverride?: number) => {
     if (isFinalSportsEvent) {
       setLocalError('This game is final, so new orders are disabled.');
       return;
@@ -5563,7 +5574,7 @@ export default function MarketDetailView({
         conditionId: market.conditionId || market.id,
         size: orderSize,
         price: isLimitVariant ? limitPriceNum : undefined,
-        acceptedPrice: effectivePrice,
+        acceptedPrice: priceOverride ?? effectivePrice,
         side,
         negRisk,
         isMarketOrder: isMarketVariant,
@@ -5931,14 +5942,38 @@ export default function MarketDetailView({
             onClose();
           }}
         />
-        {(localError || orderError) && (
-          <OrderErrorNotification
-            raw={localError || orderError?.message}
-            onDismiss={() => {
-              setLocalError(null);
+        {!localError && orderRequote ? (
+          <OrderInfoNotification
+            title="Odds changed"
+            detail={
+              side === 'SELL'
+                ? `The price moved ${toAmericanOdds(orderRequote.acceptedPrice)} (${formatCents(orderRequote.acceptedPrice)}) → ${toAmericanOdds(orderRequote.executionPrice)} (${formatCents(orderRequote.executionPrice)}). Selling ${inputNum.toFixed(2)} shares now returns about $${(inputNum * orderRequote.executionPrice).toFixed(2)}.`
+                : `The odds moved ${toAmericanOdds(orderRequote.acceptedPrice)} (${formatCents(orderRequote.acceptedPrice)}) → ${toAmericanOdds(orderRequote.executionPrice)} (${formatCents(orderRequote.executionPrice)}). $${inputNum.toFixed(2)} now buys ${(orderRequote.executionPrice > 0 ? inputNum / orderRequote.executionPrice : 0).toFixed(2)} shares — payout $${(orderRequote.executionPrice > 0 ? inputNum / orderRequote.executionPrice : 0).toFixed(2)} if you win.`
+            }
+            actionLabel={
+              isSubmitting
+                ? 'Placing…'
+                : side === 'SELL'
+                  ? `Sell at ${toAmericanOdds(orderRequote.executionPrice)}`
+                  : `Place at ${toAmericanOdds(orderRequote.executionPrice)}`
+            }
+            onAction={() => {
+              const requotePrice = orderRequote.executionPrice;
               resetOrder();
+              void handlePlaceOrder(requotePrice);
             }}
+            actionDisabled={isSubmitting}
           />
+        ) : (
+          (localError || orderError) && (
+            <OrderErrorNotification
+              raw={localError || orderError?.message}
+              onDismiss={() => {
+                setLocalError(null);
+                resetOrder();
+              }}
+            />
+          )
         )}
         {!clobClient && !localError && !orderError && (
           <OrderInfoNotification

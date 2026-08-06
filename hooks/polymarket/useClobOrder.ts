@@ -64,6 +64,39 @@ function extractClobError(err: unknown): Error {
   return new Error('Failed to submit order');
 }
 
+type PredictionRequestError = Error & {
+  code?: string;
+  details?: Record<string, unknown>;
+};
+
+/** Live re-quote carried by the backend's PRICE_MOVED market-order rejection. */
+export type PriceMovedRequote = {
+  acceptedPrice: number;
+  executionPrice: number;
+  side: 'BUY' | 'SELL';
+};
+
+/**
+ * When a market order is rejected because the book moved past the slippage
+ * window, the backend includes the price it WOULD fill at right now. Extract
+ * it so the ticket can offer "place at the new odds" instead of a dead end.
+ */
+export function getPriceMovedRequote(
+  error: unknown,
+): PriceMovedRequote | null {
+  if (!(error instanceof Error)) return null;
+  const { code, details } = error as PredictionRequestError;
+  if (code !== 'PRICE_MOVED' || !details) return null;
+  const acceptedPrice = parseProbabilityPrice(details.acceptedPrice);
+  const executionPrice = parseProbabilityPrice(details.executionPrice);
+  if (acceptedPrice == null || executionPrice == null) return null;
+  return {
+    acceptedPrice,
+    executionPrice,
+    side: details.side === 'SELL' ? 'SELL' : 'BUY',
+  };
+}
+
 export type OrderParams = {
   tokenId: string;
   conditionId?: string;
@@ -986,7 +1019,16 @@ export function useClobOrder(
 
         if (!prepareRes.ok) {
           const err = await prepareRes.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to prepare order');
+          const prepareError = new Error(
+            err.error || 'Failed to prepare order',
+          ) as PredictionRequestError;
+          // Structured guard rejections (e.g. PRICE_MOVED) carry code/details
+          // so the ticket can re-quote instead of dead-ending on the message.
+          if (typeof err.code === 'string') prepareError.code = err.code;
+          if (err.details && typeof err.details === 'object') {
+            prepareError.details = err.details;
+          }
+          throw prepareError;
         }
 
         const { orderTypedData, orderMeta } = await prepareRes.json();
