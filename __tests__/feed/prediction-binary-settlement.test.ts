@@ -64,6 +64,17 @@ describe('resolvePickedSide', () => {
   it('returns null for compound labels that match neither side', () => {
     expect(resolvePickedSide('Moneyline · Argentina', 'Yes', 'No')).toBeNull();
   });
+
+  it('trusts a recorded side over any inference from the label', () => {
+    // A spread market whose RAW outcomes are Yes/No: "Brewers +1.5" matches
+    // neither, so inference alone falls through to null and the card defaults
+    // to the yes side — showing the opponent's line as the user's pick.
+    expect(resolvePickedSide('Brewers +1.5', 'Yes', 'No')).toBeNull();
+    expect(resolvePickedSide('Brewers +1.5', 'Yes', 'No', 'no')).toBe('no');
+    // It also overrides a wrong-looking inference rather than merely filling
+    // gaps: the recorded side is what the order actually bought.
+    expect(resolvePickedSide('Over 220.5', 'Over', 'Under', 'no')).toBe('no');
+  });
 });
 
 describe('binary market settlement', () => {

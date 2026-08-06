@@ -115,6 +115,13 @@ export interface PredictionContent {
   btcWindowLabel?: string;
   eventSlug?: string;
   eventTitle?: string;
+  /**
+   * Which side of the market was bought, as recorded at order time. Present on
+   * posts written after Aug 2026; older ones leave the side to be inferred from
+   * `outcome`, which cannot be done for a spread whose raw outcomes are
+   * "Yes"/"No".
+   */
+  outcomeSide?: 'yes' | 'no';
   // Sports panel (optional – present only for sports markets)
   yesOutcome?: string; // "yes" outcome label, e.g., "Knicks"
   noOutcome?: string; // "no" outcome label, e.g., "Hawks"
@@ -247,7 +254,10 @@ export function resolvePickedSide(
   outcome: string,
   yesOutcome: string,
   noOutcome: string,
+  recordedSide?: 'yes' | 'no',
 ): 'yes' | 'no' | null {
+  // Recorded at order time — always beats inferring from label text.
+  if (recordedSide === 'yes' || recordedSide === 'no') return recordedSide;
   const p = outcome.trim().toLowerCase();
   if (!p) return null;
   const yes = yesOutcome.trim().toLowerCase();
@@ -779,6 +789,7 @@ export function resolveSportsScorePickedWon({
   noOutcome,
   yesScore,
   noScore,
+  outcomeSide,
 }: {
   marketTitle: string;
   pickedOutcome: string;
@@ -786,6 +797,8 @@ export function resolveSportsScorePickedWon({
   noOutcome?: string;
   yesScore: number | undefined;
   noScore: number | undefined;
+  /** Side recorded at order time, when the post carries one. */
+  outcomeSide?: 'yes' | 'no';
 }): boolean | undefined {
   if (
     yesScore === undefined ||
@@ -797,7 +810,12 @@ export function resolveSportsScorePickedWon({
     return undefined;
   }
 
-  const pickedSide = resolvePickedSide(pickedOutcome, yesOutcome, noOutcome);
+  const pickedSide = resolvePickedSide(
+    pickedOutcome,
+    yesOutcome,
+    noOutcome,
+    outcomeSide,
+  );
   if (!pickedSide) return undefined;
   const pickedIsYes = pickedSide === 'yes';
 
@@ -931,7 +949,10 @@ function resolveInitialOutcome(
   yesOutcome: string,
   noOutcome: string,
 ): 'yes' | 'no' | undefined {
-  return resolvePickedSide(content.outcome, yesOutcome, noOutcome) ?? undefined;
+  return (
+    resolvePickedSide(content.outcome, yesOutcome, noOutcome, content.outcomeSide) ??
+    undefined
+  );
 }
 
 function usePredictionMarketNavigation(
@@ -1412,6 +1433,7 @@ export function resolveMarketState(
       content.outcome,
       content.yesOutcome || 'Yes',
       content.noOutcome || 'No',
+      content.outcomeSide,
     ) ?? 'yes';
   const pickedPrice =
     pickedIdx >= 0
@@ -1460,6 +1482,9 @@ export function resolveMarketState(
     noOutcome: scoreNoLabel,
     yesScore,
     noScore,
+    // Binary cards pass an already-resolved side as `pickedOutcome`; the
+    // recorded side is only meaningful for the raw-outcome branch.
+    outcomeSide: isBinary ? undefined : content.outcomeSide,
   });
 
   return {
@@ -3058,6 +3083,7 @@ function PredictionPositionPanel({
   outcome,
   yesOutcome,
   noOutcome,
+  outcomeSide,
   side,
   cost,
   entryPrice,
@@ -3083,6 +3109,8 @@ function PredictionPositionPanel({
   outcome: string;
   yesOutcome?: string;
   noOutcome?: string;
+  /** Side recorded at order time, when the post carries one. */
+  outcomeSide?: 'yes' | 'no';
   side: 'BUY' | 'SELL';
   cost: number;
   entryPrice: number;
@@ -3149,7 +3177,8 @@ function PredictionPositionPanel({
   const noLabel = noOutcome || 'No';
   // Unknown side defaults to yes — binary picks back the question's subject.
   const pickedIsYes =
-    (resolvePickedSide(outcome, yesLabel, noLabel) ?? 'yes') === 'yes';
+    (resolvePickedSide(outcome, yesLabel, noLabel, outcomeSide) ?? 'yes') ===
+    'yes';
   const resolvedYesPrice = clampProbability(
     yesPrice ?? (pickedIsYes ? currentPrice : 1 - currentPrice),
   );
@@ -3638,8 +3667,12 @@ function RegularPredictionFeedCard({
   );
   // Unknown side defaults to yes — binary picks back the question's subject.
   const pickedIsYes =
-    (resolvePickedSide(outcome, yesOutcome || 'Yes', noOutcome || 'No') ??
-      'yes') === 'yes';
+    (resolvePickedSide(
+      outcome,
+      yesOutcome || 'Yes',
+      noOutcome || 'No',
+      content.outcomeSide,
+    ) ?? 'yes') === 'yes';
   const livePickedPrice = pickedIsYes
     ? livePrices.yesPrice
     : livePrices.noPrice;
@@ -3756,6 +3789,7 @@ function RegularPredictionFeedCard({
           outcome={outcome}
           yesOutcome={yesOutcome}
           noOutcome={noOutcome}
+          outcomeSide={content.outcomeSide}
           side={side}
           cost={displayCost}
           entryPrice={entryPrice}

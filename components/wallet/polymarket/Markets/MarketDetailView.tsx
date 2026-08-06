@@ -5152,6 +5152,14 @@ export default function MarketDetailView({
   const noOutcomeName = outcomes[1] || 'No';
   const yesAbbr = getAbbr(yesOutcomeName);
   const noAbbr = getAbbr(noOutcomeName);
+  // What the user actually picked, in sportsbook wording. A spread or total
+  // market's raw outcomes are "Yes"/"No" or a bare "Over"/"Under", so posting
+  // those to the feed produced cards reading "Yes" with no line; the grouped
+  // game supplies "Milwaukee Brewers -1.5" / "O 7.5". Kept separate from
+  // yes/noOutcomeName, which still feed team-metadata matching against the
+  // event's raw team names.
+  const yesPickLabel = displayOutcomeLabels?.[0] || yesOutcomeName;
+  const noPickLabel = displayOutcomeLabels?.[1] || noOutcomeName;
 
   const negRisk = market.negRisk || false;
   const seed = market.slug || market.id || 'market';
@@ -5585,7 +5593,7 @@ export default function MarketDetailView({
       // ── Capture summary for the success notification ──────────────────────
       if (result?.success) {
         const outcomeName =
-          selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
+          selectedOutcome === 'yes' ? yesPickLabel : noPickLabel;
         const cost =
           side === 'SELL'
             ? amountToReceive
@@ -5672,7 +5680,7 @@ export default function MarketDetailView({
       // ── POST PREDICTION TO FEED (fire-and-forget) ──────────────────────────
       if (result?.success && user?.primaryMicrosite && user?._id) {
         const outcomeName =
-          selectedOutcome === 'yes' ? yesOutcomeName : noOutcomeName;
+          selectedOutcome === 'yes' ? yesPickLabel : noPickLabel;
         const cost =
           side === 'SELL'
             ? amountToReceive
@@ -5709,7 +5717,15 @@ export default function MarketDetailView({
                   orderType,
                   eventSlug: liveEventSlug || market.eventSlug,
                   ...feedExecution.fields,
-                  // Sports panel data
+                  // Which side of the market was bought, stated outright. The
+                  // card otherwise has to infer it by matching `outcome` against
+                  // the two names below, which cannot work once `outcome` is a
+                  // spread label and the raw outcomes are "Yes"/"No" — that
+                  // inference silently defaults to the yes side.
+                  outcomeSide: selectedOutcome,
+                  // Sports panel data. Deliberately the RAW outcome names: the
+                  // card keys team matching, score mapping and its Yes/No
+                  // matchup derivation off these.
                   yesOutcome: yesOutcomeName,
                   noOutcome: noOutcomeName,
                   yesTokenId,
