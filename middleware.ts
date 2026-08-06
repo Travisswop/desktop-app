@@ -46,6 +46,7 @@ const PUBLIC_ROUTES = new Set([
   "/favicon.ico",
   "/static",
   "/sp",
+  "/welcome",
 ]);
 
 function safeOrigin(value?: string) {
@@ -907,6 +908,14 @@ export async function middleware(req: NextRequest) {
 
     console.log(`[AUTH] No token found for path: ${pathname}`);
 
+    // Signed-out visitors to the home page get the public marketing page
+    // rather than being bounced to /login. This is a rewrite, not a redirect,
+    // so https://www.swopme.app itself answers 200 with content describing the
+    // app — Google OAuth verification rejects a home page behind a login.
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/welcome", req.url));
+    }
+
     // NO TOKEN: Only redirect to login if accessing protected route
     if (isProtectedRoute(pathname)) {
       console.log(`[AUTH] Protected route without token, redirecting to login`);
@@ -939,6 +948,10 @@ export async function middleware(req: NextRequest) {
     if (token || accessToken) {
       console.log("Error occurred but token exists, allowing access");
       return NextResponse.next();
+    }
+
+    if (req.nextUrl.pathname === "/") {
+      return NextResponse.rewrite(new URL("/welcome", req.url));
     }
 
     if (isProtectedRoute(req.nextUrl.pathname)) {
