@@ -9496,40 +9496,36 @@ function GoldmanAccessStation({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#8f7c47]">
-                active strategy
+                {isStrategyRunning ? 'active strategy' : 'agent status'}
               </div>
               <div className="mt-1 truncate text-[12px] font-semibold text-[#eceef2]">
-                {activeStrategy?.title || 'No approved strategy'}
+                {/* Only a RUNNING plan is "active" here — the venue sections
+                    below own attach/run for stopped plans, and naming a
+                    stopped plan up here read as a contradiction. */}
+                {isStrategyRunning
+                  ? activeStrategy?.title
+                  : 'Idle — no plan running'}
               </div>
               <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
-                {activeStrategy
-                  ? `${activeStrategy.runtime?.state || activeStrategy.status || 'idle'} · ${
-                      activeStrategy.runtime?.executionMode || 'proposal'
+                {isStrategyRunning
+                  ? `running · ${
+                      activeStrategy?.runtime?.executionMode || 'proposal'
                     }`
-                  : 'approve a strategy to run'}
+                  : (strategyVault?.strategies || []).length
+                  ? 'start a plan in a section below'
+                  : 'draft a plan to get started'}
               </div>
             </div>
+            {/* Only Stop lives up here. Starting a plan is a per-section
+                action now — a single Run button could not say WHICH plan it
+                would start once every venue has its own. */}
             <button
               type="button"
               data-testid="goldman-run-stop-button"
-              disabled={
-                isTogglingStrategy ||
-                isVaultBusy ||
-                (!activeStrategy && !onQuickCommand) ||
-                (!isStrategyRunning && Boolean(activeStrategy) && !onRunStrategy) ||
-                (isStrategyRunning && !onStopStrategy)
-              }
+              hidden={!isStrategyRunning}
+              disabled={isTogglingStrategy || isVaultBusy || !onStopStrategy}
               onClick={() => {
-                if (!activeStrategy) {
-                  toast.error('Ask Goldman for ideas or approve a strategy before running.');
-                  handleAskStrategyIdeas();
-                  return;
-                }
-                if (isStrategyRunning) {
-                  onStopStrategy?.();
-                } else {
-                  onRunStrategy?.();
-                }
+                if (isStrategyRunning) onStopStrategy?.();
               }}
               className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
                 isStrategyRunning
