@@ -187,6 +187,28 @@ export default function Feed({
     fetchFeedData(true, { preserveLoadedItems: true });
   }, [feedRefetchTrigger, fetchFeedData]);
 
+  // background refresh — pull new page-1 posts on an interval and when the tab
+  // regains visibility, without disturbing already-loaded pages
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      // don't abort an in-flight pagination fetch
+      if (isFetchingRef.current) return;
+      fetchFeedData(true, { preserveLoadedItems: true });
+    };
+
+    const timer = window.setInterval(refresh, 30_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [fetchFeedData]);
+
   useEffect(() => {
     if (!createdFeedItem) return;
 

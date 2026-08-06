@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { useNowTick } from "./useNowTick";
 import isUrl from "@/lib/isUrl";
 // import Cookies from "js-cookie";
 import CommentReaction from "./view/CommentReaction";
@@ -68,6 +69,7 @@ export default function CommentItem({
 }: CommentItemProps) {
   // const accessToken = Cookies.get("access-token") || "";
 
+  const nowTick = useNowTick();
   const [isLiked, setIsLiked] = useState(comment.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(comment.likeCount ?? 0);
   const [replyCount, setReplyCount] = useState(comment.replyCount ?? 0);
@@ -130,7 +132,7 @@ export default function CommentItem({
               <p className="font-bold text-[15px] text-gray-900 ">{userName}</p>
               <span className="text-[14px] text-gray-500">·</span>
               <span className="text-[14px] text-gray-500">
-                {dayjs(comment.createdAt).fromNow()}
+                {dayjs(comment.createdAt).from(dayjs(nowTick))}
               </span>
               {userId !== comment.userId && (
                 <button onClick={(e) => handleTipOpen(e)}>

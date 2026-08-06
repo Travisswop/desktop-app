@@ -27,6 +27,7 @@ import FeedTradeAlertMenuItem, {
   isFeedAuthorSelf,
   shouldShowTradeAlertMenuItem,
 } from "./FeedTradeAlertMenuItem";
+import { useNowTick } from "./useNowTick";
 interface FeedItemType {
   _id: string;
   likeCount?: number;
@@ -69,6 +70,9 @@ const FeedItem = memo(
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
     const router = useRouter();
+    // memo() blocks parent-driven re-renders, so the relative timestamp needs
+    // its own tick to stay current.
+    const nowTick = useNowTick();
 
     // const { isOpen, onOpen, onOpenChange } = useDisclosure();
     // const [isModalOpen, setIsModalOpen] = useState(false);
@@ -218,7 +222,7 @@ const FeedItem = memo(
                     <p className="text-black font-semibold">{userName}</p>
                     <GoDotFill size={10} />
                     <p className="text-black font-medium">
-                      {dayjs(feed?.createdAt).fromNow()}
+                      {dayjs(feed?.createdAt).from(dayjs(nowTick))}
                     </p>
                   </div>
                   {userId !== feed?.userId && (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import updateLocale from "dayjs/plugin/updateLocale";
+import { useNowTick } from "./useNowTick";
 import { GoDotFill } from "react-icons/go";
 import { HiDotsHorizontal } from "react-icons/hi";
 import {
@@ -69,6 +70,7 @@ const FeedReplyItem = memo(
     isFromFeedDetailsPage = false,
   }: FeedItemProps) => {
     const [isTipModalOpen, setIsTipModalOpen] = useState(false);
+    const nowTick = useNowTick();
 
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -172,7 +174,7 @@ const FeedReplyItem = memo(
                   <p className="text-black font-semibold">{userName}</p>
                   <GoDotFill size={10} />
                   <p className="text-black font-medium">
-                    {dayjs(feed.createdAt).fromNow()}
+                    {dayjs(feed.createdAt).from(dayjs(nowTick))}
                   </p>
                 </div>
                 {userId !== feed.userId && (
