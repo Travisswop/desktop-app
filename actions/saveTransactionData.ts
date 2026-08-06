@@ -1,5 +1,6 @@
 import logger from "../utils/logger";
 import { useModalStore } from "@/zustandStore/modalstore";
+import { checkSwapLegConsistency } from "@/lib/wallet/swapReceipt";
 
 interface SwapDetails {
   signature: string;
@@ -43,6 +44,28 @@ export async function saveSwapTransaction(
   accessToken: string,
 ) {
   try {
+    // A swap is atomic, so its two legs are worth the same modulo fees and
+    // slippage. Legs that disagree mean the amount was scaled by the wrong
+    // `decimals` (these callers default to 6/18 when the token list has no
+    // decimals) or that the token metadata belongs to a different trade.
+    // Posting such a receipt renders nonsense on the feed card and corrupts
+    // FIFO cost-basis downstream, so drop it instead.
+    const consistency = checkSwapLegConsistency(
+      swapDetails.inputToken,
+      swapDetails.outputToken,
+    );
+    if (!consistency.ok) {
+      logger.error('[SwapReceipt] refusing to post inconsistent swap', {
+        signature: swapDetails.signature,
+        ratio: consistency.ratio,
+        inputUsd: consistency.inputUsd,
+        outputUsd: consistency.outputUsd,
+        inputToken: swapDetails.inputToken,
+        outputToken: swapDetails.outputToken,
+      });
+      return null;
+    }
+
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/v2/feed`,
       {

@@ -60,6 +60,7 @@ import {
   resolvePublicEnsName,
 } from '@/lib/api/publicEnsResolver';
 import { resolveWalletRecipientViaBackend } from '@/lib/api/walletRecipientResolver';
+import { checkSwapLegConsistency } from '@/lib/wallet/swapReceipt';
 import { buildSwopApiUrl } from '@/lib/api/apiBaseUrl';
 import { apiFetch } from '@/lib/api/apiFetch';
 import {
@@ -16049,6 +16050,28 @@ async function postAgentSwapToFeed({
 }) {
   const identity = getAgentFeedIdentity(user);
   if (!accessToken || !identity || !signature) return null;
+
+  // Both legs of a swap are worth the same modulo fees/slippage — legs that
+  // disagree mean a decimals or token-identity bug upstream, and the receipt
+  // would render as nonsense and corrupt cost-basis accounting.
+  const legConsistency = checkSwapLegConsistency(
+    { amount: toAgentFeedNumber(inputAmount), price: inputToken.priceUsd || '0' },
+    {
+      amount: toAgentFeedNumber(outputAmount),
+      price: outputToken.priceUsd || '0',
+    }
+  );
+  if (!legConsistency.ok) {
+    console.error('[SwapReceipt] refusing to post inconsistent agent swap', {
+      signature,
+      ratio: legConsistency.ratio,
+      inputUsd: legConsistency.inputUsd,
+      outputUsd: legConsistency.outputUsd,
+      inputSymbol: inputToken.symbol,
+      outputSymbol: outputToken.symbol,
+    });
+    return null;
+  }
 
   const result = await postFeed(
     {

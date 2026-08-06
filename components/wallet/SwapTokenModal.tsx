@@ -114,6 +114,7 @@ import {
 } from '@/lib/wallet/swapTokenSelection';
 import { shouldDisableSwapActionButton } from '@/lib/wallet/swapActionButtonState';
 import { resolveSolanaSigningWallet } from '@/lib/wallet/solanaSigningWallet';
+import { resolveSwapReceiptLegs } from '@/lib/wallet/swapReceipt';
 import {
   markWalletSwapFailureReported,
   queueWalletSwapFailureClientEvent,
@@ -4417,6 +4418,65 @@ export default function SwapTokenModal({
           ? q?.swopPlatformFeeFailure
           : undefined;
 
+      // Rebuild both legs from the quote that actually executed rather than
+      // from whatever the token pickers hold now. State-assembled legs have
+      // shipped corrupt receipts to prod twice over: raw base-unit amounts
+      // when the token list carried the wrong `decimals`, and amounts from
+      // one token labelled with another token's symbol/price when the
+      // selection drifted mid-swap. See lib/wallet/swapReceipt.ts.
+      const { inputToken, outputToken, ok, reason, consistency, source } =
+        resolveSwapReceiptLegs({
+          quote: q,
+          stateInput: {
+            symbol: payToken?.symbol || q?.inputMint || '',
+            amount: parseFloat(payAmount),
+            decimals: payToken?.decimals || 6,
+            mint:
+              payToken?.address || payToken?.id || q?.inputMint || '',
+            price:
+              payToken?.price ||
+              payToken?.marketData?.price ||
+              payToken?.usdPrice ||
+              '0',
+            tokenImg: getSwapTokenImage(payToken, inputChainId),
+            chain: String(inputChainId ?? ''),
+          },
+          stateOutput: {
+            symbol: receiveToken?.symbol || q?.outputMint || '',
+            amount: parseFloat(receiveAmount),
+            decimals: receiveToken?.decimals || 6,
+            mint:
+              receiveToken?.address ||
+              receiveToken?.id ||
+              q?.outputMint ||
+              '',
+            price:
+              receiveToken?.price ||
+              receiveToken?.marketData?.price ||
+              receiveToken?.priceUSD ||
+              '0',
+            tokenImg: getSwapTokenImage(receiveToken, outputChainId),
+            chain: String(outputChainId ?? ''),
+          },
+        });
+
+      if (!ok) {
+        // A receipt whose legs disagree is worse than no receipt: it renders
+        // as nonsense on the feed card and poisons FIFO cost-basis for every
+        // later sale of that asset. Drop it and leave a breadcrumb.
+        console.error('[SwapReceipt] refusing to post inconsistent swap', {
+          signature,
+          reason,
+          source,
+          ratio: consistency.ratio,
+          inputUsd: consistency.inputUsd,
+          outputUsd: consistency.outputUsd,
+          inputToken,
+          outputToken,
+        });
+        return;
+      }
+
       const params = {
         smartsiteId: userData?.primaryMicrosite || '',
         userId: userData?._id || '',
@@ -4452,37 +4512,8 @@ export default function SwapTokenModal({
                 appliedFeeBps: actualPlatformFeeBps,
               }
             : undefined,
-          inputToken: {
-            symbol: payToken?.symbol || q.inputMint || '',
-            amount: parseFloat(payAmount),
-            decimals: payToken?.decimals || 6,
-            mint:
-              payToken?.address || payToken?.id || q.inputMint || '',
-            price:
-              payToken?.price ||
-              payToken?.marketData?.price ||
-              payToken?.usdPrice ||
-              '0',
-            tokenImg: getSwapTokenImage(payToken, inputChainId),
-            chain: inputChainId,
-          },
-          outputToken: {
-            symbol: receiveToken?.symbol || q.outputMint || '',
-            amount: parseFloat(receiveAmount),
-            decimals: receiveToken?.decimals || 6,
-            mint:
-              receiveToken?.address ||
-              receiveToken?.id ||
-              q.outputMint ||
-              '',
-            price:
-              receiveToken?.price ||
-              receiveToken?.marketData?.price ||
-              receiveToken?.priceUSD ||
-              '0',
-            tokenImg: getSwapTokenImage(receiveToken, outputChainId),
-            chain: outputChainId,
-          },
+          inputToken,
+          outputToken,
         },
         walletAddress:
           fromWalletAddress ||
