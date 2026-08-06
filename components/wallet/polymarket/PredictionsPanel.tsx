@@ -61,7 +61,6 @@ import {
   marketRouteKey,
 } from '@/zustandStore/marketDetailStore';
 import { Switch } from '@/components/ui/switch';
-import { safeLocalStorage } from '@/lib/browserStorage';
 import {
   getPositionCardValue,
   getRedeemablePayout,
@@ -80,6 +79,7 @@ import {
   pruneAssetSet,
   selectNextAutoClaimPosition,
 } from '@/lib/polymarket/auto-claim';
+import { usePredictionAutoClaim } from '@/hooks/polymarket/usePredictionAutoClaim';
 import {
   displaySideForMarket,
   type PredictionSideDisplay,
@@ -137,7 +137,6 @@ const MUTED = '#6e6e76';
 const MONO =
   '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
 const CTF_ADDRESS = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
-const AUTO_CLAIM_STORAGE_KEY = 'swop:prediction:auto-claim-wins';
 // How many open bets to preview in the dashboard "Open positions" section.
 const OPEN_POSITIONS_PREVIEW_COUNT = 4;
 const ERC1155_BALANCE_OF_ABI = [
@@ -251,7 +250,7 @@ export default function PredictionsPanel({
   const [pendingRedemptions, setPendingRedemptions] = useState<
     PendingRedemptionSnapshot[]
   >([]);
-  const [autoClaimEnabled, setAutoClaimEnabled] = useState(false);
+  const { autoClaimEnabled, setAutoClaim } = usePredictionAutoClaim();
   const [autoClaimAttemptedAssets, setAutoClaimAttemptedAssets] =
     useState<Set<string>>(() => new Set());
   const [autoClaimManualAssets, setAutoClaimManualAssets] =
@@ -466,23 +465,16 @@ export default function PredictionsPanel({
     [activePositions],
   );
 
-  useEffect(() => {
-    setAutoClaimEnabled(
-      safeLocalStorage.getItem(AUTO_CLAIM_STORAGE_KEY) === 'true',
-    );
-  }, []);
-
-  const handleAutoClaimChange = useCallback((enabled: boolean) => {
-    setAutoClaimEnabled(enabled);
-    safeLocalStorage.setItem(
-      AUTO_CLAIM_STORAGE_KEY,
-      enabled ? 'true' : 'false',
-    );
-    if (enabled) {
-      setAutoClaimAttemptedAssets(new Set());
-      setAutoClaimManualAssets(new Set());
-    }
-  }, []);
+  const handleAutoClaimChange = useCallback(
+    (enabled: boolean) => {
+      void setAutoClaim(enabled);
+      if (enabled) {
+        setAutoClaimAttemptedAssets(new Set());
+        setAutoClaimManualAssets(new Set());
+      }
+    },
+    [setAutoClaim],
+  );
 
   useEffect(() => {
     const currentAssets = new Set(
@@ -2204,7 +2196,7 @@ function MyBetsView({
         <label
           className="ml-auto inline-flex h-9 items-center gap-2 rounded-full border bg-white px-3 text-[11.5px] font-semibold text-gray-900 shadow-sm"
           style={{ borderColor: HAIR }}
-          title="Auto claim won predictions when this browser sees them."
+          title="Claim won predictions automatically, whether or not Swop is open."
         >
           <span>Auto claim</span>
           <Switch
