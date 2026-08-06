@@ -8334,6 +8334,62 @@ const GOLDMAN_STRATEGY_FILES = [
       '- USDC',
     ].join('\n'),
   },
+  {
+    file: 'perps.md',
+    detail: 'perps section playbook',
+    status: 'DRAFT',
+    command: '@goldman edit perps.md ',
+    defaultContent: [
+      '# Perps Playbook',
+      '',
+      'Rules for the Hyperliquid perps section. Sizing and stops still obey',
+      'risk.md and the section rules in the console.',
+      '',
+      '## Entries',
+      '- ',
+      '',
+      '## Exits',
+      '- ',
+    ].join('\n'),
+  },
+  {
+    file: 'predictions.md',
+    detail: 'predictions section playbook',
+    status: 'DRAFT',
+    command: '@goldman edit predictions.md ',
+    defaultContent: [
+      '# Predictions Playbook',
+      '',
+      'Rules for the Polymarket predictions section. Bet sizing obeys the',
+      'section rules (max bet, min bet, max % of bankroll).',
+      '',
+      '## Markets to hunt',
+      '- ',
+      '',
+      '## Entry conditions',
+      '- ',
+      '',
+      '## Exit conditions',
+      '- ',
+    ].join('\n'),
+  },
+  {
+    file: 'swaps.md',
+    detail: 'swaps section playbook',
+    status: 'DRAFT',
+    command: '@goldman edit swaps.md ',
+    defaultContent: [
+      '# Swaps Playbook',
+      '',
+      'Rules for main-wallet swap trading (LiFi routes across EVM chains).',
+      '',
+      '## What to trade',
+      '- ',
+      '',
+      '## Entry / exit',
+      '- ',
+    ].join('\n'),
+  }
 ];
 
 function hydrateGoldmanStrategyFiles(
@@ -8560,6 +8616,13 @@ const GOLDMAN_LANE_LABELS: Record<string, string> = {
 // A plan's lane = its first recognized venue; multi-venue plans group under
 // 'Multi-venue'. Venue lanes mirror the backend's one-plan-per-venue rule.
 function goldmanStrategyLane(strategy: GoldmanTradingStrategy): string {
+  return goldmanStrategyLanes(strategy)[0] || 'Other';
+}
+
+// Every venue lane a plan belongs to. A multi-venue plan shows in EACH lane
+// it covers (that's how the backend supersedes it), and a plan with no
+// recognized venue falls back to its text so it never disappears.
+function goldmanStrategyLanes(strategy: GoldmanTradingStrategy): string[] {
   const venues = Array.isArray(strategy.venues) ? strategy.venues : [];
   const labels = Array.from(
     new Set(
@@ -8567,10 +8630,13 @@ function goldmanStrategyLane(strategy: GoldmanTradingStrategy): string {
         .map((venue) => GOLDMAN_LANE_LABELS[String(venue).toLowerCase()])
         .filter(Boolean)
     )
-  );
-  if (labels.length === 1) return labels[0] as string;
-  if (labels.length > 1) return 'Multi-venue';
-  return 'Other';
+  ) as string[];
+  if (labels.length) return labels;
+  const text = `${strategy.title || ''} ${strategy.prompt || ''}`.toLowerCase();
+  if (/perp|hyperliquid|leverage|long |short /.test(text)) return ['Perps'];
+  if (/predict|polymarket|bet|game|moneyline/.test(text)) return ['Predictions'];
+  if (/swap|lifi|rotate/.test(text)) return ['Swaps'];
+  return ['Other'];
 }
 
 function sortGoldmanStrategies(strategies: GoldmanTradingStrategy[] = []) {
@@ -9588,8 +9654,9 @@ function GoldmanAccessStation({
             const laneMap = sortGoldmanStrategies(
               strategyVault?.strategies || []
             ).reduce((lanes, strategy) => {
-              const lane = goldmanStrategyLane(strategy);
-              lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
+              for (const lane of goldmanStrategyLanes(strategy)) {
+                lanes.set(lane, [...(lanes.get(lane) || []), strategy]);
+              }
               return lanes;
             }, new Map<string, GoldmanTradingStrategy[]>());
             const CORE_LANES = ['Perps', 'Predictions', 'Swaps'] as const;
@@ -9737,6 +9804,43 @@ function GoldmanAccessStation({
                       </button>
                     )}
                   </div>
+                  {(() => {
+                    const laneFileName = {
+                      Perps: 'perps.md',
+                      Predictions: 'predictions.md',
+                      Swaps: 'swaps.md',
+                    }[lane];
+                    const laneFile = laneFileName
+                      ? strategyFiles.find((file) => file.file === laneFileName)
+                      : null;
+                    if (!laneFile) return null;
+                    const authored = Boolean(laneFile.updatedAt);
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => openStrategyFileEditor(laneFile)}
+                        className="mb-1.5 flex w-full items-center justify-between rounded-[8px] border border-white/[0.07] bg-black/25 px-2.5 py-1.5 text-left hover:border-[#f4c95d]/40"
+                      >
+                        <span className="min-w-0">
+                          <span className="dm-mono block truncate text-[10px] font-semibold text-[#c9cdd6]">
+                            {laneFile.file}
+                          </span>
+                          <span className="dm-mono block truncate text-[8.5px] text-[#5a5e69]">
+                            {authored ? 'rules attached' : 'no rules yet — tap to write'}
+                          </span>
+                        </span>
+                        <span
+                          className={`dm-mono shrink-0 rounded-[5px] border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] ${
+                            authored
+                              ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                              : 'border-white/[0.08] bg-black/30 text-[#737783]'
+                          }`}
+                        >
+                          {authored ? 'edit' : 'add'}
+                        </span>
+                      </button>
+                    );
+                  })()}
                   {laneStrategies.length === 0 ? (
                     <div className="dm-mono rounded-[8px] border border-dashed border-white/[0.07] bg-black/10 px-2.5 py-2 text-[9px] leading-snug text-[#5a5e69]">
                       No {lane.toLowerCase()} plan attached — hit + new, or say
