@@ -98,6 +98,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Upload,
   ShoppingBag,
   Square,
   UserRound,
@@ -3582,10 +3583,6 @@ export default function ChatArea({
       goldmanStrategyVaultQueryKey,
       queryClient,
     ]
-  );
-  const handleRunGoldmanStrategy = useCallback(
-    () => handleToggleGoldmanStrategy('run'),
-    [handleToggleGoldmanStrategy]
   );
   const handleStopGoldmanStrategy = useCallback(
     () => handleToggleGoldmanStrategy('stop'),
@@ -7324,7 +7321,6 @@ export default function ChatArea({
         activeGoldmanStrategy={activeGoldmanStrategy}
         isGoldmanStrategyRunning={isGoldmanStrategyRunning}
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
-        onRunGoldmanStrategy={handleRunGoldmanStrategy}
         onStopGoldmanStrategy={handleStopGoldmanStrategy}
         onToggleGoldmanStrategyById={handleToggleGoldmanStrategyById}
         onArchiveGoldmanStrategyById={handleArchiveGoldmanStrategyById}
@@ -8392,6 +8388,10 @@ const GOLDMAN_STRATEGY_FILES = [
   }
 ];
 
+// Mirrors GOLDMAN_STRATEGY_FILE_MAX_CHARS on the backend — content past this
+// is truncated server-side on save.
+const GOLDMAN_STRATEGY_FILE_MAX_CHARS = 16000;
+
 function hydrateGoldmanStrategyFiles(
   strategyFiles?: GoldmanStrategyFile[] | null
 ): GoldmanStrategyFile[] {
@@ -8615,9 +8615,6 @@ const GOLDMAN_LANE_LABELS: Record<string, string> = {
 
 // A plan's lane = its first recognized venue; multi-venue plans group under
 // 'Multi-venue'. Venue lanes mirror the backend's one-plan-per-venue rule.
-function goldmanStrategyLane(strategy: GoldmanTradingStrategy): string {
-  return goldmanStrategyLanes(strategy)[0] || 'Other';
-}
 
 // Every venue lane a plan belongs to. A multi-venue plan shows in EACH lane
 // it covers (that's how the backend supersedes it), and a plan with no
@@ -8859,7 +8856,6 @@ function GoldmanAccessStation({
   onEnsureStrategyVault,
   onOpenWalletTransfer,
   onSaveStrategyFile,
-  onRunStrategy,
   onStopStrategy,
   onToggleStrategyById,
   onArchiveStrategyById,
@@ -8888,7 +8884,6 @@ function GoldmanAccessStation({
     fileName: string,
     content: string
   ) => Promise<GoldmanStrategyFile | null>;
-  onRunStrategy?: () => void;
   onStopStrategy?: () => void;
   onToggleStrategyById?: (strategyId: string, action: 'run' | 'stop') => void;
   onArchiveStrategyById?: (strategyId: string) => void;
@@ -8927,6 +8922,8 @@ function GoldmanAccessStation({
     () => hydrateGoldmanStrategyFiles(strategyVault?.strategyFiles),
     [strategyVault?.strategyFiles]
   );
+  const strategyFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDraggingStrategyFile, setIsDraggingStrategyFile] = useState(false);
   const [editingStrategyFile, setEditingStrategyFile] =
     useState<GoldmanStrategyFile | null>(null);
   const [strategyFileDraft, setStrategyFileDraft] = useState('');
@@ -9181,6 +9178,36 @@ function GoldmanAccessStation({
   const openStrategyFileEditor = useCallback((file: GoldmanStrategyFile) => {
     setEditingStrategyFile(file);
     setStrategyFileDraft(file.content || '');
+  }, []);
+
+  // Load a .md/.txt from disk into the editor draft. The backend truncates at
+  // 16k chars, so warn here instead of silently dropping the tail on save.
+  const loadStrategyFileFromDisk = useCallback(async (file: File | null) => {
+    if (!file) return;
+    const isMarkdown =
+      /\.(md|markdown|txt)$/i.test(file.name) ||
+      file.type === 'text/markdown' ||
+      file.type === 'text/plain';
+    if (!isMarkdown) {
+      toast.error('Upload a .md, .markdown, or .txt file.');
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      toast.error('That file is too large — keep strategy docs under 512KB.');
+      return;
+    }
+    try {
+      const text = await file.text();
+      if (text.length > GOLDMAN_STRATEGY_FILE_MAX_CHARS) {
+        toast.error(
+          `${file.name} is ${text.length.toLocaleString()} chars — only the first ${GOLDMAN_STRATEGY_FILE_MAX_CHARS.toLocaleString()} will be saved.`
+        );
+      }
+      setStrategyFileDraft(text.slice(0, GOLDMAN_STRATEGY_FILE_MAX_CHARS));
+      toast.success(`Loaded ${file.name} — review, then Save.`);
+    } catch {
+      toast.error(`Could not read ${file.name}.`);
+    }
   }, []);
 
   const closeStrategyFileEditor = useCallback(() => {
@@ -10735,6 +10762,22 @@ function GoldmanAccessStation({
               closeStrategyFileEditor();
             }
           }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!isDraggingStrategyFile) setIsDraggingStrategyFile(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsDraggingStrategyFile(false);
+            }
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDraggingStrategyFile(false);
+            void loadStrategyFileFromDisk(
+              event.dataTransfer?.files?.[0] || null
+            );
+          }}
         >
           <div className="flex max-h-[86vh] w-full max-w-[760px] flex-col overflow-hidden rounded-[14px] border border-white/[0.08] bg-[#101217] shadow-2xl">
             <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
@@ -10751,6 +10794,26 @@ function GoldmanAccessStation({
                     : editingStrategyFile.status || 'draft'}
                 </div>
               </div>
+              <input
+                ref={strategyFileInputRef}
+                type="file"
+                accept=".md,.markdown,.txt,text/markdown,text/plain"
+                className="hidden"
+                onChange={(event) => {
+                  void loadStrategyFileFromDisk(event.target.files?.[0] || null);
+                  event.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                title="Upload a .md file"
+                onClick={() => strategyFileInputRef.current?.click()}
+                disabled={isSavingStrategyFile}
+                className="dm-btn dm-mono flex h-8 flex-shrink-0 items-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 px-2.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default disabled:opacity-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Upload
+              </button>
               <button
                 type="button"
                 title="Close editor"
@@ -10773,7 +10836,9 @@ function GoldmanAccessStation({
 
             <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-4 py-3">
               <div className="dm-mono text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#5a5e69]">
-                {strategyFileDraft.length.toLocaleString()} chars
+                {isDraggingStrategyFile
+                  ? 'drop the .md to load it'
+                  : `${strategyFileDraft.length.toLocaleString()} / ${GOLDMAN_STRATEGY_FILE_MAX_CHARS.toLocaleString()} chars · drag a .md in`}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -10835,7 +10900,6 @@ function DmContextPanel({
   activeGoldmanStrategy,
   isGoldmanStrategyRunning,
   isTogglingGoldmanStrategy,
-  onRunGoldmanStrategy,
   onStopGoldmanStrategy,
   onToggleGoldmanStrategyById,
   onArchiveGoldmanStrategyById,
@@ -10867,7 +10931,6 @@ function DmContextPanel({
   activeGoldmanStrategy?: GoldmanTradingStrategy | null;
   isGoldmanStrategyRunning?: boolean;
   isTogglingGoldmanStrategy?: boolean;
-  onRunGoldmanStrategy?: () => void;
   onStopGoldmanStrategy?: () => void;
   onToggleGoldmanStrategyById?: (
     strategyId: string,
@@ -10910,7 +10973,6 @@ function DmContextPanel({
         onEnsureStrategyVault={onEnsureGoldmanStrategyVault}
         onOpenWalletTransfer={onOpenGoldmanWalletTransfer}
         onSaveStrategyFile={onSaveGoldmanStrategyFile}
-        onRunStrategy={onRunGoldmanStrategy}
         onStopStrategy={onStopGoldmanStrategy}
         onToggleStrategyById={onToggleGoldmanStrategyById}
         onArchiveStrategyById={onArchiveGoldmanStrategyById}
