@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+/**
+ * Absolute, not relative. Google's OAuth homepage check requires the privacy
+ * policy link ON this page to match the URL configured on the consent screen
+ * verbatim — a relative "/privacy-policy" href does not string-match the
+ * configured "https://www.swopme.app/privacy-policy" and fails verification.
+ * Keep these in sync with the Branding page in the Google Cloud console.
+ */
+const PRIVACY_URL = "https://www.swopme.app/privacy-policy";
+const TERMS_URL = "https://www.swopme.app/terms-of-service";
+
 export const metadata: Metadata = {
   title: "Swop — a personal page, crypto wallet, and booking calendar in one link",
   description:
@@ -197,12 +207,12 @@ export default function WelcomePage() {
           Swop does not sell calendar data, does not use it for advertising, and
           does not share it with third parties. You can disconnect Google at any
           time from your SmartSite, which revokes Swop&rsquo;s access. See the{" "}
-          <Link
-            href="/privacy-policy"
+          <a
+            href={PRIVACY_URL}
             className="font-semibold text-gray-950 underline"
           >
             Privacy Policy
-          </Link>{" "}
+          </a>{" "}
           for full detail.
         </p>
       </div>
@@ -210,12 +220,12 @@ export default function WelcomePage() {
       {/* footer */}
       <div className="mt-14 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-black/[0.06] pt-6 text-[13px] text-gray-500">
         <span className="font-semibold text-gray-950">Swop</span>
-        <Link href="/privacy-policy" className="text-gray-500 no-underline">
+        <a href={PRIVACY_URL} className="text-gray-500 no-underline">
           Privacy Policy
-        </Link>
-        <Link href="/terms-of-service" className="text-gray-500 no-underline">
+        </a>
+        <a href={TERMS_URL} className="text-gray-500 no-underline">
           Terms of Service
-        </Link>
+        </a>
         <a
           href="mailto:travis@swopme.co"
           className="text-gray-500 no-underline"
