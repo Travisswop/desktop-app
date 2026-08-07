@@ -13,6 +13,8 @@ function optionalString(value: unknown) {
 function compactContext(payload: WalletSwapFailureTelemetryPayload) {
   const keys = [
     'stage',
+    'reasonCode',
+    'recoveryState',
     'network',
     'walletAddress',
     'inputToken',
