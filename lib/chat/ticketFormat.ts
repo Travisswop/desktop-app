@@ -6,6 +6,7 @@ import { useModalStore } from '@/zustandStore/modalstore';
 import { isVisiblePortfolioPosition } from '@/lib/polymarket/position-payout';
 import { DUST_THRESHOLD } from '@/constants/polymarket';
 import type { AgentActionCompletion } from '@/lib/chat/agentActionHandoff';
+import type { AgentActionClientEvent } from '@/lib/chat/agentActionTelemetry';
 import type { HLMarket } from '@/services/hyperliquid/types';
 import type { PolymarketPosition } from '@/hooks/polymarket/useUserPositions';
 import type { PolymarketMarketPreview, User } from '@/lib/chat/agentCardTypes';
@@ -36,6 +37,129 @@ export function formatSwapAmount(value: unknown) {
   return new Intl.NumberFormat('en-US', {
     maximumFractionDigits: number >= 100 ? 2 : 6,
   }).format(number);
+}
+
+export function formatSwapEditableAmount(
+  value: number,
+  maximumFractionDigits = 8
+) {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return value.toLocaleString('en-US', {
+    maximumFractionDigits,
+    useGrouping: false,
+  });
+}
+
+export function parseSwapBalanceChangeError(
+  message: unknown,
+  fallbackTokenSymbol = 'TOKEN'
+) {
+  const text = String(message || '').trim();
+  const match = text.match(
+    /^Your\s+(?<token>[A-Za-z0-9._-]+|token)\s+balance changed\.\s+Available now:\s+(?<amount>[0-9][0-9,]*(?:\.[0-9]+)?)\s*(?<availableToken>[A-Za-z0-9._-]+)?\.\s+Try the swap again with the updated amount\.?$/i
+  );
+  if (!match?.groups?.amount) return null;
+
+  const rawToken = (
+    match.groups.availableToken ||
+    match.groups.token ||
+    fallbackTokenSymbol
+  ).trim();
+  const tokenSymbol =
+    !rawToken || rawToken.toLowerCase() === 'token'
+      ? fallbackTokenSymbol
+      : rawToken;
+
+  return {
+    availableAmount: match.groups.amount.replace(/,/g, '').trim(),
+    tokenSymbol,
+  };
+}
+
+export function getSwapRecoveryAmountInput(
+  availableAmount: string,
+  amountType: 'token' | 'usd' | string,
+  tokenPriceUsd: number
+) {
+  const normalizedAmount = String(availableAmount || '').replace(/,/g, '').trim();
+  const availableNumber = Number(normalizedAmount);
+
+  if (!Number.isFinite(availableNumber) || availableNumber <= 0) {
+    return normalizedAmount;
+  }
+
+  if (amountType === 'usd' && Number.isFinite(tokenPriceUsd) && tokenPriceUsd > 0) {
+    return formatSwapEditableAmount(availableNumber * tokenPriceUsd, 2);
+  }
+
+  return formatSwapEditableAmount(availableNumber);
+}
+
+export function buildSwapBalanceRecoveryTelemetryContext({
+  fromToken,
+  toToken,
+  amountType,
+  availableToken,
+  routeLabel,
+}: {
+  fromToken: string;
+  toToken: string;
+  amountType?: string | null;
+  availableToken: string;
+  routeLabel: string;
+}) {
+  return {
+    fromToken,
+    toToken,
+    amountType: String(amountType || 'token').toLowerCase() === 'usd'
+      ? 'usd'
+      : 'token',
+    availableToken,
+    routeLabel,
+    reasonCode: 'balance_changed',
+    recoveryState: 'quote_refresh_required',
+  };
+}
+
+export function buildSwapBalanceRecoveryClientEvent({
+  proposalId,
+  provider,
+  fromToken,
+  toToken,
+  amountType,
+  availableToken,
+  routeLabel,
+}: {
+  proposalId?: string | null;
+  provider: string;
+  fromToken: string;
+  toToken: string;
+  amountType?: string | null;
+  availableToken: string;
+  routeLabel: string;
+}): AgentActionClientEvent {
+  return {
+    proposalId,
+    stage: 'execution_failed',
+    action: 'wallet.swap',
+    toolType: 'wallet.write',
+    provider,
+    uiSurface: 'chat_swap_ticket',
+    status: 'recoverable',
+    reason: 'Balance changed before swap execution. Quote refresh required.',
+    error: {
+      name: 'SwapBalanceChanged',
+      message: 'Balance changed before swap execution.',
+      code: 'balance_changed',
+    },
+    context: buildSwapBalanceRecoveryTelemetryContext({
+      fromToken,
+      toToken,
+      amountType,
+      availableToken,
+      routeLabel,
+    }),
+  };
 }
 
 export function normalizeIntentText(value: unknown) {
