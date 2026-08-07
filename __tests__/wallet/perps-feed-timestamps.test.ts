@@ -1,11 +1,16 @@
 import {
   buildPerpsActiveLimitOrderSnapshot,
+  buildPerpsReconcileSnapshotKey,
+  buildPerpsTerminalFeedHealthEvents,
   buildPerpsPositionKey,
+  confirmPerpsTerminalFeedHealthEvents,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   isPerpsEntryLimitOrder,
   qualifyPerpsPositionCoin,
+  updatePerpsTerminalIdentityMemory,
 } from '@/lib/perps/perpsFeed';
 
 describe('perps feed timestamps', () => {
@@ -16,6 +21,21 @@ describe('perps feed timestamps', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
+
+  function terminalIdentityMemory(
+    positions: Array<{
+      coin: string;
+      dex?: string | null;
+      szi?: string;
+      entryPx?: string;
+    }>,
+  ) {
+    return updatePerpsTerminalIdentityMemory({
+      current: {},
+      masterAddress: '0xwallet',
+      positions,
+    });
+  }
 
   it('uses the fill that crossed a long position open instead of discovery time', () => {
     const opened = inferPerpsPositionOpenedFill(
@@ -172,6 +192,111 @@ describe('perps feed timestamps', () => {
     });
   });
 
+  it('qualifies builder close fills when Hyperliquid drops the dex prefix', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          closedPnl: '22.1',
+          fee: '0.12',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 777,
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '181.94',
+        },
+      ]),
+    );
+
+    expect(closeFills['XYZ:SPCX']).toEqual({
+      coin: 'XYZ:SPCX',
+      dex: 'xyz',
+      px: 188.4,
+      closedPnl: 22.1,
+      feeUsd: 0.12,
+      orderId: '777',
+      timestamp: '2026-06-15T11:47:00.000Z',
+    });
+  });
+
+  it('matches raw builder terminal fills to the right dex by position size and pnl', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          closedPnl: '22.1',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 778,
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '181.94',
+        },
+        {
+          coin: 'SPCX',
+          dex: 'abc',
+          szi: '1.75',
+          entryPx: '206',
+        },
+      ]),
+    );
+
+    expect(closeFills).toMatchObject({
+      'XYZ:SPCX': expect.objectContaining({
+        coin: 'XYZ:SPCX',
+        dex: 'xyz',
+      }),
+    });
+    expect(closeFills['ABC:SPCX']).toBeUndefined();
+  });
+
+  it('drops ambiguous raw builder terminal fills instead of assigning the wrong dex', () => {
+    const closeFills = inferPerpsCloseFillsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '188.4',
+          time: Date.parse('2026-06-15T11:47:00Z'),
+          oid: 779,
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+        },
+        {
+          coin: 'SPCX',
+          dex: 'abc',
+          szi: '3.42',
+        },
+      ]),
+    );
+
+    expect(closeFills).toEqual({});
+  });
+
   it('captures terminal short closes from buy fills', () => {
     const closeFills = inferPerpsCloseFillsByCoin([
       {
@@ -185,6 +310,177 @@ describe('perps feed timestamps', () => {
     ]);
 
     expect(closeFills.BTC?.px).toBe(104500);
+  });
+
+  it('qualifies builder liquidations when Hyperliquid emits raw symbols', () => {
+    const liquidations = inferPerpsLiquidationsByCoin(
+      [
+        {
+          coin: 'SPCX',
+          side: 'A',
+          sz: '3.42',
+          startPosition: '3.42',
+          px: '167.5',
+          closedPnl: '-12.5',
+          fee: '0.41',
+          time: Date.parse('2026-06-15T11:46:00Z'),
+          oid: 556,
+          liquidation: {
+            markPx: '167.4',
+          },
+        },
+      ],
+      terminalIdentityMemory([
+        {
+          coin: 'SPCX',
+          dex: 'xyz',
+          szi: '3.42',
+          entryPx: '171.2',
+        },
+      ]),
+    );
+
+    expect(liquidations['XYZ:SPCX']).toEqual({
+      coin: 'XYZ:SPCX',
+      dex: 'xyz',
+      px: 167.5,
+      markPx: 167.4,
+      closedPnl: -12.5,
+      feeUsd: 0.41,
+      orderId: '556',
+      timestamp: '2026-06-15T11:46:00.000Z',
+    });
+  });
+
+  it('changes the reconcile snapshot when a terminal close fill arrives later', () => {
+    const beforeFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: {},
+    });
+    const afterFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      closedFillsByCoin: inferPerpsCloseFillsByCoin([
+        {
+          coin: 'ETH',
+          side: 'A',
+          sz: '0.3171',
+          startPosition: '0.3171',
+          px: '1735',
+          closedPnl: '9.19',
+          fee: '0.38',
+          time: Date.parse('2026-06-15T11:45:00Z'),
+          oid: 555,
+        },
+      ]),
+    });
+
+    expect(afterFill).not.toBe(beforeFill);
+    expect(afterFill).toContain('close=ETH=555=2026-06-15T11:45:00.000Z');
+  });
+
+  it('changes the reconcile snapshot when a liquidation fill arrives later', () => {
+    const beforeFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      liquidationsByCoin: {},
+    });
+    const afterFill = buildPerpsReconcileSnapshotKey({
+      masterAddress: '0xabc',
+      priceMapState: 'mids-ready',
+      observedDexes: [''],
+      activePositionKeys: [],
+      activeLimitOrders: [],
+      liquidationsByCoin: inferPerpsLiquidationsByCoin([
+        {
+          coin: 'ETH',
+          side: 'A',
+          sz: '0.3171',
+          startPosition: '0.3171',
+          px: '1675',
+          closedPnl: '-12.5',
+          fee: '0.41',
+          time: Date.parse('2026-06-15T11:46:00Z'),
+          oid: 556,
+          liquidation: {
+            markPx: '1674.5',
+          },
+        },
+      ]),
+    });
+
+    expect(afterFill).not.toBe(beforeFill);
+    expect(afterFill).toContain(
+      'liquidation=ETH=556=2026-06-15T11:46:00.000Z=1675=1674.5',
+    );
+  });
+
+  it('only confirms feed-health events after reconcile updates the matching stale card', () => {
+    const events = buildPerpsTerminalFeedHealthEvents({
+      userId: 'user-1',
+      smartsiteId: 'smartsite-1',
+      masterAddress: '0xwallet',
+      activePositionKeys: [],
+      observedDexes: ['xyz'],
+      closedFillsByCoin: inferPerpsCloseFillsByCoin(
+        [
+          {
+            coin: 'SPCX',
+            side: 'A',
+            sz: '3.42',
+            startPosition: '3.42',
+            px: '188.4',
+            time: Date.parse('2026-06-15T11:47:00Z'),
+            oid: 777,
+          },
+        ],
+        terminalIdentityMemory([
+          {
+            coin: 'SPCX',
+            dex: 'xyz',
+            szi: '3.42',
+            entryPx: '181.94',
+          },
+        ]),
+      ),
+      updatedAt: '2026-06-15T11:48:00.000Z',
+    });
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'feed_card_accuracy_perps_terminal_candidate',
+        terminalEvent: 'close',
+        positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
+        coin: 'XYZ:SPCX',
+        dex: 'xyz',
+      }),
+    ]);
+
+    expect(confirmPerpsTerminalFeedHealthEvents(events, [])).toEqual([]);
+    expect(
+      confirmPerpsTerminalFeedHealthEvents(events, [
+        {
+          content: {
+            positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
+          },
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        type: 'feed_card_accuracy_perps_terminal_mismatch',
+        positionKey: 'hyperliquid:0xwallet:XYZ:SPCX',
+      }),
+    ]);
   });
 
   it('maps long reduce-only triggers to take-profit and stop-loss prices', () => {
