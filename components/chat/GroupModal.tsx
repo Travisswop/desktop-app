@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import CustomModal from '../modal/CustomModal';
 import isUrl from '@/lib/isUrl';
+import { getAgentThreadSearchRecovery } from '@/lib/chat/agentThreadSearchRecovery';
 import {
   ChevronDown,
   Loader2,
@@ -44,6 +45,9 @@ interface GroupModalProps {
   socket: any;
   onGroupCreated?: (group: any) => void;
   onDirectSelected?: (user: any) => void;
+  onRequestProtectedAgentThread?: (
+    agentId: string
+  ) => void | Promise<void>;
 }
 
 type ChatMode = 'direct' | 'group';
@@ -56,6 +60,7 @@ export default function GroupModal({
   socket,
   onGroupCreated,
   onDirectSelected,
+  onRequestProtectedAgentThread,
 }: GroupModalProps) {
   const [mode, setMode] = useState<ChatMode>('direct');
   const [groupName, setGroupName] = useState('');
@@ -65,6 +70,9 @@ export default function GroupModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [openingProtectedAgentId, setOpeningProtectedAgentId] = useState<
+    string | null
+  >(null);
   const [selectedAdminIds, setSelectedAdminIds] = useState<string[]>(
     []
   );
@@ -118,6 +126,10 @@ export default function GroupModal({
   const selectedGateAsset = tokenOptions.find(
     (option) => option.value === selectedToken
   );
+  const agentSearchRecovery = useMemo(
+    () => getAgentThreadSearchRecovery(mode, searchQuery),
+    [mode, searchQuery]
+  );
 
   useEffect(() => {
     setSelectedToken('');
@@ -148,6 +160,30 @@ export default function GroupModal({
       tokenGated,
     ]
   );
+
+  const handleOpenProtectedAgentThread = async () => {
+    if (!agentSearchRecovery || !onRequestProtectedAgentThread) return;
+
+    setFormError(null);
+    setOpeningProtectedAgentId(agentSearchRecovery.agentId);
+
+    try {
+      await onRequestProtectedAgentThread(agentSearchRecovery.agentId);
+      onClose();
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'agent_thread_unavailable';
+      console.warn('[chat-group-modal] protected_agent_thread_open_failed', {
+        agentId: agentSearchRecovery.agentId,
+        reason,
+      });
+      setFormError(
+        `Couldn't open ${agentSearchRecovery.actionLabel.replace(/^Open\s+/, '')}. Try the Messages rail pin or reload chat.`
+      );
+    } finally {
+      setOpeningProtectedAgentId(null);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -473,6 +509,28 @@ export default function GroupModal({
                 );
               })}
             </div>
+          ) : agentSearchRecovery ? (
+            <EmptyState
+              title={agentSearchRecovery.title}
+              detail={agentSearchRecovery.detail}
+            >
+              <button
+                type="button"
+                onClick={() => void handleOpenProtectedAgentThread()}
+                disabled={
+                  !onRequestProtectedAgentThread ||
+                  openingProtectedAgentId === agentSearchRecovery.agentId
+                }
+                className="dm-btn mt-4 inline-flex items-center gap-2 rounded-[11px] border border-[#3fe08f]/35 bg-[#10251a] px-3.5 py-2 text-[12px] font-semibold text-[#d7ffe8] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {openingProtectedAgentId === agentSearchRecovery.agentId ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-3.5 w-3.5" />
+                )}
+                {agentSearchRecovery.actionLabel}
+              </button>
+            </EmptyState>
           ) : (
             <EmptyState title="No matches" detail="Try another name or handle." />
           )}
@@ -747,13 +805,22 @@ function Field({
   );
 }
 
-function EmptyState({ title, detail }: { title: string; detail: string }) {
+function EmptyState({
+  title,
+  detail,
+  children,
+}: {
+  title: string;
+  detail: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="flex min-h-[148px] flex-col items-center justify-center px-6 text-center">
       <div className="text-[13px] font-bold text-[#eceef2]">{title}</div>
       <div className="mt-1 max-w-[280px] text-[12px] leading-relaxed text-[#7b808c]">
         {detail}
       </div>
+      {children}
     </div>
   );
 }

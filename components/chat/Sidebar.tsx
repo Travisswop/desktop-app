@@ -616,6 +616,7 @@ export default function Sidebar({
           socket={socket}
           onGroupCreated={(group) => onSelectChat(group, 'group')}
           onDirectSelected={(user) => onSelectChat(user, 'private')}
+          onRequestProtectedAgentThread={onOpenAgentThread}
         />
       )}
     </aside>
