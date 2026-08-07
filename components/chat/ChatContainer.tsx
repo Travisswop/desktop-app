@@ -5,6 +5,10 @@ import { ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
+import {
+  openAgentThreadWithFeedback,
+  type OpenAgentThreadOptions,
+} from './openAgentThread';
 import { getProtectedAgentThreadLabel } from './protectedAgentThreads';
 import { useUser } from '@/lib/UserContext';
 import { useMultiChainTokenData } from '@/lib/hooks/useToken';
@@ -1103,18 +1107,9 @@ export default function ChatContainer({
   );
 
   const openAgentThreadById = useCallback(
-    async (agentId: string) => {
+    async (agentId: string, options?: OpenAgentThreadOptions) => {
       if (!isKnownAgentThreadId(agentId)) return;
-      try {
-        await openAgentThread(agentId);
-      } catch (error) {
-        console.error('Failed to open agent thread', error);
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'Could not open the agent desk.'
-        );
-      }
+      await openAgentThreadWithFeedback(openAgentThread, agentId, options);
     },
     [openAgentThread]
   );
