@@ -356,34 +356,73 @@ async function openTarget(baseUrl, url) {
 
 async function closeTarget(baseUrl, targetId) {
   try {
-    await fetch(`${baseUrl}/json/close/${encodeURIComponent(targetId)}`);
+    const response = await fetch(`${baseUrl}/json/close/${encodeURIComponent(targetId)}`);
+    return response.ok;
   } catch {
-    // Best-effort cleanup only.
+    return false;
   }
+}
+
+function isChatTarget(target) {
+  return (
+    target?.type === 'page' &&
+    target.webSocketDebuggerUrl &&
+    String(target.url || '').includes('/dashboard/chat')
+  );
 }
 
 async function getOrOpenSwopTarget(baseUrl, swopUrl) {
   const targets = await listTargets(baseUrl);
-  const existing = targets.find(
-    (target) =>
-      target.type === 'page' &&
-      target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
-  );
-  if (existing) return existing;
+  const existing = targets.filter(isChatTarget);
+  const cleanup = {
+    existingTargetIds: existing.map((target) => target.id),
+    closedTargetIds: [],
+    closeFailures: [],
+    fallbackTargetId: null,
+    openedFresh: false,
+  };
 
-  const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  for (const target of existing) {
+    const closed = await closeTarget(baseUrl, target.id);
+    if (closed) cleanup.closedTargetIds.push(target.id);
+    else cleanup.closeFailures.push(target.id);
+  }
 
-  const updated = await listTargets(baseUrl);
-  const target = updated.find(
-    (candidate) =>
-      candidate.type === 'page' &&
-      candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+  const knownIds = new Set(targets.map((target) => target.id));
+  if (existing.length > 0) {
+    await sleep(300);
+  }
+
+  try {
+    const opened = await openTarget(baseUrl, swopUrl);
+    if (isChatTarget(opened)) {
+      cleanup.openedFresh = true;
+      return { target: opened, cleanup };
+    }
+
+    const updated = await listTargets(baseUrl);
+    const target = updated.find(
+      (candidate) => isChatTarget(candidate) && !knownIds.has(candidate.id)
+    );
+    if (target) {
+      cleanup.openedFresh = true;
+      return { target, cleanup };
+    }
+  } catch (error) {
+    cleanup.openError = error instanceof Error ? error.message : String(error);
+  }
+
+  const fallbackTargets = await listTargets(baseUrl);
+  const fallback = fallbackTargets.find(isChatTarget);
+  if (fallback) {
+    cleanup.fallbackTargetId = fallback.id;
+    return { target: fallback, cleanup };
+  }
+
+  throw new Error(
+    cleanup.openError ||
+      'Could not open a fresh Swop chat tab through Chrome DevTools.'
   );
-  if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
-  return target;
 }
 
 class CdpClient {
@@ -1081,6 +1120,15 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    chromeTarget: {
+      existingTargetIds: [],
+      closedTargetIds: [],
+      closeFailures: [],
+      fallbackTargetId: null,
+      openedFresh: false,
+      targetId: null,
+      targetUrl: null,
+    },
     status: 'running',
   };
 
@@ -1105,7 +1153,23 @@ async function main() {
     return;
   }
 
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+  const { target, cleanup } = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+  report.chromeTarget = {
+    ...report.chromeTarget,
+    ...cleanup,
+    targetId: target.id || null,
+    targetUrl: target.url || null,
+  };
+  if (cleanup.closeFailures.length > 0) {
+    report.warnings.push(
+      `Failed to close ${cleanup.closeFailures.length} stale /dashboard/chat target(s): ${cleanup.closeFailures.join(', ')}.`
+    );
+  }
+  if (cleanup.fallbackTargetId) {
+    report.warnings.push(
+      `Fell back to existing /dashboard/chat target ${cleanup.fallbackTargetId} after fresh-tab open did not yield a new DevTools target.`
+    );
+  }
   const client = new CdpClient(target.webSocketDebuggerUrl);
   await client.connect();
 
