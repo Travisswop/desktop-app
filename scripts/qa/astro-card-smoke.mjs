@@ -473,6 +473,55 @@ async function pageText(client) {
   return evaluate(client, () => document.body?.innerText || '');
 }
 
+async function pageState(client) {
+  return evaluate(client, () => ({
+    href: window.location.href,
+    title: document.title || '',
+    text: document.body?.innerText || '',
+  }));
+}
+
+function recentConsoleErrorTexts(report, limit = 6) {
+  return (report.console?.errors || [])
+    .slice(-limit)
+    .map((entry) =>
+      shortText(`${entry.source || 'console'}: ${entry.text || ''}`, 320),
+    );
+}
+
+function detectAuthShellFailure(state, report, targetUrl) {
+  const onLoginRoute = /\/login(?:[/?#]|$)/i.test(state.href || '');
+  if (!onLoginRoute) return null;
+
+  const consoleHints = recentConsoleErrorTexts(report, 8);
+  const combinedSignals = [state.title, state.text, ...consoleHints]
+    .filter(Boolean)
+    .join('\n');
+  const privyFrameBlocked =
+    /frame-ancestors/i.test(combinedSignals) &&
+    /(privy\.swopme\.app|auth\.privy\.io)/i.test(combinedSignals);
+  const privyAllowedOriginBlocked =
+    /allowlist_rejected|allowed origins?|allowed origin/i.test(combinedSignals);
+  const previewOrigin = appOrigin(targetUrl);
+
+  if (privyFrameBlocked || privyAllowedOriginBlocked) {
+    return [
+      `Redirected to /login, but Privy auth is blocked on ${previewOrigin}.`,
+      privyFrameBlocked
+        ? 'The current preview host is not allowed to embed the Privy auth surface (`frame-ancestors` mismatch).'
+        : 'The current preview host is not in the Privy allowed origins list.',
+      `Current page: ${state.href}`,
+      consoleHints.length
+        ? `Recent console signals: ${consoleHints.join(' | ')}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return `Redirected to /login instead of an authenticated /dashboard/chat shell. Current page: ${state.href}`;
+}
+
 async function waitFor(client, description, predicate, timeoutMs = 30000, intervalMs = 750) {
   const started = Date.now();
   let lastValue = null;
@@ -496,6 +545,20 @@ async function waitForText(client, description, patterns, timeoutMs = 30000) {
       return regexes.some((regex) => regex.test(text));
     },
     timeoutMs
+  );
+}
+
+async function waitForSwopPageContent(client, report, args) {
+  return waitFor(
+    client,
+    'Swop page content',
+    async () => {
+      const state = await pageState(client);
+      const authFailure = detectAuthShellFailure(state, report, args.url);
+      if (authFailure) throw new Error(authFailure);
+      return /Messages|Astro/i.test(state.text) ? state : false;
+    },
+    args.timeoutMs,
   );
 }
 
@@ -1135,14 +1198,23 @@ async function main() {
       await sleep(3000);
     }
 
-    await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    await waitForSwopPageContent(client, report, args);
     await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
     report.status = 'fail';
     report.error = error.stack || error.message;
     const activeStep = report.steps.find((step) => step.status === 'pending');
-    if (activeStep) finishStep(activeStep, 'fail', error.message);
+    if (activeStep) {
+      finishStep(activeStep, 'fail', error.message);
+    } else {
+      const authContract =
+        report.cardContracts.find((contract) => contract.step === 'page-auth') ||
+        null;
+      const authStep = createStep('page-auth', authContract);
+      report.steps.push(authStep);
+      finishStep(authStep, 'fail', error.message);
+    }
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
