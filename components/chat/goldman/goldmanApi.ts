@@ -14,6 +14,7 @@ import type {
   GoldmanBrainState,
   GoldmanRebalancePlan,
   GoldmanRebalanceResult,
+  GoldmanRiskDisclosureState,
 } from './goldmanTypes';
 
 function goldmanAgentUrl(groupId: string, suffix: string) {
@@ -467,4 +468,50 @@ export async function rebalanceGoldmanVault({
     plan: data?.plan ?? null,
     executed: Array.isArray(data?.executed) ? data.executed : [],
   };
+}
+
+/**
+ * Record the owner's acceptance of the AI-trading risk disclosure. Required
+ * before the agent may open new exposure; never required to close or withdraw.
+ */
+export async function acceptGoldmanRiskDisclosure({
+  groupId,
+  accessToken,
+  version,
+}: {
+  groupId: string;
+  accessToken: string;
+  version?: string | null;
+}): Promise<GoldmanRiskDisclosureState | null> {
+  const response = await apiFetch(goldmanAgentUrl(groupId, '/risk-disclosure'), {
+    method: 'POST',
+    headers: {
+      ...authHeaders(accessToken),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ version: version ?? null }),
+  });
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Could not record your acknowledgement (${response.status})`
+    );
+  }
+
+  return (
+    (body as { data?: { riskDisclosure?: GoldmanRiskDisclosureState } } | null)
+      ?.data?.riskDisclosure ?? null
+  );
+}
+
+// The server answers 428 Precondition Required when an action needs the
+// disclosure. Callers use this to open the document instead of showing a
+// permission error the user can do nothing about.
+export function isGoldmanRiskDisclosureError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /risk disclosure|accept the ai trading/i.test(error.message)
+  );
 }

@@ -201,11 +201,14 @@ import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFe
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import {
+  acceptGoldmanRiskDisclosure,
   archiveGoldmanStrategy,
   closeGoldmanPosition,
   closeGoldmanPredictionPosition,
+  isGoldmanRiskDisclosureError,
   rebalanceGoldmanVault,
 } from '@/components/chat/goldman/goldmanApi';
+import { GoldmanRiskDisclosure } from '@/components/chat/goldman/GoldmanRiskDisclosure';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9197,6 +9200,58 @@ function GoldmanAccessStation({
     }
   }, [closeTarget, groupId, accessToken, perpsQueryClient]);
 
+  // AI-trading risk disclosure. The server gates every risk-INCREASING action
+  // on this (start a plan, autonomy on, fund a venue, confirm a rebalance) and
+  // answers 428 when it is missing, so the console opens the document on load
+  // and re-opens it if an action is refused for want of it.
+  const riskDisclosure = strategyVault?.riskDisclosure ?? null;
+  const [isDisclosureOpen, setIsDisclosureOpen] = useState(false);
+  const [isAcceptingDisclosure, setIsAcceptingDisclosure] = useState(false);
+  const [disclosureDismissedFor, setDisclosureDismissedFor] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (!riskDisclosure?.required) {
+      setIsDisclosureOpen(false);
+      return;
+    }
+    // Re-prompt on a version bump, but don't nag within a session after the
+    // owner has explicitly set it aside — the server still blocks the actions.
+    if (disclosureDismissedFor === riskDisclosure.version) return;
+    setIsDisclosureOpen(true);
+  }, [riskDisclosure?.required, riskDisclosure?.version, disclosureDismissedFor]);
+
+  const handleAcceptDisclosure = useCallback(async () => {
+    if (!groupId || !accessToken) {
+      toast.error('Could not record your acknowledgement from this panel.');
+      return;
+    }
+    setIsAcceptingDisclosure(true);
+    try {
+      await acceptGoldmanRiskDisclosure({
+        groupId,
+        accessToken,
+        version: riskDisclosure?.version ?? null,
+      });
+      setIsDisclosureOpen(false);
+      await perpsQueryClient.invalidateQueries({
+        predicate: (query) =>
+          String(query.queryKey?.[0] ?? '')
+            .toLowerCase()
+            .includes('goldman'),
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Could not record your acknowledgement.'
+      );
+    } finally {
+      setIsAcceptingDisclosure(false);
+    }
+  }, [groupId, accessToken, riskDisclosure?.version, perpsQueryClient]);
+
   // Allocation rebalance. The ALLOCATION dials only steered sizing inside a
   // running cycle, so an idle vault never drifted back toward its targets —
   // this is the on-demand correction. Always previews (server dry run) before
@@ -9257,6 +9312,13 @@ function GoldmanAccessStation({
           );
         }
       } catch (error) {
+        // 428: the move needs the risk disclosure. Open the document rather
+        // than showing a permission error the user can't act on.
+        if (isGoldmanRiskDisclosureError(error)) {
+          setDisclosureDismissedFor(null);
+          setIsDisclosureOpen(true);
+          return;
+        }
         toast.error(
           error instanceof Error
             ? error.message
@@ -10538,6 +10600,16 @@ function GoldmanAccessStation({
         />
       ) : (
         <>
+      <GoldmanRiskDisclosure
+        open={isDisclosureOpen}
+        version={riskDisclosure?.version}
+        isAccepting={isAcceptingDisclosure}
+        onAccept={handleAcceptDisclosure}
+        onDismiss={() => {
+          setDisclosureDismissedFor(riskDisclosure?.version ?? null);
+          setIsDisclosureOpen(false);
+        }}
+      />
       {goldmanWalletCard}
 
       <SectionLabel>metrics</SectionLabel>

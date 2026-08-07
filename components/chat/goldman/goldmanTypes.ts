@@ -145,6 +145,16 @@ export type GoldmanStrategyVault = {
   // credited). It belongs to no bucket while it moves, so the console adds it
   // back explicitly rather than letting the total sag.
   inFlight?: GoldmanInFlightEntry[];
+  // Versioned AI-trading acknowledgement. Absent on older backends, which the
+  // console reads as "not required" — the server is the real gate either way.
+  riskDisclosure?: GoldmanRiskDisclosureState | null;
+};
+
+export type GoldmanRiskDisclosureState = {
+  version: string;
+  acceptedVersion?: string | null;
+  acceptedAt?: string | null;
+  required: boolean;
 };
 
 export type GoldmanInFlightEntry = {
