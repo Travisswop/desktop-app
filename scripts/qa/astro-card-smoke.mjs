@@ -295,6 +295,45 @@ function finishStep(step, status, detail = '') {
   return step;
 }
 
+function createStepFactory(report) {
+  const contractsByStep = new Map(
+    (report.cardContracts || []).map((contract) => [contract.step, contract])
+  );
+  return (name) => {
+    const step = createStep(name, contractsByStep.get(name) || null);
+    report.steps.push(step);
+    return step;
+  };
+}
+
+function createQaContext(stepName, phase) {
+  return {
+    stepName,
+    phase,
+    startedAt: timestamp(),
+  };
+}
+
+async function withQaContext(report, stepName, phase, fn) {
+  const context = createQaContext(stepName, phase);
+  report.activeContext = context;
+  try {
+    return await fn();
+  } catch (error) {
+    error.qaContext = context;
+    throw error;
+  } finally {
+    if (report.activeContext === context) report.activeContext = null;
+  }
+}
+
+function formatFailureDetail(error) {
+  const context = error?.qaContext;
+  const message = error?.message || String(error);
+  if (!context?.stepName && !context?.phase) return message;
+  return `${message} [step=${context.stepName || 'unknown'} phase=${context.phase || 'unknown'}]`;
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -891,107 +930,113 @@ async function hasConfirmOnlyState(client) {
   });
 }
 
-async function runCardChecks({ client, baseUrl, args, report }) {
-  const contractsByStep = new Map(
-    (report.cardContracts || []).map((contract) => [contract.step, contract])
-  );
-  const add = (name) => {
-    const step = createStep(name, contractsByStep.get(name) || null);
-    report.steps.push(step);
-    return step;
-  };
-
-  let step = add('page-auth');
-  await assertLoggedIn(client);
-  await selectThread(client, args.threadText);
-  finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
-
-  step = add('portfolio-card');
-  await sendPrompt(client, 'show my portfolio');
-  await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
+async function runCardChecks({ client, baseUrl, args, report, addStep }) {
+  let step = addStep('portfolio-card');
+  await withQaContext(report, step.name, 'send prompt and wait for portfolio card', async () => {
+    await sendPrompt(client, 'show my portfolio');
+    await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
+  });
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
 
-  step = add('receive-qr-card');
-  await sendPrompt(client, 'show my receive QR for Solana');
-  await waitForText(client, 'receive QR card', ['RECEIVE QR', 'ADDRESS'], 30000);
-  await clickButton(client, 'Copy address', { selector: 'button', exact: false, avoidFinal: true });
-  const copyText = await pageText(client);
-  if (/Could not copy address/i.test(copyText)) throw new Error('Receive QR copy button showed an error.');
+  step = addStep('receive-qr-card');
+  await withQaContext(report, step.name, 'render receive QR card and copy address', async () => {
+    await sendPrompt(client, 'show my receive QR for Solana');
+    await waitForText(client, 'receive QR card', ['RECEIVE QR', 'ADDRESS'], 30000);
+    await clickButton(client, 'Copy address', { selector: 'button', exact: false, avoidFinal: true });
+    const copyText = await pageText(client);
+    if (/Could not copy address/i.test(copyText)) throw new Error('Receive QR copy button showed an error.');
+  });
   finishStep(step, 'pass', 'Rendered receive QR card and clicked copy address.');
 
-  step = add('funding-onramp-card');
-  await sendPrompt(client, 'fund my wallet with 35 dollars');
-  await waitForText(client, 'Coinbase funding card', ['Buy USDC in Swop', 'Coinbase'], 45000);
-  await clickButton(client, 'Solana USDC', { exact: false, avoidFinal: true });
+  step = addStep('funding-onramp-card');
+  await withQaContext(report, step.name, 'render funding card and select Solana destination', async () => {
+    await sendPrompt(client, 'fund my wallet with 35 dollars');
+    await waitForText(client, 'Coinbase funding card', ['Buy USDC in Swop', 'Coinbase'], 45000);
+    await clickButton(client, 'Solana USDC', { exact: false, avoidFinal: true });
+  });
   finishStep(step, 'pass', 'Rendered funding card and selected Solana USDC destination.');
 
-  step = add('marketplace-card');
-  await sendPrompt(client, 'show marketplace products');
-  await waitFor(
-    client,
-    'marketplace result',
-    async () => {
-      const text = await pageText(client);
-      return /Found \d+ marketplace item/i.test(text) || /No marketplace items matched/i.test(text);
-    },
-    60000
-  );
+  step = addStep('marketplace-card');
+  await withQaContext(report, step.name, 'render marketplace results', async () => {
+    await sendPrompt(client, 'show marketplace products');
+    await waitFor(
+      client,
+      'marketplace result',
+      async () => {
+        const text = await pageText(client);
+        return /Found \d+ marketplace item/i.test(text) || /No marketplace items matched/i.test(text);
+      },
+      60000
+    );
+  });
   const marketplaceText = await pageText(client);
   if (/No marketplace items matched/i.test(marketplaceText)) {
     finishStep(step, 'skip', 'Marketplace read routed, but live data returned no item cards.');
   } else {
-    const beforeTargets = await listTargets(baseUrl);
-    await clickButton(client, 'Open', { exact: true, avoidFinal: true });
-    const opened = await waitFor(
-      client,
-      'marketplace seller tab',
-      async () => {
-        const afterTargets = await listTargets(baseUrl);
-        return afterTargets.find(
-          (target) =>
-            !beforeTargets.some((before) => before.id === target.id) &&
-            /\/sp\//.test(String(target.url || ''))
-        );
-      },
-      10000
-    );
-    await closeTarget(baseUrl, opened.id);
-    finishStep(step, 'pass', `Marketplace Open button launched ${opened.url} and the test tab was closed.`);
+    await withQaContext(report, step.name, 'open marketplace seller tab and close it', async () => {
+      const beforeTargets = await listTargets(baseUrl);
+      await clickButton(client, 'Open', { exact: true, avoidFinal: true });
+      const opened = await waitFor(
+        client,
+        'marketplace seller tab',
+        async () => {
+          const afterTargets = await listTargets(baseUrl);
+          return afterTargets.find(
+            (target) =>
+              !beforeTargets.some((before) => before.id === target.id) &&
+              /\/sp\//.test(String(target.url || ''))
+          );
+        },
+        10000
+      );
+      await closeTarget(baseUrl, opened.id);
+      finishStep(step, 'pass', `Marketplace Open button launched ${opened.url} and the test tab was closed.`);
+    });
   }
 
-  step = add('pnl-card');
-  await sendPrompt(client, 'show my pnl');
-  await waitForText(client, 'PnL overview card', ['PNL SNAPSHOT'], 30000);
+  step = addStep('pnl-card');
+  await withQaContext(report, step.name, 'send prompt and wait for pnl card', async () => {
+    await sendPrompt(client, 'show my pnl');
+    await waitForText(client, 'PnL overview card', ['PNL SNAPSHOT'], 30000);
+  });
   finishStep(step, 'pass', 'Rendered PnL snapshot and embedded positions.');
 
-  step = add('chart-card');
-  await sendPrompt(client, '/chart ETH 1D');
-  await waitForText(client, 'ETH chart card', ['ETH-PERP', '1W', '1M', 'ALL'], 30000);
-  await clickButton(client, '1W', { exact: true, avoidFinal: true });
+  step = addStep('chart-card');
+  await withQaContext(report, step.name, 'render chart card and change range', async () => {
+    await sendPrompt(client, '/chart ETH 1D');
+    await waitForText(client, 'ETH chart card', ['ETH-PERP', '1W', '1M', 'ALL'], 30000);
+    await clickButton(client, '1W', { exact: true, avoidFinal: true });
+  });
   finishStep(step, 'pass', 'Rendered chart card and changed range to 1W.');
 
-  step = add('sports-research-card');
-  await sendPrompt(client, '/search Lakers injuries today');
-  await waitForText(client, 'sports research card', [/NBA injury report/i, /ESPN/i, /Lakers/i], 90000);
+  step = addStep('sports-research-card');
+  await withQaContext(report, step.name, 'send prompt and wait for sports research card', async () => {
+    await sendPrompt(client, '/search Lakers injuries today');
+    await waitForText(client, 'sports research card', [/NBA injury report/i, /ESPN/i, /Lakers/i], 90000);
+  });
   finishStep(step, 'pass', 'Rendered ESPN-backed Lakers injury research card.');
 
-  step = add('wallet-send-card');
-  await sendPrompt(client, 'send 1 USDC to travis.swop.id');
-  await waitForText(client, 'wallet send network picker', [/ARBITRUM/i, /SOLANA/i, /BASE/i], 45000);
-  await clickButton(client, 'S SOLANA', { exact: false, avoidFinal: true });
-  await waitForText(client, 'wallet send review card', ['Confirm send'], 30000);
+  step = addStep('wallet-send-card');
+  await withQaContext(report, step.name, 'render wallet send review card', async () => {
+    await sendPrompt(client, 'send 1 USDC to travis.swop.id');
+    await waitForText(client, 'wallet send network picker', [/ARBITRUM/i, /SOLANA/i, /BASE/i], 45000);
+    await clickButton(client, 'S SOLANA', { exact: false, avoidFinal: true });
+    await waitForText(client, 'wallet send review card', ['Confirm send'], 30000);
+  });
   finishStep(step, 'pass', 'Wallet send advanced to review card; final Confirm send was not clicked.');
 
-  step = add('perps-order-card');
-  await sendPrompt(client, 'long some oil with 5x');
-  await waitForText(client, 'perps order card', [/PERPS .*NEW ORDER/i, /BRENTOIL|ETH-PERP|PERP/i], 60000);
-  for (const label of ['Short', 'Limit', 'TP/SL', '20x', '$500']) {
-    try {
-      await clickButton(client, label, { exact: false, avoidFinal: true });
-    } catch (error) {
-      report.warnings.push(`Perps control "${label}" was not clicked: ${error.message}`);
+  step = addStep('perps-order-card');
+  await withQaContext(report, step.name, 'render perps order ticket and toggle safe controls', async () => {
+    await sendPrompt(client, 'long some oil with 5x');
+    await waitForText(client, 'perps order card', [/PERPS .*NEW ORDER/i, /BRENTOIL|ETH-PERP|PERP/i], 60000);
+    for (const label of ['Short', 'Limit', 'TP/SL', '20x', '$500']) {
+      try {
+        await clickButton(client, label, { exact: false, avoidFinal: true });
+      } catch (error) {
+        report.warnings.push(`Perps control "${label}" was not clicked: ${error.message}`);
+      }
     }
-  }
+  });
   const perpsFinalState = await hasConfirmOnlyState(client);
   finishStep(
     step,
@@ -999,42 +1044,53 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     `Perps ticket controls exercised; final action state: ${JSON.stringify(perpsFinalState)}.`
   );
 
-  step = add('prediction-market-card');
-  await sendPrompt(client, 'what hockey games are tonight and the odds?');
-  await waitForText(client, 'prediction odds card', [/Yes \d|No \d|Over \d|Under \d|moneyline|spread/i], 90000);
-  const clickedPrediction = await tryPredictionOutcomeClick(client);
-  await waitForText(client, 'prediction draft/ticket after outcome click', [/FRESH PRICE|prediction ticket|POLYMARKET/i], 45000);
+  step = addStep('prediction-market-card');
+  const clickedPrediction = await withQaContext(
+    report,
+    step.name,
+    'render prediction market card and click one outcome',
+    async () => {
+      await sendPrompt(client, 'what hockey games are tonight and the odds?');
+      await waitForText(client, 'prediction odds card', [/Yes \d|No \d|Over \d|Under \d|moneyline|spread/i], 90000);
+      const clicked = await tryPredictionOutcomeClick(client);
+      await waitForText(client, 'prediction draft/ticket after outcome click', [/FRESH PRICE|prediction ticket|POLYMARKET/i], 45000);
+      return clicked;
+    }
+  );
   finishStep(step, 'pass', `Clicked a prediction outcome (${clickedPrediction}); final buy/sell action was not clicked.`);
 
-  step = add('swap-card');
+  step = addStep('swap-card');
   const swapPrompt = 'swap 1 SWOP to USDC';
-  await sendPrompt(client, swapPrompt);
-  const uiHealth = await waitForSwapCardUiHealth(client, swapPrompt, 90000);
-  const apiHealth = await probeJupiterSwapApis({ client, args, report });
-  await sleep(1500);
-  const settledSwapText = await textAfterLatestMarker(client, swapPrompt);
-  const settledFailure = detectSwapUiFailure(settledSwapText);
-  if (settledFailure) {
-    throw new Error(`${settledFailure} after quote settle. Latest swap card text: ${shortText(settledSwapText)}`);
-  }
-  let clickedSwapPercent = false;
-  try {
-    await clickButton(client, '25%', { exact: true, avoidFinal: true });
-    clickedSwapPercent = true;
-  } catch (error) {
-    report.warnings.push(`Swap 25% control was not clicked: ${error.message}`);
-  }
-  if (clickedSwapPercent) {
-    const scopedText = await textAfterLatestMarker(client, swapPrompt);
-    const failure = detectSwapUiFailure(scopedText);
-    if (failure) {
-      throw new Error(`${failure} after clicking 25%. Latest swap card text: ${shortText(scopedText)}`);
+  const swapResult = await withQaContext(report, step.name, 'render swap card and probe quote health', async () => {
+    await sendPrompt(client, swapPrompt);
+    const uiHealth = await waitForSwapCardUiHealth(client, swapPrompt, 90000);
+    const apiHealth = await probeJupiterSwapApis({ client, args, report });
+    await sleep(1500);
+    const settledSwapText = await textAfterLatestMarker(client, swapPrompt);
+    const settledFailure = detectSwapUiFailure(settledSwapText);
+    if (settledFailure) {
+      throw new Error(`${settledFailure} after quote settle. Latest swap card text: ${shortText(settledSwapText)}`);
     }
-  }
+    let clickedSwapPercent = false;
+    try {
+      await clickButton(client, '25%', { exact: true, avoidFinal: true });
+      clickedSwapPercent = true;
+    } catch (error) {
+      report.warnings.push(`Swap 25% control was not clicked: ${error.message}`);
+    }
+    if (clickedSwapPercent) {
+      const scopedText = await textAfterLatestMarker(client, swapPrompt);
+      const failure = detectSwapUiFailure(scopedText);
+      if (failure) {
+        throw new Error(`${failure} after clicking 25%. Latest swap card text: ${shortText(scopedText)}`);
+      }
+    }
+    return { uiHealth, apiHealth };
+  });
   finishStep(
     step,
     'pass',
-    `Rendered healthy SWOP to USDC swap card; quote out=${apiHealth.quoteOutAmount}, routePlan=${apiHealth.quoteRoutePlanLength}, order=${apiHealth.order}, orderOut=${apiHealth.orderOutAmount || 'n/a'}. UI excerpt: ${uiHealth.excerpt}`
+    `Rendered healthy SWOP to USDC swap card; quote out=${swapResult.apiHealth.quoteOutAmount}, routePlan=${swapResult.apiHealth.quoteRoutePlanLength}, order=${swapResult.apiHealth.order}, orderOut=${swapResult.apiHealth.orderOutAmount || 'n/a'}. UI excerpt: ${swapResult.uiHealth.excerpt}`
   );
 }
 
@@ -1081,6 +1137,8 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    activeContext: null,
+    failureContext: null,
     status: 'running',
   };
 
@@ -1117,6 +1175,8 @@ async function main() {
   });
 
   try {
+    const addStep = createStepFactory(report);
+    const pageAuthStep = addStep('page-auth');
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Log.enable');
@@ -1135,14 +1195,29 @@ async function main() {
       await sleep(3000);
     }
 
-    await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
-    await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
+    await withQaContext(report, pageAuthStep.name, 'wait for chat shell content', async () => {
+      await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    });
+    await withQaContext(report, pageAuthStep.name, 'assert logged-in chat shell', async () => {
+      await assertLoggedIn(client);
+    });
+    await withQaContext(report, pageAuthStep.name, 'select configured thread', async () => {
+      await selectThread(client, args.threadText);
+    });
+    finishStep(
+      pageAuthStep,
+      'pass',
+      `Authenticated chat loaded; selected thread containing "${args.threadText}".`
+    );
+
+    await runCardChecks({ client, baseUrl: args.chromeUrl, args, report, addStep });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
     report.status = 'fail';
     report.error = error.stack || error.message;
+    report.failureContext = error.qaContext || report.activeContext || null;
     const activeStep = report.steps.find((step) => step.status === 'pending');
-    if (activeStep) finishStep(activeStep, 'fail', error.message);
+    if (activeStep) finishStep(activeStep, 'fail', formatFailureDetail(error));
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
