@@ -4,6 +4,7 @@ export const AGENT_ACTION_HANDOFF_STORAGE_KEY =
   'swop:agent-approved-action';
 export const AGENT_ACTION_COMPLETION_STORAGE_KEY =
   'swop:agent-action-completions';
+const LOCAL_SWAP_PROPOSAL_PREFIX = 'local-wallet-swap-';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -167,6 +168,44 @@ export function persistAgentActionHandoff(handoff: AgentApprovalHandoff) {
     panel: handoff.payload?.panel,
     uiSurface: 'agent_action_handoff',
   });
+}
+
+export async function ensureApprovedAgentActionHandoff({
+  proposalId,
+  existingApprovalResult,
+  approvalParams,
+  onApproveInline,
+}: {
+  proposalId: string;
+  existingApprovalResult?: AgentApprovalHandoff | null;
+  approvalParams?: Record<string, unknown>;
+  onApproveInline: (
+    proposalId: string,
+    approvalParams?: Record<string, unknown>,
+  ) => Promise<AgentApprovalHandoff | null>;
+}) {
+  if (proposalId.startsWith(LOCAL_SWAP_PROPOSAL_PREFIX)) {
+    return {
+      approvalResult: existingApprovalResult || null,
+      executionProposalId: proposalId,
+    };
+  }
+
+  const approvalResult =
+    existingApprovalResult?.payload?.proposalId === proposalId
+      ? existingApprovalResult
+      : await onApproveInline(proposalId, approvalParams);
+
+  if (!approvalResult?.payload?.proposalId) {
+    throw new Error('Swop approval was not returned by the backend.');
+  }
+
+  persistAgentActionHandoff(approvalResult);
+
+  return {
+    approvalResult,
+    executionProposalId: String(approvalResult.payload.proposalId),
+  };
 }
 
 export function readAgentActionHandoff():
@@ -410,6 +449,11 @@ export async function completeAgentActionFromHandoff(
         reason: !payload
           ? 'Missing approved action handoff'
           : 'Approved action handoff did not match proposal',
+        context: {
+          handoffState: payload ? 'mismatched' : 'missing',
+          completionProposalId: proposalId,
+          approvedProposalId: payload?.proposalId,
+        },
       },
       accessToken,
     );
