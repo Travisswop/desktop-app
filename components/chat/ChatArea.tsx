@@ -201,6 +201,7 @@ import { buildGoldmanAllocationRows } from '@/components/chat/goldman/goldmanAll
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
+import { GoldmanThinkingPanel } from '@/components/chat/goldman/GoldmanThinkingPanel';
 import {
   acceptGoldmanRiskDisclosure,
   archiveGoldmanStrategy,
@@ -3435,13 +3436,6 @@ export default function ChatArea({
     isGoldmanConsoleChat && goldmanVaultWalletAddress
       ? goldmanVaultWalletAddress
       : predictionOwnerAddress;
-  const activeGoldmanStrategy = useMemo(
-    () => getRunnableGoldmanStrategy(goldmanStrategyVault),
-    [goldmanStrategyVault]
-  );
-  const isGoldmanStrategyRunning =
-    activeGoldmanStrategy?.runtime?.state === 'running' ||
-    activeGoldmanStrategy?.status === 'active';
   // Rolling client-side activity list assembled from the strategy runtime
   // cards received this session. The console activity feed falls back to it
   // while the backend activity ledger endpoint is unavailable (404).
@@ -3599,10 +3593,6 @@ export default function ChatArea({
       goldmanStrategyVaultQueryKey,
       queryClient,
     ]
-  );
-  const handleStopGoldmanStrategy = useCallback(
-    () => handleToggleGoldmanStrategy('stop'),
-    [handleToggleGoldmanStrategy]
   );
   const handleToggleGoldmanStrategyById = useCallback(
     (strategyId: string, action: 'run' | 'stop') =>
@@ -7341,10 +7331,7 @@ export default function ChatArea({
         onEnsureGoldmanStrategyVault={ensureGoldmanStrategyVault}
         onOpenGoldmanWalletTransfer={handleOpenGoldmanWalletTransfer}
         onSaveGoldmanStrategyFile={handleSaveGoldmanStrategyFile}
-        activeGoldmanStrategy={activeGoldmanStrategy}
-        isGoldmanStrategyRunning={isGoldmanStrategyRunning}
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
-        onStopGoldmanStrategy={handleStopGoldmanStrategy}
         onToggleGoldmanStrategyById={handleToggleGoldmanStrategyById}
         onArchiveGoldmanStrategyById={handleArchiveGoldmanStrategyById}
         onPositionClick={handleAstroConsolePositionClick}
@@ -8890,8 +8877,6 @@ function GoldmanAccessStation({
   isStrategyVaultLoading = false,
   isActivatingStrategyVault = false,
   strategyVaultError,
-  activeStrategy,
-  isStrategyRunning = false,
   isTogglingStrategy = false,
   groupId,
   onQuickCommand,
@@ -8899,7 +8884,6 @@ function GoldmanAccessStation({
   onEnsureStrategyVault,
   onOpenWalletTransfer,
   onSaveStrategyFile,
-  onStopStrategy,
   onToggleStrategyById,
   onArchiveStrategyById,
   accessToken,
@@ -8913,8 +8897,6 @@ function GoldmanAccessStation({
   isStrategyVaultLoading?: boolean;
   isActivatingStrategyVault?: boolean;
   strategyVaultError?: string | null;
-  activeStrategy?: GoldmanTradingStrategy | null;
-  isStrategyRunning?: boolean;
   isTogglingStrategy?: boolean;
   groupId?: string;
   onQuickCommand?: (command: string) => void;
@@ -8927,7 +8909,6 @@ function GoldmanAccessStation({
     fileName: string,
     content: string
   ) => Promise<GoldmanStrategyFile | null>;
-  onStopStrategy?: () => void;
   onToggleStrategyById?: (strategyId: string, action: 'run' | 'stop') => void;
   onArchiveStrategyById?: (strategyId: string) => void;
   accessToken?: string | null;
@@ -9439,15 +9420,6 @@ function GoldmanAccessStation({
     [onQuickCommand]
   );
 
-  const handleExplainStrategy = useCallback(() => {
-    if (activeStrategy?.title) {
-      onQuickCommand?.(
-        `@goldman explain the active strategy "${activeStrategy.title}", what it will do with vault funds, and which actions are autonomous versus approval-gated`
-      );
-      return;
-    }
-    handleAskStrategyIdeas();
-  }, [activeStrategy?.title, handleAskStrategyIdeas, onQuickCommand]);
 
   const handlePublishStrategyFiles = useCallback(() => {
     if (!onQuickCommand) return;
@@ -9996,159 +9968,6 @@ function GoldmanAccessStation({
           )}
         </div>
 
-        <div className="mt-3 rounded-[9px] border border-[#f4c95d]/20 bg-[#f4c95d]/10 px-3 py-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="dm-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[#8f7c47]">
-                {isStrategyRunning ? 'active strategy' : 'agent status'}
-              </div>
-              <div className="mt-1 truncate text-[12px] font-semibold text-[#eceef2]">
-                {/* Only a RUNNING plan is "active" here — the venue sections
-                    below own attach/run for stopped plans, and naming a
-                    stopped plan up here read as a contradiction. */}
-                {isStrategyRunning
-                  ? activeStrategy?.title
-                  : 'Idle — no plan running'}
-              </div>
-              <div className="dm-mono mt-0.5 truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[#a99761]">
-                {isStrategyRunning
-                  ? `running · ${
-                      activeStrategy?.runtime?.executionMode || 'proposal'
-                    }`
-                  : (strategyVault?.strategies || []).length
-                  ? 'start a plan in a section below'
-                  : 'draft a plan to get started'}
-              </div>
-            </div>
-            {/* Only Stop lives up here. Starting a plan is a per-section
-                action now — a single Run button could not say WHICH plan it
-                would start once every venue has its own. */}
-            <button
-              type="button"
-              data-testid="goldman-run-stop-button"
-              hidden={!isStrategyRunning}
-              disabled={isTogglingStrategy || isVaultBusy || !onStopStrategy}
-              onClick={() => {
-                if (isStrategyRunning) onStopStrategy?.();
-              }}
-              className={`dm-btn dm-mono flex h-9 min-w-[82px] items-center justify-center gap-1.5 rounded-[8px] border px-3 text-[10px] font-bold uppercase tracking-[0.08em] disabled:cursor-default disabled:opacity-50 ${
-                isStrategyRunning
-                  ? 'border-[#ff5d63]/30 bg-[#ff5d63]/10 text-[#ff8585]'
-                  : 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
-              }`}
-            >
-              {isTogglingStrategy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : isStrategyRunning ? (
-                <Square className="h-3.5 w-3.5" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
-              {isStrategyRunning ? 'Stop' : 'Run'}
-            </button>
-          </div>
-          {activeStrategy?.runtime?.state === 'running' &&
-          activeStrategy?.runtime?.lastEvaluation ? (
-            <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/25 px-2.5 py-2">
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3fe08f] opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3fe08f]" />
-                </span>
-                <span className="dm-mono text-[8.5px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
-                  thinking
-                </span>
-                {activeStrategy.runtime.lastEvaluation.at && (
-                  <span className="dm-mono ml-auto text-[8.5px] text-[#5a5e69]">
-                    {new Date(
-                      activeStrategy.runtime.lastEvaluation.at
-                    ).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 space-y-1">
-                {(activeStrategy.runtime.lastEvaluation.checks || [])
-                  .slice(0, 6)
-                  .map((check, index) => (
-                    <div
-                      key={`${check.label || index}`}
-                      className="flex items-start gap-1.5"
-                    >
-                      <span
-                        className={`mt-[3px] h-1 w-1 shrink-0 rounded-full ${
-                          check.status === 'ok' || check.status === 'open'
-                            ? 'bg-[#3fe08f]'
-                            : check.status === 'blocked'
-                            ? 'bg-[#ff5d63]'
-                            : 'bg-[#5a5e69]'
-                        }`}
-                      />
-                      <span className="line-clamp-1 text-[9.5px] leading-snug text-[#9aa0ab]">
-                        <span className="font-semibold text-[#c9cdd6]">
-                          {check.label}
-                        </span>{' '}
-                        {check.detail}
-                      </span>
-                    </div>
-                  ))}
-                {(activeStrategy.runtime.lastEvaluation.predictionsMarkets || [])
-                  .length > 0 && (
-                  <div className="line-clamp-2 pl-2.5 text-[9px] italic leading-snug text-[#7b8290]">
-                    {(
-                      activeStrategy.runtime.lastEvaluation
-                        .predictionsMarkets || []
-                    )
-                      .slice(0, 3)
-                      .join(' · ')}
-                  </div>
-                )}
-                {(() => {
-                  // Allocation-target snapshot — only written when the user set targets.
-                  const allocation =
-                    activeStrategy.runtime.lastEvaluation.allocation;
-                  if (!allocation) return null;
-                  const parts: string[] = [];
-                  const predictionsTarget =
-                    Number(allocation.predictionsTargetPct) || 0;
-                  const perpsTarget = Number(allocation.perpsTargetPct) || 0;
-                  if (predictionsTarget > 0) {
-                    parts.push(`predictions ${predictionsTarget}%`);
-                  }
-                  if (perpsTarget > 0) parts.push(`perps ${perpsTarget}%`);
-                  const perpsNow = Number(allocation.perpsCurrentUsd) || 0;
-                  if (parts.length > 0 && perpsNow > 0) {
-                    parts.push(`perps now ${formatCompactUsd(perpsNow)}`);
-                  }
-                  if (parts.length === 0) return null;
-                  return (
-                    <div className="line-clamp-1 pl-2.5 text-[9px] leading-snug text-[#7b8290]">
-                      targets: {parts.join(' · ')}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          ) : activeStrategy?.runtime?.lastActivity ? (
-            <div className="mt-2 line-clamp-2 text-[10.5px] font-semibold leading-snug text-[#d7c987]">
-              {activeStrategy.runtime.lastActivity}
-            </div>
-          ) : null}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              disabled={!onQuickCommand}
-              onClick={activeStrategy ? handleExplainStrategy : handleAskStrategyIdeas}
-              className="dm-btn dm-mono flex h-8 items-center justify-center gap-1.5 rounded-[8px] border border-white/[0.07] bg-black/20 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#eceef2] disabled:cursor-default disabled:opacity-50"
-            >
-              <Zap className="h-3.5 w-3.5 text-[#f4c95d]" />
-              {activeStrategy ? 'Explain' : 'Ideas'}
-            </button>
-          </div>
-        </div>
-
         {onToggleStrategyById &&
           (() => {
             const laneMap = sortGoldmanStrategies(
@@ -10373,8 +10192,8 @@ function GoldmanAccessStation({
                     return (
                       <div
                         key={strategy.id}
-                        className="flex items-center justify-between gap-2"
                       >
+                        <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate text-[11.5px] font-semibold text-[#eceef2]">
                             {strategy.title || 'Untitled strategy'}
@@ -10428,6 +10247,13 @@ function GoldmanAccessStation({
                             ×
                           </button>
                         )}
+                        </div>
+                        {/* Live cycle telemetry belongs to the plan producing
+                            it, not to a vault-wide card above every section. */}
+                        <GoldmanThinkingPanel
+                          strategy={strategy}
+                          formatUsd={formatCompactUsd}
+                        />
                       </div>
                     );
                   }
@@ -11416,10 +11242,7 @@ function DmContextPanel({
   onEnsureGoldmanStrategyVault,
   onOpenGoldmanWalletTransfer,
   onSaveGoldmanStrategyFile,
-  activeGoldmanStrategy,
-  isGoldmanStrategyRunning,
   isTogglingGoldmanStrategy,
-  onStopGoldmanStrategy,
   onToggleGoldmanStrategyById,
   onArchiveGoldmanStrategyById,
   onPositionClick,
@@ -11447,10 +11270,7 @@ function DmContextPanel({
     fileName: string,
     content: string
   ) => Promise<GoldmanStrategyFile | null>;
-  activeGoldmanStrategy?: GoldmanTradingStrategy | null;
-  isGoldmanStrategyRunning?: boolean;
   isTogglingGoldmanStrategy?: boolean;
-  onStopGoldmanStrategy?: () => void;
   onToggleGoldmanStrategyById?: (
     strategyId: string,
     action: 'run' | 'stop'
@@ -11483,8 +11303,6 @@ function DmContextPanel({
         isStrategyVaultLoading={isGoldmanStrategyVaultLoading}
         isActivatingStrategyVault={isActivatingGoldmanVault}
         strategyVaultError={goldmanStrategyVaultError}
-        activeStrategy={activeGoldmanStrategy}
-        isStrategyRunning={Boolean(isGoldmanStrategyRunning)}
         isTogglingStrategy={Boolean(isTogglingGoldmanStrategy)}
         groupId={displayChat?._id}
         onQuickCommand={onQuickCommand}
@@ -11492,7 +11310,6 @@ function DmContextPanel({
         onEnsureStrategyVault={onEnsureGoldmanStrategyVault}
         onOpenWalletTransfer={onOpenGoldmanWalletTransfer}
         onSaveStrategyFile={onSaveGoldmanStrategyFile}
-        onStopStrategy={onStopGoldmanStrategy}
         onToggleStrategyById={onToggleGoldmanStrategyById}
         onArchiveStrategyById={onArchiveGoldmanStrategyById}
         accessToken={accessToken}
