@@ -128,7 +128,14 @@ async function fetchBackendAccessToken(email: string) {
 export const useMultiChainTokenData = (
   solWalletAddress?: string,
   evmWalletAddress?: string | string[],
-  chains: ChainType[] = ['ETHEREUM']
+  chains: ChainType[] = ['ETHEREUM'],
+  // Opt-in polling. The 5-minute default is right for a wallet screen, but a
+  // view that shows this balance ALONGSIDE faster-refreshing ones (the Goldman
+  // console sums it with 30s prediction and perps balances) reads the gap as
+  // money appearing and vanishing: funds that left this wallet still show here
+  // for minutes while the destination already counts them. Passing the same
+  // cadence as the other buckets keeps the sum coherent.
+  options?: { refetchIntervalMs?: number }
 ) => {
   const { user, accessToken, loading: userLoading } = useUser();
   const [cookieAccessToken, setCookieAccessToken] = useState<string | null>(
@@ -321,7 +328,9 @@ export const useMultiChainTokenData = (
       return failureCount < 2;
     },
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-    staleTime: 5 * 60 * 1000,
+    staleTime: options?.refetchIntervalMs ?? 5 * 60 * 1000,
+    refetchInterval: options?.refetchIntervalMs ?? false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });

@@ -3409,6 +3409,12 @@ export default function ChatArea({
     enabled: isGoldmanConsoleChat && Boolean(goldmanGroupId && accessToken),
     retry: false,
     staleTime: 30_000,
+    // While capital is mid-hop this payload is the only thing that can say so.
+    // Poll until it clears, then go quiet again — an in-transit row that
+    // lingered after the money landed would be its own kind of lie.
+    refetchInterval: (query) =>
+      (query.state.data?.inFlight?.length ?? 0) > 0 ? 20_000 : false,
+    refetchIntervalInBackground: false,
   });
   const [isActivatingGoldmanVault, setIsActivatingGoldmanVault] =
     useState(false);
@@ -3694,7 +3700,14 @@ export default function ChatArea({
         ? goldmanStrategyVault?.walletAddress || ''
         : portfolioEvmWalletInput
       : '',
-    SUPPORTED_CHAINS
+    SUPPORTED_CHAINS,
+    // In the Goldman console this balance is summed with the predictions and
+    // perps balances, which refresh every 30s. At the default 5-minute
+    // staleness the buckets disagree for minutes at a time — pUSD that has
+    // already moved to the Polymarket wallet is still counted here too, and
+    // the vault total visibly spikes and then collapses. One clock for all
+    // three.
+    isGoldmanConsoleChat ? { refetchIntervalMs: 30_000 } : undefined
   );
   const {
     tokens: mainWalletFundingTokens,
@@ -8483,6 +8496,9 @@ async function readGoldmanStrategyVault({
     strategies: Array.isArray(body?.data?.strategies)
       ? body.data.strategies.map(normalizeGoldmanStrategyIdentity)
       : [],
+    // Money the treasury has moved that hasn't landed yet. Absent on older
+    // backends — the console then behaves exactly as it did before.
+    inFlight: Array.isArray(body?.data?.inFlight) ? body.data.inFlight : [],
   };
 }
 
@@ -9406,6 +9422,18 @@ function GoldmanAccessStation({
       .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
   const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
   const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
+  // Capital between venues right now. AVAILABLE deliberately stays the MEASURED
+  // sum of the three buckets and does not absorb this: nothing on the client
+  // can know the exact moment a bridge credits, so folding it in would trade a
+  // total that dips for one that double-counts. Showing it on its own line
+  // makes the dip legible instead — the money is named, not missing.
+  const vaultInFlight = (strategyVault?.inFlight || []).filter(
+    (entry) => toFiniteNumber(entry?.amountUsd) > 0
+  );
+  const vaultInFlightUsd = vaultInFlight.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.amountUsd),
+    0
+  );
   // Target-vs-actual strip driving the REBALANCE control.
   const allocationTargetRows = buildGoldmanAllocationRows({
     perpsTargetPct: Number(limits.perpsAllocationPct) || 0,
@@ -9463,6 +9491,15 @@ function GoldmanAccessStation({
             <div className="dm-mono mt-2 text-[24px] font-semibold leading-none tracking-[-0.04em] text-[#eceef2]">
               {formatCompactUsd(vaultTotalUsd)}
             </div>
+            {vaultInFlightUsd > 0 && (
+              <div className="dm-mono mt-1 flex items-center gap-1 text-[10px] font-semibold text-[#f4c95d]">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#f4c95d] opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#f4c95d]" />
+                </span>
+                + {formatCompactUsd(vaultInFlightUsd)} in transit
+              </div>
+            )}
           </div>
           <div className="text-right">
             <label className="dm-mono block text-[9px] font-bold uppercase tracking-[0.12em] text-[#737783]">
@@ -9505,6 +9542,45 @@ function GoldmanAccessStation({
             </div>
           ))}
         </div>
+
+        {/* Where the money actually is while it moves. A swap settling or a
+            bridge deposit crediting takes minutes, and for that whole window
+            the dollars sit in none of the three tiles above — which reads as
+            the balance dropping on its own. Naming each hop is the difference
+            between "money vanished" and "money is on its way to perps". */}
+        {vaultInFlight.length > 0 && (
+          <div className="mt-2 rounded-[9px] border border-[#f4c95d]/20 bg-[#f4c95d]/[0.06] px-3 py-2">
+            <div className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#8f7c47]">
+              in transit — not counted above
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {vaultInFlight.map((entry, index) => (
+                <div
+                  key={`${entry.transactionHash || entry.venue}-${index}`}
+                  className="flex items-start justify-between gap-2"
+                >
+                  <span className="min-w-0 text-[9.5px] leading-snug text-[#c9cdd6]">
+                    {entry.label}
+                    <span className="text-[#7b8290]">
+                      {' · '}
+                      {entry.ageSeconds < 90
+                        ? `${entry.ageSeconds}s ago`
+                        : `${Math.round(entry.ageSeconds / 60)}m ago`}
+                    </span>
+                  </span>
+                  <span className="dm-mono shrink-0 text-[9.5px] font-semibold text-[#f4c95d]">
+                    {entry.direction === 'inbound' ? '←' : '→'}{' '}
+                    {formatCompactUsd(toFiniteNumber(entry.amountUsd))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-1.5 text-[9px] leading-snug text-[#7b8290]">
+              Swaps and bridge deposits settle in a few minutes. Nothing was
+              spent — the balance above catches up as each hop lands.
+            </div>
+          </div>
+        )}
 
         {allocationTargetRows.length > 0 && rebalanceSupported && (
           <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">

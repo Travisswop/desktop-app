@@ -141,6 +141,24 @@ export type GoldmanStrategyVault = {
   accessStation?: unknown;
   strategyFiles?: GoldmanStrategyFile[];
   strategies?: GoldmanTradingStrategy[];
+  // Capital mid-hop between venues (a swap settling, a bridge deposit not yet
+  // credited). It belongs to no bucket while it moves, so the console adds it
+  // back explicitly rather than letting the total sag.
+  inFlight?: GoldmanInFlightEntry[];
+};
+
+export type GoldmanInFlightEntry = {
+  venue: 'perps' | 'predictions' | null;
+  action: string | null;
+  label: string;
+  amountUsd: number;
+  token: string | null;
+  chain: string | null;
+  transactionHash: string | null;
+  startedAt: string;
+  ageSeconds: number;
+  // 'outbound' = leaving the wallet for a venue; 'inbound' = coming back.
+  direction: 'outbound' | 'inbound';
 };
 
 export type GoldmanStrategyRuntimeCardPayload = {
