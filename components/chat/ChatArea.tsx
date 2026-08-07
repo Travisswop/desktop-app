@@ -158,6 +158,7 @@ import {
   getPolymarketOutcomeLabels,
   getReceiptIdentityKeys,
   isOpenPredictionConsolePosition,
+  buildGoldmanVaultBuckets,
   isProposalNoLongerPendingError,
   normalizePredictionConsolePositions,
   normalizeIntentText,
@@ -9454,42 +9455,35 @@ function GoldmanAccessStation({
       .join(', ') || 'none';
   const goldmanMetrics = buildGoldmanConsoleMetrics(consoleData);
   // Full vault balance = liquid wallet tokens + prediction collateral +
-  // Hyperliquid perps account value. pUSD is Polymarket-only collateral, so
-  // it reads as "deposited to predictions": the predictions bucket = idle
-  // pUSD + open position value, and pUSD is EXCLUDED from the wallet bucket
-  // so the same dollars aren't double-counted.
+  // Hyperliquid perps account value. See buildGoldmanVaultBuckets for how the
+  // two overlapping collateral measurements are reconciled (they used to be
+  // summed, which double-counted the Polymarket deposit wallet).
   const vaultPusdUsd = (consoleData?.walletPortfolioTokens || [])
     .filter(
       (token) => String(token?.symbol || '').toUpperCase() === 'PUSD'
     )
     .reduce((sum, token) => sum + getTokenDataUsdValue(token), 0);
-  const vaultWalletUsd = Math.max(
-    0,
-    toFiniteNumber(consoleData?.walletPortfolioBalance) - vaultPusdUsd
-  );
-  // Collateral positioned for betting sits at the vault's Polymarket deposit
-  // wallet, which no client-side balance hook reads — moving pUSD there used to
-  // delete it from this total ($5 "went missing" on 2026-08-07). The server
-  // reads that address and reports it here.
-  const vaultDepositCollateralUsd = toFiniteNumber(
-    strategyVault?.predictionsCollateral?.depositPusdUsd
-  );
-  const vaultPredictionsUsd =
-    vaultPusdUsd +
-    vaultDepositCollateralUsd +
-    toFiniteNumber(consoleData?.predictionPortfolioUsdcBalance) +
-    (consoleData?.predictionPositions || [])
-      // Open bets AND settled-but-unclaimed winnings are both real value —
-      // excluding redeemable positions made won bets vanish from the total
-      // until the redemption transaction landed.
-      .filter(
-        (position) =>
-          isOpenPredictionConsolePosition(position) ||
-          position.redeemable === true
-      )
-      .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
-  const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
-  const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
+  const {
+    walletUsd: vaultWalletUsd,
+    predictionsUsd: vaultPredictionsUsd,
+    perpsUsd: vaultPerpsUsd,
+    totalUsd: vaultTotalUsd,
+  } = buildGoldmanVaultBuckets({
+    walletTokensUsd: toFiniteNumber(consoleData?.walletPortfolioBalance),
+    vaultPusdUsd,
+    idlePusdAcrossWalletsUsd: toFiniteNumber(
+      consoleData?.predictionPortfolioUsdcBalance
+    ),
+    // Collateral positioned for betting sits at the vault's Polymarket deposit
+    // wallet; the server reads that address for us.
+    depositWalletPusdUsd: toFiniteNumber(
+      strategyVault?.predictionsCollateral?.depositPusdUsd
+    ),
+    positions: consoleData?.predictionPositions || [],
+    perpsAccountValueUsd: toFiniteNumber(
+      consoleData?.perpsAccount?.accountValue
+    ),
+  });
   // Capital between venues right now. AVAILABLE deliberately stays the MEASURED
   // sum of the three buckets and does not absorb this: nothing on the client
   // can know the exact moment a bridge credits, so folding it in would trade a

@@ -91,6 +91,62 @@ export function isOpenPredictionConsolePosition(position: PolymarketPosition) {
   );
 }
 
+/**
+ * The Goldman console's three vault buckets, from the raw balance reads.
+ *
+ * Every dollar belongs to exactly one bucket. pUSD is Polymarket-only
+ * collateral, so it reads as "deposited to predictions" and is excluded from
+ * the wallet bucket.
+ *
+ * Idle collateral is measured twice over overlapping address sets — the
+ * on-chain pUSD sweep (`idlePusdAcrossWalletsUsd`: deposit wallet + legacy Safe
+ * + vault) and the vault's token list plus the server's deposit-wallet read.
+ * They must never be summed: doing so counted the deposit wallet's pUSD twice
+ * and made desktop read higher than mobile for the same vault. Each is complete
+ * on its own, so take the larger — a hook that has not resolved yet reads 0 and
+ * loses instead of dragging the total down.
+ */
+export function buildGoldmanVaultBuckets({
+  walletTokensUsd,
+  vaultPusdUsd,
+  idlePusdAcrossWalletsUsd,
+  depositWalletPusdUsd,
+  positions,
+  perpsAccountValueUsd,
+}: {
+  walletTokensUsd: number;
+  vaultPusdUsd: number;
+  idlePusdAcrossWalletsUsd: number;
+  depositWalletPusdUsd: number;
+  positions: PolymarketPosition[];
+  perpsAccountValueUsd: number;
+}) {
+  const pusd = Math.max(0, toFiniteNumber(vaultPusdUsd));
+  const walletUsd = Math.max(0, toFiniteNumber(walletTokensUsd) - pusd);
+  const idleCollateralUsd = Math.max(
+    toFiniteNumber(idlePusdAcrossWalletsUsd),
+    pusd + toFiniteNumber(depositWalletPusdUsd)
+  );
+  const positionsUsd = (positions || [])
+    // Open bets AND settled-but-unclaimed winnings are both real value —
+    // excluding redeemable positions made won bets vanish from the total until
+    // the redemption transaction landed.
+    .filter(
+      (position) =>
+        isOpenPredictionConsolePosition(position) || position.redeemable === true
+    )
+    .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
+  const predictionsUsd = idleCollateralUsd + positionsUsd;
+  const perpsUsd = toFiniteNumber(perpsAccountValueUsd);
+
+  return {
+    walletUsd,
+    predictionsUsd,
+    perpsUsd,
+    totalUsd: walletUsd + predictionsUsd + perpsUsd,
+  };
+}
+
 function normalizePredictionKeyPart(value: unknown) {
   return String(value ?? '')
     .trim()
