@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { encodeFunctionData, erc20Abi, hexToBytes } from "viem";
 import { polygon } from "viem/chains";
-import { usePrivy, useSignTypedData, useSigners } from "@privy-io/react-auth";
+import { usePrivy, useSignTypedData } from "@privy-io/react-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePolymarketWallet, useTrading } from "@/providers/polymarket";
 import { useUser } from "@/lib/UserContext";
@@ -18,7 +18,6 @@ import {
 } from "@/constants/polymarket";
 import { isStaleNonceRedeemError } from "@/lib/polymarket/position-payout";
 import { submitSponsoredSafeExecTransaction } from "@/lib/polymarket/sponsored-safe";
-import { safeLocalStorage } from "@/lib/browserStorage";
 
 export interface RedeemParams {
   conditionId: string;
@@ -206,7 +205,6 @@ export function useRedeemPosition() {
   const { walletType, depositWalletAddress } = useTrading();
   const { accessToken, user } = useUser();
   const { user: privyUser, getAccessToken: getPrivyAccessToken } = usePrivy();
-  const { addSigners } = useSigners();
   const { signTypedData: signTypedDataWithPrivy } = useSignTypedData();
   const queryClient = useQueryClient();
 
@@ -262,50 +260,10 @@ export function useRedeemPosition() {
     return config;
   }, [accessToken, delegatedSignerConfig]);
 
-  /**
-   * Registers this app's key quorum as a session signer on the user's
-   * embedded wallet, prompting them once.
-   *
-   * Nothing in the claim or order path ever did this — `addSigners` sat behind
-   * a `showWalletUIs === true` branch that only the swap modal takes — so no
-   * wallet was ever delegated and every "silent" signature fell back to a
-   * client-side Privy call that works only while the Privy session is alive.
-   * Registering here is what lets the backend sweeper claim with no browser
-   * open, and it is deliberately tied to a claim: the user is looking at their
-   * own winnings when asked, rather than being prompted out of nowhere.
-   */
-  const ensureDelegatedSigner = useCallback(
-    async (options?: { prompt?: boolean }) => {
-      const config = await getDelegatedSignerConfig();
-      if (!config?.signerId || !eoaAddress) return false;
-      if (!isEmbeddedPrivyWallet(eoaAddress)) return false;
-      if (!options?.prompt) return true;
-
-      // Privy rejects a duplicate signer, and re-prompting an already
-      // delegated user is pure annoyance — remember per (quorum, wallet).
-      const storageKey = `privy-delegated-signer:${config.signerId}:${eoaAddress.toLowerCase()}`;
-      if (safeLocalStorage.getItem(storageKey)) return true;
-
-      try {
-        await addSigners({
-          address: eoaAddress,
-          signers: [
-            { signerId: config.signerId, policyIds: config.policyIds },
-          ],
-        });
-        safeLocalStorage.setItem(storageKey, "true");
-        return true;
-      } catch (error) {
-        // Declining is a legitimate choice — claiming still works in-browser,
-        // it just cannot happen while the user is away.
-        console.warn("[Polymarket Redeem] session signer not registered", {
-          message: error instanceof Error ? error.message : String(error),
-        });
-        return false;
-      }
-    },
-    [addSigners, eoaAddress, getDelegatedSignerConfig, isEmbeddedPrivyWallet],
-  );
+  const ensureDelegatedSigner = useCallback(async () => {
+    const config = await getDelegatedSignerConfig();
+    return Boolean(config?.signerId);
+  }, [getDelegatedSignerConfig]);
 
   const signWithDelegatedPrivy = useCallback(
     async (
@@ -886,13 +844,6 @@ export function useRedeemPosition() {
           );
         };
 
-        // A manual claim is the one moment the user is already looking at
-        // their own winnings, so it is where we ask to register the session
-        // signer. Auto-claim passes silentOnly and must never raise a modal.
-        if (!params.silentOnly) {
-          await ensureDelegatedSigner({ prompt: true });
-        }
-
         let result: Awaited<ReturnType<typeof attemptRedeem>>;
         try {
           result = await attemptRedeem();
@@ -995,7 +946,6 @@ export function useRedeemPosition() {
       signSafeTxHash,
       signRedeemTypedData,
       normalizeLegacyUsdcBalance,
-      ensureDelegatedSigner,
     ],
   );
 
