@@ -65,7 +65,7 @@ criteria without digging through logs.
 
 | Step | Command | Card type | Must prove | Safe interaction | Never clicks |
 | --- | --- | --- | --- | --- | --- |
-| `page-auth` | open `/dashboard/chat` | authenticated chat shell | `Messages`, `Astro`, configured QA thread | select QA thread | n/a |
+| `page-auth` | open `/dashboard/chat` | authenticated chat shell | `Messages`, `Astro`, configured QA thread or empty-state Astro recovery CTA | select QA thread or `Open Astro Trading Desk` when the account has `0 threads` | n/a |
 | `portfolio-card` | `show my portfolio` | portfolio allocation | `Portfolio allocation` card renders with wallet context | render only | n/a |
 | `receive-qr-card` | `show my receive QR for Solana` | receive QR | `RECEIVE QR`, `ADDRESS` | `Copy address` | n/a |
 | `funding-onramp-card` | `fund my wallet with 35 dollars` | Coinbase funding onramp | `Buy USDC in Swop`, `Coinbase` | select `Solana USDC` | `Buy USDC in Swop` |
