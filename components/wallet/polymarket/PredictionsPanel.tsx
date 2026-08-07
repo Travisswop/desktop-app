@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft,
+  RefreshCw,
   ArrowRight,
   ArrowUpFromLine,
   Plus,
@@ -219,15 +220,72 @@ export default function PredictionsPanel({
     data: activeOrders = [],
     isError: activeOrdersRefreshError,
   } = useActiveOrders(clobClient, safeAddress);
-  const { usdcBalance } =
-    usePolymarketCollateralBalance(portfolioAddresses);
+  const {
+    usdcBalance,
+    legacyUsdcBalance,
+    hasLegacyCollateral,
+  } = usePolymarketCollateralBalance(portfolioAddresses);
   const {
     data: netDeposits,
     isLoading: isLoadingNetDeposits,
     isError: netDepositsRefreshError,
   } = useNetDeposits(portfolioAddresses);
 
-  const { redeemPosition, canRedeem } = useRedeemPosition();
+  const { redeemPosition, canRedeem, normalizeLegacyUsdcBalance } =
+    useRedeemPosition();
+  const [isRefreshingBalance, setIsRefreshingBalance] = useState(false);
+
+  /**
+   * Refreshes the balance and, while it is at it, converts any legacy USDC.e
+   * the wallet is holding.
+   *
+   * Predictions balances count pUSD only, so a payout that settled in legacy
+   * collateral is real money the balance simply does not show. From the user's
+   * side that is indistinguishable from a stale number, which is why this is a
+   * refresh rather than a "Convert USDC.e" control exposing internal plumbing.
+   * Success is silent — the balance going up is the feedback. Failures are
+   * not: a conversion that dies quietly is exactly how a payout went missing
+   * in the first place.
+   */
+  const handleRefreshBalance = useCallback(async () => {
+    if (isRefreshingBalance) return;
+    setIsRefreshingBalance(true);
+    const pending = hasLegacyCollateral ? legacyUsdcBalance : 0;
+    try {
+      if (pending > 0) {
+        await normalizeLegacyUsdcBalance({
+          safeAddress,
+          depositWalletAddress,
+          walletType,
+          destinationAddress:
+            walletType === 'deposit' ? depositWalletAddress : safeAddress,
+          amount: pending,
+        });
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pusdBalance'] }),
+        queryClient.invalidateQueries({ queryKey: ['legacyUsdcBalance'] }),
+        queryClient.invalidateQueries({ queryKey: ['pm-funding'] }),
+      ]);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? `Couldn't update balance: ${error.message}`
+          : "Couldn't update balance. Please try again.",
+      );
+    } finally {
+      setIsRefreshingBalance(false);
+    }
+  }, [
+    depositWalletAddress,
+    hasLegacyCollateral,
+    isRefreshingBalance,
+    legacyUsdcBalance,
+    normalizeLegacyUsdcBalance,
+    queryClient,
+    safeAddress,
+    walletType,
+  ]);
   const { submitOrder, cancelOrder, isSubmitting } = useClobOrder(
     clobClient,
     eoaAddress,
@@ -1044,6 +1102,8 @@ export default function PredictionsPanel({
                 <BentoHero
                   intPart={intPart}
                   decPart={decPart}
+                  onRefreshBalance={handleRefreshBalance}
+                  isRefreshingBalance={isRefreshingBalance}
                   portfolioPct={summary.portfolioPct}
                   totalPnl={summary.totalPnl}
                   openBets={activePositions.length}
@@ -4188,6 +4248,8 @@ function LiveGameRow({
 interface BentoHeroProps {
   intPart: string;
   decPart: string;
+  onRefreshBalance: () => void;
+  isRefreshingBalance: boolean;
   portfolioPct: number;
   totalPnl: number;
   openBets: number;
@@ -4213,6 +4275,8 @@ interface BentoHeroProps {
 function BentoHero({
   intPart,
   decPart,
+  onRefreshBalance,
+  isRefreshingBalance,
   portfolioPct,
   totalPnl,
   openBets,
@@ -4243,8 +4307,20 @@ function BentoHero({
         }}
       >
         <div className="flex items-start justify-between">
-          <span className="text-[12.5px] text-gray-500 font-medium tracking-[-0.1px]">
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] text-gray-500 font-medium tracking-[-0.1px]">
             Predictions balance
+            <button
+              type="button"
+              onClick={onRefreshBalance}
+              disabled={isRefreshingBalance}
+              aria-label="Refresh balance"
+              title="Refresh balance"
+              className="inline-flex items-center justify-center w-5 h-5 rounded-full text-gray-400 hover:text-gray-900 hover:bg-gray-100 disabled:hover:bg-transparent disabled:cursor-default transition-colors"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${isRefreshingBalance ? 'animate-spin' : ''}`}
+              />
+            </button>
           </span>
           {Number.isFinite(portfolioPct) && portfolioPct !== 0 && (
             <span
