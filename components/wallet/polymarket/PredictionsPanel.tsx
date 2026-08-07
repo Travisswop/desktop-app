@@ -80,6 +80,7 @@ import {
   selectNextAutoClaimPosition,
 } from '@/lib/polymarket/auto-claim';
 import { usePredictionAutoClaim } from '@/hooks/polymarket/usePredictionAutoClaim';
+import { useWalletSessionHealth } from '@/hooks/useWalletSessionHealth';
 import {
   displaySideForMarket,
   type PredictionSideDisplay,
@@ -251,6 +252,7 @@ export default function PredictionsPanel({
     PendingRedemptionSnapshot[]
   >([]);
   const { autoClaimEnabled, setAutoClaim } = usePredictionAutoClaim();
+  const walletSession = useWalletSessionHealth();
   const [autoClaimAttemptedAssets, setAutoClaimAttemptedAssets] =
     useState<Set<string>>(() => new Set());
   const [autoClaimManualAssets, setAutoClaimManualAssets] =
@@ -783,14 +785,20 @@ export default function PredictionsPanel({
         const redeemedAmount = result.redeemedAmount ?? redeemValue;
         const redeemedAmountLabel = redeemedAmount.toFixed(2);
 
-        if (isAuto) {
+        if (result.normalizationError) {
+          // Not a success: the payout landed on-chain but is sitting as
+          // USDC.e, which the balance deliberately never counts. This used to
+          // render as toast.success promising an automatic retry that did not
+          // exist, so the money looked claimed and simply vanished from view.
+          // Auto-claim is normally silent, but a payout the user cannot see is
+          // exactly what must never be swallowed.
+          toast.error(
+            `Claimed $${redeemedAmountLabel}, but converting it to spendable balance failed. Your funds are safe — reopen Predictions to retry.`,
+            { id: redeemToastId, duration: 10000 },
+          );
+        } else if (isAuto) {
           // Auto-claim stays quiet; balances and pending notices update after
           // the transaction confirms.
-        } else if (result.normalizationError) {
-          toast.success(
-            `Redeemed $${redeemedAmountLabel}. Balance conversion will retry automatically.`,
-            { id: redeemToastId },
-          );
         } else {
           // Dopamine celebration — replaces the generic "Redeemed $X" toast.
           if (redeemToastId) toast.dismiss(redeemToastId);
@@ -1003,6 +1011,33 @@ export default function PredictionsPanel({
               <ArrowLeft className="w-3.5 h-3.5" />
               Back
             </button>
+
+            {/* A lapsed Privy session is otherwise invisible: the backend JWT
+                lasts 30 days, so the page stays signed in and balances render
+                while nothing that needs the user's key can be signed. Claims
+                fail — or worse, half-succeed — with no explanation. */}
+            {walletSession.isStale && (
+              <div
+                className="rounded-2xl border bg-white px-4 py-3 flex items-start gap-3"
+                style={{ borderColor: '#f5c2c7' }}
+                role="status"
+              >
+                <span
+                  aria-hidden
+                  className="mt-[2px] inline-block w-2 h-2 rounded-full bg-red-500 shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-950">
+                    Your wallet session expired
+                  </p>
+                  <p className="text-[12.5px] text-gray-500 mt-0.5">
+                    You&apos;re still signed in, but Swop can&apos;t sign
+                    transactions until you log in again. Claims and trades will
+                    fail until then.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {view === 'main' && drillDown === null && (
               <>
