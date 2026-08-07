@@ -52,8 +52,12 @@ interface FeedItemProps {
 const POST_NAVIGATION_IGNORE_SELECTOR =
   'a, button, input, textarea, select, label, [role="button"], [data-no-post-nav="true"]';
 
+// Element, not HTMLElement: every icon in the reaction row is an <svg>, and an
+// SVGElement is not an HTMLElement. Narrowing to HTMLElement made clicks that
+// landed on the glyph itself look like a click on the card, so tapping the
+// reply icon navigated to the post instead of running the button's handler.
 const isInteractiveTarget = (target: EventTarget | null) => {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
   return Boolean(target.closest(POST_NAVIGATION_IGNORE_SELECTOR));
 };
 
