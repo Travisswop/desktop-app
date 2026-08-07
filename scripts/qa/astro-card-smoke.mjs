@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -295,6 +296,69 @@ function finishStep(step, status, detail = '') {
   return step;
 }
 
+function noteRunActivity(report, step, detail) {
+  const notedAt = timestamp();
+  report.activeStep = step?.name || report.activeStep || null;
+  report.activeActivity = detail;
+  report.lastProgressAt = notedAt;
+  if (step) {
+    step.detail = detail;
+    step.lastProgressAt = notedAt;
+  }
+  return step;
+}
+
+function clearRunActivity(report) {
+  report.activeStep = null;
+  report.activeActivity = null;
+  report.lastProgressAt = timestamp();
+}
+
+function ensureFailureStep(report, fallbackName = 'page-auth') {
+  const activeStep = report.steps.find((step) => step.status === 'pending');
+  if (activeStep) return activeStep;
+
+  const fallbackStepName = report.activeStep || fallbackName;
+  const fallbackContract =
+    report.cardContracts?.find((contract) => contract.step === fallbackStepName) || null;
+  const fallbackStep = createStep(fallbackStepName, fallbackContract);
+  if (report.activeActivity) fallbackStep.detail = report.activeActivity;
+  report.steps.push(fallbackStep);
+  return fallbackStep;
+}
+
+function markStepFailure(report, error, fallbackName = 'page-auth') {
+  const step = ensureFailureStep(report, fallbackName);
+  const message = error instanceof Error ? error.message : String(error);
+  const lastActivity = step.detail || report.activeActivity || '';
+  const detail =
+    lastActivity && lastActivity !== message
+      ? `${lastActivity} Failed: ${message}`
+      : message;
+  finishStep(step, 'fail', detail);
+  clearRunActivity(report);
+  return step;
+}
+
+function describeExceptionDetails(details) {
+  if (!details) return 'Page evaluation failed.';
+
+  const description =
+    details.exception?.description ||
+    details.exception?.value ||
+    details.text ||
+    'Page evaluation failed.';
+  const locationFrame = details.stackTrace?.callFrames?.[0] || null;
+  const locationUrl = locationFrame?.url || details.url || '';
+  const lineNumber = locationFrame?.lineNumber ?? details.lineNumber;
+  const columnNumber = locationFrame?.columnNumber ?? details.columnNumber;
+  const location =
+    locationUrl && Number.isFinite(lineNumber) && Number.isFinite(columnNumber)
+      ? ` at ${locationUrl}:${lineNumber + 1}:${columnNumber + 1}`
+      : '';
+  return `${description}${location}`;
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -464,7 +528,7 @@ async function evaluate(client, fn, arg = undefined) {
     returnByValue: true,
   });
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || 'Page evaluation failed.');
+    throw new Error(describeExceptionDetails(result.exceptionDetails));
   }
   return result.result?.value;
 }
@@ -761,34 +825,63 @@ async function fillComposer(client, text) {
 async function getButtonPoint(client, options) {
   return evaluate(
     client,
-    ({ text, exact = false, index = -1, selector = 'button', avoidFinal = true }) => {
+    ({
+      text,
+      exact = false,
+      index = -1,
+      selector = 'button',
+      avoidFinal = true,
+      scopeMarkers = [],
+    }) => {
       const isVisible = (el) => {
         const rect = el.getBoundingClientRect();
         const style = window.getComputedStyle(el);
         return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
       const normalize = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-      const candidates = Array.from(document.querySelectorAll(selector))
+      const matchesButton = (el) => {
+        const label = normalize(el.innerText || el.getAttribute('title') || el.getAttribute('aria-label'));
+        if (avoidFinal && [
+          /sign\s*&\s*approve/i,
+          /confirm send/i,
+          /close position/i,
+          /deposit to hyperliquid/i,
+          /buy usdc in swop/i,
+          /place order/i,
+          /approve strategy/i,
+        ].some((pattern) => pattern.test(label))) {
+          return false;
+        }
+        return exact ? label === text : label.toLowerCase().includes(String(text).toLowerCase());
+      };
+      const normalizedScopeMarkers = Array.isArray(scopeMarkers)
+        ? scopeMarkers.map((marker) => normalize(marker).toLowerCase()).filter(Boolean)
+        : [];
+      let scopeRoot = document;
+      if (normalizedScopeMarkers.length) {
+        const scopeCandidates = Array.from(document.querySelectorAll('article, section, li, div'))
+          .filter(isVisible)
+          .filter((el) => {
+            const textContent = normalize(el.innerText || '').toLowerCase();
+            if (!normalizedScopeMarkers.every((marker) => textContent.includes(marker))) {
+              return false;
+            }
+            return Array.from(el.querySelectorAll(selector))
+              .filter(isVisible)
+              .some(matchesButton);
+          });
+        if (scopeCandidates.length) {
+          scopeRoot = scopeCandidates[scopeCandidates.length - 1];
+        }
+      }
+      const candidates = Array.from(scopeRoot.querySelectorAll(selector))
         .filter(isVisible)
-        .filter((el) => {
-          const label = normalize(el.innerText || el.getAttribute('title') || el.getAttribute('aria-label'));
-          if (avoidFinal && [
-            /sign\s*&\s*approve/i,
-            /confirm send/i,
-            /close position/i,
-            /deposit to hyperliquid/i,
-            /buy usdc in swop/i,
-            /place order/i,
-            /approve strategy/i,
-          ].some((pattern) => pattern.test(label))) {
-            return false;
-          }
-          return exact ? label === text : label.toLowerCase().includes(String(text).toLowerCase());
-        });
+        .filter(matchesButton);
       const el = index < 0 ? candidates[candidates.length + index] : candidates[index];
       if (!el) {
         return {
           found: false,
+          scopeMatched: scopeRoot !== document,
           labels: Array.from(document.querySelectorAll(selector))
             .filter(isVisible)
             .map((candidate) => normalize(candidate.innerText || candidate.getAttribute('title') || candidate.getAttribute('aria-label')))
@@ -813,7 +906,11 @@ async function getButtonPoint(client, options) {
 async function clickButton(client, text, options = {}) {
   const point = await getButtonPoint(client, { text, ...options });
   if (!point.found) {
-    throw new Error(`Button "${text}" not found. Visible labels: ${point.labels?.join(' | ')}`);
+    const scopeDetail =
+      Array.isArray(options.scopeMarkers) && options.scopeMarkers.length
+        ? ` inside scope [${options.scopeMarkers.join(' | ')}]`
+        : '';
+    throw new Error(`Button "${text}" not found${scopeDetail}. Visible labels: ${point.labels?.join(' | ')}`);
   }
   if (point.disabled) {
     throw new Error(`Button "${point.label}" is disabled.`);
@@ -891,7 +988,7 @@ async function hasConfirmOnlyState(client) {
   });
 }
 
-async function runCardChecks({ client, baseUrl, args, report }) {
+async function runCardChecks({ client, baseUrl, args, report, pageAuthStep = null }) {
   const contractsByStep = new Map(
     (report.cardContracts || []).map((contract) => [contract.step, contract])
   );
@@ -901,31 +998,59 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     return step;
   };
 
-  let step = add('page-auth');
+  let step = pageAuthStep || add('page-auth');
+  noteRunActivity(report, step, 'Checking for an authenticated chat shell.');
   await assertLoggedIn(client);
+  noteRunActivity(report, step, `Selecting thread containing "${args.threadText}".`);
   await selectThread(client, args.threadText);
   finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
 
   step = add('portfolio-card');
+  noteRunActivity(report, step, 'Sending portfolio prompt and waiting for the allocation card.');
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
 
   step = add('receive-qr-card');
+  noteRunActivity(report, step, 'Sending receive-QR prompt and waiting for the card.');
   await sendPrompt(client, 'show my receive QR for Solana');
-  await waitForText(client, 'receive QR card', ['RECEIVE QR', 'ADDRESS'], 30000);
-  await clickButton(client, 'Copy address', { selector: 'button', exact: false, avoidFinal: true });
+  const receiveQrScope = ['Receive QR', 'Address'];
+  await waitFor(
+    client,
+    'receive QR card copy control',
+    async () => {
+      const point = await getButtonPoint(client, {
+        text: 'Copy address',
+        selector: 'button',
+        exact: false,
+        avoidFinal: true,
+        scopeMarkers: receiveQrScope,
+      });
+      return point.found ? point : false;
+    },
+    30000
+  );
+  noteRunActivity(report, step, 'Clicking Copy address on the scoped receive-QR card.');
+  await clickButton(client, 'Copy address', {
+    selector: 'button',
+    exact: false,
+    avoidFinal: true,
+    scopeMarkers: receiveQrScope,
+  });
   const copyText = await pageText(client);
   if (/Could not copy address/i.test(copyText)) throw new Error('Receive QR copy button showed an error.');
   finishStep(step, 'pass', 'Rendered receive QR card and clicked copy address.');
 
   step = add('funding-onramp-card');
+  noteRunActivity(report, step, 'Sending wallet-funding prompt and waiting for the Coinbase card.');
   await sendPrompt(client, 'fund my wallet with 35 dollars');
   await waitForText(client, 'Coinbase funding card', ['Buy USDC in Swop', 'Coinbase'], 45000);
+  noteRunActivity(report, step, 'Selecting the Solana USDC destination on the funding card.');
   await clickButton(client, 'Solana USDC', { exact: false, avoidFinal: true });
   finishStep(step, 'pass', 'Rendered funding card and selected Solana USDC destination.');
 
   step = add('marketplace-card');
+  noteRunActivity(report, step, 'Sending marketplace prompt and waiting for product results.');
   await sendPrompt(client, 'show marketplace products');
   await waitFor(
     client,
@@ -941,6 +1066,7 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     finishStep(step, 'skip', 'Marketplace read routed, but live data returned no item cards.');
   } else {
     const beforeTargets = await listTargets(baseUrl);
+    noteRunActivity(report, step, 'Opening a marketplace product tab from the result card.');
     await clickButton(client, 'Open', { exact: true, avoidFinal: true });
     const opened = await waitFor(
       client,
@@ -960,33 +1086,41 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   }
 
   step = add('pnl-card');
+  noteRunActivity(report, step, 'Sending PnL prompt and waiting for the snapshot card.');
   await sendPrompt(client, 'show my pnl');
   await waitForText(client, 'PnL overview card', ['PNL SNAPSHOT'], 30000);
   finishStep(step, 'pass', 'Rendered PnL snapshot and embedded positions.');
 
   step = add('chart-card');
+  noteRunActivity(report, step, 'Sending chart prompt and waiting for the ETH chart card.');
   await sendPrompt(client, '/chart ETH 1D');
   await waitForText(client, 'ETH chart card', ['ETH-PERP', '1W', '1M', 'ALL'], 30000);
+  noteRunActivity(report, step, 'Clicking the 1W chart range button.');
   await clickButton(client, '1W', { exact: true, avoidFinal: true });
   finishStep(step, 'pass', 'Rendered chart card and changed range to 1W.');
 
   step = add('sports-research-card');
+  noteRunActivity(report, step, 'Sending sports research prompt and waiting for the research card.');
   await sendPrompt(client, '/search Lakers injuries today');
   await waitForText(client, 'sports research card', [/NBA injury report/i, /ESPN/i, /Lakers/i], 90000);
   finishStep(step, 'pass', 'Rendered ESPN-backed Lakers injury research card.');
 
   step = add('wallet-send-card');
+  noteRunActivity(report, step, 'Sending wallet-send prompt and waiting for the review card.');
   await sendPrompt(client, 'send 1 USDC to travis.swop.id');
   await waitForText(client, 'wallet send network picker', [/ARBITRUM/i, /SOLANA/i, /BASE/i], 45000);
+  noteRunActivity(report, step, 'Selecting the Solana network on the wallet-send card.');
   await clickButton(client, 'S SOLANA', { exact: false, avoidFinal: true });
   await waitForText(client, 'wallet send review card', ['Confirm send'], 30000);
   finishStep(step, 'pass', 'Wallet send advanced to review card; final Confirm send was not clicked.');
 
   step = add('perps-order-card');
+  noteRunActivity(report, step, 'Sending perps-order prompt and waiting for the order ticket.');
   await sendPrompt(client, 'long some oil with 5x');
   await waitForText(client, 'perps order card', [/PERPS .*NEW ORDER/i, /BRENTOIL|ETH-PERP|PERP/i], 60000);
   for (const label of ['Short', 'Limit', 'TP/SL', '20x', '$500']) {
     try {
+      noteRunActivity(report, step, `Exercising the "${label}" perps control.`);
       await clickButton(client, label, { exact: false, avoidFinal: true });
     } catch (error) {
       report.warnings.push(`Perps control "${label}" was not clicked: ${error.message}`);
@@ -1000,16 +1134,20 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   );
 
   step = add('prediction-market-card');
+  noteRunActivity(report, step, 'Sending prediction-market prompt and waiting for the odds card.');
   await sendPrompt(client, 'what hockey games are tonight and the odds?');
   await waitForText(client, 'prediction odds card', [/Yes \d|No \d|Over \d|Under \d|moneyline|spread/i], 90000);
+  noteRunActivity(report, step, 'Clicking a prediction outcome to draft a ticket.');
   const clickedPrediction = await tryPredictionOutcomeClick(client);
   await waitForText(client, 'prediction draft/ticket after outcome click', [/FRESH PRICE|prediction ticket|POLYMARKET/i], 45000);
   finishStep(step, 'pass', `Clicked a prediction outcome (${clickedPrediction}); final buy/sell action was not clicked.`);
 
   step = add('swap-card');
   const swapPrompt = 'swap 1 SWOP to USDC';
+  noteRunActivity(report, step, 'Sending swap prompt and waiting for a healthy quote card.');
   await sendPrompt(client, swapPrompt);
   const uiHealth = await waitForSwapCardUiHealth(client, swapPrompt, 90000);
+  noteRunActivity(report, step, 'Probing Jupiter quote/order health for the rendered swap card.');
   const apiHealth = await probeJupiterSwapApis({ client, args, report });
   await sleep(1500);
   const settledSwapText = await textAfterLatestMarker(client, swapPrompt);
@@ -1019,6 +1157,7 @@ async function runCardChecks({ client, baseUrl, args, report }) {
   }
   let clickedSwapPercent = false;
   try {
+    noteRunActivity(report, step, 'Clicking the 25% swap amount control.');
     await clickButton(client, '25%', { exact: true, avoidFinal: true });
     clickedSwapPercent = true;
   } catch (error) {
@@ -1082,6 +1221,9 @@ async function main() {
       exceptions: [],
     },
     status: 'running',
+    activeStep: null,
+    activeActivity: null,
+    lastProgressAt: null,
   };
 
   mkdirSync(args.logDir, { recursive: true });
@@ -1105,8 +1247,14 @@ async function main() {
     return;
   }
 
+  const pageAuthContract =
+    report.cardContracts.find((contract) => contract.step === 'page-auth') || null;
+  const pageAuthStep = createStep('page-auth', pageAuthContract);
+  report.steps.push(pageAuthStep);
+  noteRunActivity(report, pageAuthStep, 'Locating or opening a /dashboard/chat Chrome DevTools target.');
   const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
   const client = new CdpClient(target.webSocketDebuggerUrl);
+  noteRunActivity(report, pageAuthStep, 'Connecting to the selected Chrome DevTools target.');
   await client.connect();
 
   client.on('Log.entryAdded', (params) => {
@@ -1131,18 +1279,20 @@ async function main() {
 
     const currentUrl = target.url || '';
     if (!currentUrl.includes('/dashboard/chat')) {
+      noteRunActivity(report, pageAuthStep, 'Navigating the selected target to /dashboard/chat.');
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
     }
 
+    noteRunActivity(report, pageAuthStep, 'Waiting for Swop page content before authentication checks.');
     await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
-    await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
+    await runCardChecks({ client, baseUrl: args.chromeUrl, args, report, pageAuthStep });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
+    clearRunActivity(report);
   } catch (error) {
     report.status = 'fail';
     report.error = error.stack || error.message;
-    const activeStep = report.steps.find((step) => step.status === 'pending');
-    if (activeStep) finishStep(activeStep, 'fail', error.message);
+    markStepFailure(report, error);
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
@@ -1279,7 +1429,19 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+export {
+  buildCardCommandContracts,
+  createStep,
+  describeExceptionDetails,
+  ensureFailureStep,
+  finishStep,
+  markStepFailure,
+  noteRunActivity,
+};
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}
