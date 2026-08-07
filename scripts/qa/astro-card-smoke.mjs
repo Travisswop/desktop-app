@@ -5,6 +5,10 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
+import targetHelpers from './astro-card-targets.js';
+
+const { findFreshSwopChatTarget, listMatchingSwopChatTargets } = targetHelpers;
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
 const DEFAULT_CHROME_PORT = 9223;
@@ -362,28 +366,60 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
-async function getOrOpenSwopTarget(baseUrl, swopUrl) {
-  const targets = await listTargets(baseUrl);
-  const existing = targets.find(
-    (target) =>
-      target.type === 'page' &&
-      target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
-  );
-  if (existing) return existing;
+async function openFreshSwopTarget(
+  baseUrl,
+  swopUrl,
+  {
+    listTargetsImpl = listTargets,
+    openTargetImpl = openTarget,
+    closeTargetImpl = closeTarget,
+  } = {}
+) {
+  const targets = await listTargetsImpl(baseUrl);
+  const staleTargets = listMatchingSwopChatTargets(targets, swopUrl);
+  for (const target of staleTargets) {
+    await closeTargetImpl(baseUrl, target.id);
+  }
 
-  const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  const attemptedTargets = staleTargets.map(({ id, url }) => ({ id, url }));
+  const remainingTargets = await listTargetsImpl(baseUrl);
+  const remainingTargetIds = new Set(remainingTargets.map((target) => target.id));
+  const closedTargets = attemptedTargets.filter(({ id }) => !remainingTargetIds.has(id));
+  const opened = await openTargetImpl(baseUrl, swopUrl);
+  if (opened.webSocketDebuggerUrl) {
+    return {
+      target: opened,
+      attemptedTargets,
+      closedTargets,
+      reusedExisting: false,
+    };
+  }
 
-  const updated = await listTargets(baseUrl);
-  const target = updated.find(
-    (candidate) =>
-      candidate.type === 'page' &&
-      candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+  const updated = await listTargetsImpl(baseUrl);
+  const freshTarget = findFreshSwopChatTarget(
+    updated,
+    swopUrl,
+    staleTargets.map((target) => target.id)
   );
-  if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
-  return target;
+  if (freshTarget) {
+    return {
+      target: freshTarget,
+      attemptedTargets,
+      closedTargets,
+      reusedExisting: false,
+    };
+  }
+
+  const fallbackTarget = listMatchingSwopChatTargets(updated, swopUrl)[0];
+  if (!fallbackTarget) {
+    throw new Error('Could not open a fresh Swop chat tab through Chrome DevTools.');
+  }
+  return {
+    target: fallbackTarget,
+    attemptedTargets,
+    closedTargets,
+    reusedExisting: true,
+  };
 }
 
 class CdpClient {
@@ -901,12 +937,7 @@ async function runCardChecks({ client, baseUrl, args, report }) {
     return step;
   };
 
-  let step = add('page-auth');
-  await assertLoggedIn(client);
-  await selectThread(client, args.threadText);
-  finishStep(step, 'pass', `Authenticated chat loaded; selected thread containing "${args.threadText}".`);
-
-  step = add('portfolio-card');
+  let step = add('portfolio-card');
   await sendPrompt(client, 'show my portfolio');
   await waitForText(client, 'portfolio allocation card', ['Portfolio allocation'], 30000);
   finishStep(step, 'pass', 'Rendered wallet portfolio allocation card.');
@@ -1081,6 +1112,11 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    targetLifecycle: {
+      attemptedStaleChatTargets: [],
+      closedStaleChatTargets: [],
+      reusedExistingChatTarget: false,
+    },
     status: 'running',
   };
 
@@ -1105,18 +1141,43 @@ async function main() {
     return;
   }
 
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
-  const client = new CdpClient(target.webSocketDebuggerUrl);
-  await client.connect();
-
-  client.on('Log.entryAdded', (params) => {
-    if (params.entry?.level === 'error') report.console.errors.push(params.entry);
-  });
-  client.on('Runtime.exceptionThrown', (params) => {
-    report.console.exceptions.push(params.exceptionDetails);
-  });
-
+  let client = null;
   try {
+    const {
+      target,
+      attemptedTargets,
+      closedTargets,
+      reusedExisting,
+    } = await openFreshSwopTarget(args.chromeUrl, args.url);
+    report.targetLifecycle.attemptedStaleChatTargets = attemptedTargets;
+    report.targetLifecycle.closedStaleChatTargets = closedTargets;
+    report.targetLifecycle.reusedExistingChatTarget = reusedExisting;
+    if (closedTargets.length) {
+      report.warnings.push(
+        `Closed ${closedTargets.length} stale ${appOrigin(args.url)} /dashboard/chat QA target(s) before opening a fresh review tab.`
+      );
+    }
+    if (attemptedTargets.length > closedTargets.length) {
+      report.warnings.push(
+        `Chrome still exposed ${attemptedTargets.length - closedTargets.length} stale chat target(s) after cleanup; only confirmed closures are counted in targetLifecycle.closedStaleChatTargets.`
+      );
+    }
+    if (reusedExisting) {
+      report.warnings.push(
+        'Chrome DevTools did not expose a fresh /dashboard/chat target after cleanup; reusing an existing chat tab.'
+      );
+    }
+
+    client = new CdpClient(target.webSocketDebuggerUrl);
+    await client.connect();
+
+    client.on('Log.entryAdded', (params) => {
+      if (params.entry?.level === 'error') report.console.errors.push(params.entry);
+    });
+    client.on('Runtime.exceptionThrown', (params) => {
+      report.console.exceptions.push(params.exceptionDetails);
+    });
+
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Log.enable');
@@ -1135,7 +1196,20 @@ async function main() {
       await sleep(3000);
     }
 
+    const pageAuthStep = createStep(
+      'page-auth',
+      report.cardContracts.find((contract) => contract.step === 'page-auth') || null
+    );
+    report.steps.push(pageAuthStep);
     await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    await assertLoggedIn(client);
+    await selectThread(client, args.threadText);
+    finishStep(
+      pageAuthStep,
+      'pass',
+      `Authenticated chat loaded; selected thread containing "${args.threadText}".`
+    );
+
     await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
@@ -1161,7 +1235,7 @@ async function main() {
         writeReport(args, report);
       }
     }
-    await client.close();
+    if (client) await client.close();
   }
 
   const summary = {
@@ -1279,7 +1353,11 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+export { openFreshSwopTarget };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}
