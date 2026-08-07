@@ -18,6 +18,12 @@ Then it runs the QA harness from that worktree. Each JSON report records:
 - `gitRef`
 - `gitSha`
 
+For explicit localhost review runs, the harness now backfills those fields from
+the git worktree that is actually serving the chosen `localhost:<port>` target
+when `SWOP_QA_GIT_REF` / `SWOP_QA_GIT_SHA` are not provided explicitly. That
+keeps manual branch QA reports attributable even when multiple local review
+hosts exist.
+
 The default browser target is production:
 
 ```text
@@ -26,6 +32,44 @@ https://www.swopme.app/dashboard/chat
 
 That means the daily task is aimed at the live `main` surface, not a dirty local
 feature branch.
+
+## Auth Host Rule
+
+Do not use raw `*.vercel.app` preview URLs for authenticated Astro/Goldman QA by
+default. Privy login on those hosts can be blocked by allowed-origin /
+`frame-ancestors` policy before `/dashboard/chat` renders, which turns card QA
+into a preview-auth failure instead of a real surface check.
+
+Use one of these allowed auth surfaces for signed-in runtime proof instead:
+
+- `https://www.swopme.app/dashboard/chat` for production/main QA
+- `http://localhost:<clean-branch-port>/dashboard/chat` for branch-specific QA
+  from a clean local task worktree
+
+Outside the scheduled `origin/main` smoke, authenticated runs must now choose
+their host explicitly with `SWOP_QA_LOCAL_PORT`, `--local-port`, `SWOP_QA_URL`,
+or `--url`. That prevents a PR or review checkout from silently validating the
+production chat shell instead of the branch under review.
+
+If you intentionally want the default production host from a manual checkout,
+opt in explicitly:
+
+```bash
+SWOP_QA_ALLOW_DEFAULT_HOST=true \
+npm run qa:astro-cards -- --launch
+```
+
+If you intentionally need to confirm the preview-host auth blocker itself, opt
+in explicitly:
+
+```bash
+SWOP_QA_ALLOW_PREVIEW_HOST=true \
+SWOP_QA_URL="https://your-preview.vercel.app/dashboard/chat" \
+npm run qa:astro-cards -- --launch --json
+```
+
+Without that override, the smoke harness now fails fast with a `preview-auth-host`
+error and points the run back to an allowed host.
 
 ## What It Tests
 
@@ -86,17 +130,62 @@ Open the dedicated QA Chrome profile and log in to Swop once:
 npm run qa:astro-cards:login
 ```
 
+From a branch/review checkout, prefer an explicit target:
+
+```bash
+SWOP_QA_LOCAL_PORT=3001 \
+npm run qa:astro-cards:login
+```
+
 After login, close nothing if you want to verify immediately, or just run:
 
 ```bash
 npm run qa:astro-cards -- --launch
 ```
 
+For a branch-specific local task worktree, point the harness at the clean
+localhost port for that worktree instead of a shared dirty server:
+
+```bash
+SWOP_QA_LOCAL_PORT=3001 \
+npm run qa:astro-cards -- --launch
+```
+
+Or pass the port directly:
+
+```bash
+npm run qa:astro-cards -- --launch --local-port=3001
+```
+
+Invalid `SWOP_QA_LOCAL_PORT` / `--local-port` values now fail fast instead of
+silently falling back to the default host. Local-port runs also reuse only a
+matching `localhost:<port>/dashboard/chat` tab, so an authenticated
+`www.swopme.app` tab or another localhost port does not masquerade as branch
+coverage. Those runs also stamp the report with the git ref / sha of the server
+bound to that localhost port when the metadata is discoverable.
+
 The profile is stored at:
 
 ```text
 ~/.swop-card-qa-chrome
 ```
+
+If a run fails before `page-auth` with `blockedBy: "chrome-devtools-unresponsive"`
+or `blockedBy: "chrome-devtools-unavailable"` in `latest.json`, treat that as a
+QA browser-session problem, not an Astro/Goldman card regression. Relaunch the
+dedicated QA Chrome profile, re-run the one-time login if needed, and retry the
+same explicit host.
+
+If a run fails with `blockedBy: "qa-session-unauthenticated"`, the target host
+itself is reachable but the QA profile is signed out on that host. Re-run
+`npm run qa:astro-cards:login` against the same explicit `--local-port` or
+`--url` target before retrying the smoke.
+
+If a run fails with `blockedBy: "qa-env-misconfigured"`, the target host
+rendered a configuration shell before `page-auth` instead of the chat surface.
+Load the target worktree's required Privy env vars (for example
+`NEXT_PUBLIC_PRIVY_APP_ID`) into `.env.local` or the launch environment, then
+retry the same explicit host.
 
 ## Daily Launchd Task
 

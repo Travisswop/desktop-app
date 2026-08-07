@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const DEFAULT_SWOP_URL = 'https://www.swopme.app/dashboard/chat';
+const DEFAULT_LOCALHOST_QA_PORT = 3000;
 const DEFAULT_CHROME_PORT = 9223;
 const DEFAULT_CHROME_PROFILE = path.join(os.homedir(), '.swop-card-qa-chrome');
 const DEFAULT_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -14,7 +16,6 @@ const DEFAULT_ALERT_SUBJECT_PREFIX = '[Swop QA]';
 const DEFAULT_SWAP_INPUT_MINT = 'GAehkgN1ZDNvavX81FmzCcwRnzekKMkSyUNq8WkMsjX1';
 const DEFAULT_SWAP_OUTPUT_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const DEFAULT_SWAP_AMOUNT = '1000000000';
-
 const FINAL_ACTION_PATTERNS = [
   /sign\s*&\s*approve/i,
   /confirm send/i,
@@ -169,28 +170,36 @@ const CARD_COMMAND_CONTRACTS = [
   },
 ];
 
-function parseArgs(argv) {
+export function parseArgs(argv, env = process.env) {
+  const envLocalPort = parseOptionalPort(env.SWOP_QA_LOCAL_PORT || '', 'SWOP_QA_LOCAL_PORT');
+  const envUrl = String(env.SWOP_QA_URL || '').trim();
   const args = {
     launch: false,
     setupLogin: false,
-    url: process.env.SWOP_QA_URL || DEFAULT_SWOP_URL,
-    chromeUrl: process.env.SWOP_QA_CHROME_URL || '',
-    chromePath: process.env.CHROME_PATH || DEFAULT_CHROME_PATH,
-    chromePort: Number(process.env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
-    profileDir: process.env.SWOP_QA_CHROME_PROFILE || DEFAULT_CHROME_PROFILE,
+    url:
+      envUrl ||
+      (envLocalPort ? localhostQaUrl(envLocalPort) : DEFAULT_SWOP_URL),
+    localPort: envLocalPort,
+    explicitQaTarget: Boolean(envUrl || envLocalPort),
+    chromeUrl: env.SWOP_QA_CHROME_URL || '',
+    chromePath: env.CHROME_PATH || DEFAULT_CHROME_PATH,
+    chromePort: Number(env.SWOP_QA_CHROME_PORT || DEFAULT_CHROME_PORT),
+    profileDir: env.SWOP_QA_CHROME_PROFILE || DEFAULT_CHROME_PROFILE,
     logDir:
-      process.env.SWOP_QA_LOG_DIR ||
+      env.SWOP_QA_LOG_DIR ||
       path.resolve(process.cwd(), '..', '..', 'logs', 'astro-card-qa'),
-    timeoutMs: Number(process.env.SWOP_QA_TIMEOUT_MS || 120000),
-    threadText: process.env.SWOP_QA_THREAD || 'Trading Cabal',
-    alertEmail: process.env.SWOP_QA_ALERT_EMAIL || '',
+    timeoutMs: Number(env.SWOP_QA_TIMEOUT_MS || 120000),
+    threadText: env.SWOP_QA_THREAD || 'Trading Cabal',
+    alertEmail: env.SWOP_QA_ALERT_EMAIL || '',
     alertSubjectPrefix:
-      process.env.SWOP_QA_ALERT_SUBJECT_PREFIX || DEFAULT_ALERT_SUBJECT_PREFIX,
-    swapInputMint: process.env.SWOP_QA_SWAP_INPUT_MINT || DEFAULT_SWAP_INPUT_MINT,
-    swapOutputMint: process.env.SWOP_QA_SWAP_OUTPUT_MINT || DEFAULT_SWAP_OUTPUT_MINT,
-    swapAmount: process.env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
-    swapTaker: process.env.SWOP_QA_SWAP_TAKER || '',
-    swapOrderRequired: boolValue(process.env.SWOP_QA_SWAP_ORDER_REQUIRED),
+      env.SWOP_QA_ALERT_SUBJECT_PREFIX || DEFAULT_ALERT_SUBJECT_PREFIX,
+    swapInputMint: env.SWOP_QA_SWAP_INPUT_MINT || DEFAULT_SWAP_INPUT_MINT,
+    swapOutputMint: env.SWOP_QA_SWAP_OUTPUT_MINT || DEFAULT_SWAP_OUTPUT_MINT,
+    swapAmount: env.SWOP_QA_SWAP_AMOUNT || DEFAULT_SWAP_AMOUNT,
+    swapTaker: env.SWOP_QA_SWAP_TAKER || '',
+    swapOrderRequired: boolValue(env.SWOP_QA_SWAP_ORDER_REQUIRED),
+    allowDefaultHost: boolValue(env.SWOP_QA_ALLOW_DEFAULT_HOST),
+    allowPreviewHost: boolValue(env.SWOP_QA_ALLOW_PREVIEW_HOST),
     json: false,
   };
 
@@ -198,7 +207,15 @@ function parseArgs(argv) {
     if (arg === '--launch') args.launch = true;
     else if (arg === '--setup-login') args.setupLogin = true;
     else if (arg === '--json') args.json = true;
-    else if (arg.startsWith('--url=')) args.url = arg.slice('--url='.length);
+    else if (arg.startsWith('--url=')) {
+      args.url = arg.slice('--url='.length);
+      args.explicitQaTarget = true;
+    }
+    else if (arg.startsWith('--local-port=')) {
+      args.localPort = parseOptionalPort(arg.slice('--local-port='.length), '--local-port');
+      args.url = localhostQaUrl(args.localPort);
+      args.explicitQaTarget = true;
+    }
     else if (arg.startsWith('--chrome-url=')) args.chromeUrl = arg.slice('--chrome-url='.length);
     else if (arg.startsWith('--chrome-port=')) args.chromePort = Number(arg.slice('--chrome-port='.length));
     else if (arg.startsWith('--profile=')) args.profileDir = arg.slice('--profile='.length);
@@ -207,6 +224,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--alert-email=')) args.alertEmail = arg.slice('--alert-email='.length);
     else if (arg.startsWith('--swap-taker=')) args.swapTaker = arg.slice('--swap-taker='.length);
     else if (arg === '--swap-order-required') args.swapOrderRequired = true;
+    else if (arg === '--allow-default-host') args.allowDefaultHost = true;
+    else if (arg === '--allow-preview-host') args.allowPreviewHost = true;
     else if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -219,6 +238,260 @@ function parseArgs(argv) {
 
 function boolValue(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+export function parseOptionalPort(value, label = 'port') {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  throw new Error(`${label} must be a positive integer port. Received: ${normalized}`);
+}
+
+function localhostQaUrl(port = DEFAULT_LOCALHOST_QA_PORT) {
+  return `http://localhost:${port}/dashboard/chat`;
+}
+
+function buildAllowedAuthHostHints(args = {}) {
+  return [
+    DEFAULT_SWOP_URL,
+    args.localPort
+      ? localhostQaUrl(args.localPort)
+      : 'http://localhost:<clean-branch-port>/dashboard/chat',
+  ];
+}
+
+function isDefaultAuthHost(url) {
+  return isMatchingSwopTargetUrl(url, DEFAULT_SWOP_URL);
+}
+
+export function shouldBlockImplicitDefaultHost(args = {}, env = process.env) {
+  if (!isDefaultAuthHost(args.url)) return false;
+  if (args.allowDefaultHost || args.explicitQaTarget) return false;
+  return String(env.SWOP_QA_GIT_REF || '').trim() !== 'origin/main';
+}
+
+function loginHintForTarget(targetUrl = '') {
+  if (!targetUrl) {
+    return 'Re-run npm run qa:astro-cards:login against the same explicit host and retry.';
+  }
+
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port) {
+      return `Re-run SWOP_QA_LOCAL_PORT=${parsed.port} npm run qa:astro-cards:login and retry.`;
+    }
+  } catch {
+    // Fall through to the generic URL hint below.
+  }
+
+  return `Re-run SWOP_QA_URL="${targetUrl}" npm run qa:astro-cards:login and retry.`;
+}
+
+function missingEnvHintForTarget(targetUrl = '') {
+  if (!targetUrl) {
+    return 'Load the target host env (.env.local / launch env) with the required Privy variables and retry.';
+  }
+
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.protocol === 'http:' && parsed.hostname === 'localhost' && parsed.port) {
+      return `Load the localhost:${parsed.port} worktree env (.env.local / launch env) with the required Privy variables and retry.`;
+    }
+  } catch {
+    // Fall through to the generic URL hint below.
+  }
+
+  return `Load the env for ${targetUrl} with the required Privy variables and retry.`;
+}
+
+export function classifyQaBlocker(errorMessage, steps = [], targetUrl = '') {
+  const message = String(errorMessage || '');
+  const activeStep =
+    (Array.isArray(steps) &&
+      steps.find((step) => step && step.status === 'pending')?.name) ||
+    null;
+  const activeLabel = activeStep ? `during ${activeStep}` : 'before page-auth';
+
+  if (/Chrome DevTools did not become available/i.test(message)) {
+    return {
+      blockedBy: 'chrome-devtools-unavailable',
+      detail: `Chrome DevTools was not reachable ${activeLabel}. Relaunch the dedicated QA Chrome session and retry.`,
+    };
+  }
+
+  if (/Swop appears to be on a login screen/i.test(message)) {
+    return {
+      blockedBy: 'qa-session-unauthenticated',
+      detail: `The requested QA host was reachable but the chat shell was signed out ${activeLabel}. ${loginHintForTarget(targetUrl)}`,
+    };
+  }
+
+  if (
+    /Swop loaded a configuration error/i.test(message) ||
+    /Configuration Error/i.test(message) ||
+    /environment variable is not set/i.test(message) ||
+    /Missing required environment variables/i.test(message)
+  ) {
+    return {
+      blockedBy: 'qa-env-misconfigured',
+      detail: `The requested QA host rendered a configuration error ${activeLabel}. ${missingEnvHintForTarget(targetUrl)}`,
+    };
+  }
+
+  if (
+    /Chrome DevTools target became unresponsive/i.test(message) ||
+    /Runtime\.(evaluate|callFunctionOn) timed out/i.test(message) ||
+    /Timed out connecting to Chrome target/i.test(message) ||
+    /Chrome target WebSocket connection failed/i.test(message) ||
+    /Page\.[A-Za-z]+ timed out/i.test(message) ||
+    /DOM\.[A-Za-z]+ timed out/i.test(message) ||
+    /Input\.[A-Za-z]+ timed out/i.test(message)
+  ) {
+    return {
+      blockedBy: 'chrome-devtools-unresponsive',
+      detail: `Chrome DevTools became unresponsive ${activeLabel}. Reset the dedicated QA Chrome session and retry.`,
+    };
+  }
+
+  return null;
+}
+
+function parseLocalhostPortFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' || parsed.hostname !== 'localhost' || !parsed.port) {
+      return null;
+    }
+    return parseOptionalPort(parsed.port, 'localhost port');
+  } catch {
+    return null;
+  }
+}
+
+function runCommandCapture(command, args) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) return '';
+  return String(result.stdout || '').trim();
+}
+
+function firstNonEmptyLine(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) || '';
+}
+
+function parseLsofCwd(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .find((line) => line.startsWith('n'))
+    ?.slice(1)
+    .trim() || '';
+}
+
+function resolveGitRefForWorktree(worktreePath, runCommand = runCommandCapture) {
+  const branch = String(
+    runCommand('git', ['-C', worktreePath, 'branch', '--show-current']) || ''
+  ).trim();
+  if (branch) return branch;
+
+  const described = String(
+    runCommand('git', ['-C', worktreePath, 'describe', '--all', '--always']) || ''
+  ).trim();
+  if (described) return described;
+
+  const shortSha = String(
+    runCommand('git', ['-C', worktreePath, 'rev-parse', '--short', 'HEAD']) || ''
+  ).trim();
+  return shortSha || null;
+}
+
+export function inferGitMetadata(args = {}, env = process.env, runCommand = runCommandCapture) {
+  const explicitRef = String(env.SWOP_QA_GIT_REF || '').trim();
+  const explicitSha = String(env.SWOP_QA_GIT_SHA || '').trim();
+  if (explicitRef || explicitSha) {
+    return {
+      gitRef: explicitRef || null,
+      gitSha: explicitSha || null,
+      gitMetadataSource: 'env',
+    };
+  }
+
+  const localhostPort = args.localPort || parseLocalhostPortFromUrl(args.url || '');
+  if (!localhostPort) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: null,
+    };
+  }
+
+  const listenerPid = firstNonEmptyLine(
+    runCommand('lsof', ['-ti', `tcp:${localhostPort}`, '-sTCP:LISTEN'])
+  );
+  if (!listenerPid) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: `localhost:${localhostPort}`,
+    };
+  }
+
+  const worktreePath = parseLsofCwd(
+    runCommand('lsof', ['-a', '-p', listenerPid, '-d', 'cwd', '-Fn'])
+  );
+  if (!worktreePath) {
+    return {
+      gitRef: null,
+      gitSha: null,
+      gitMetadataSource: `localhost:${localhostPort}`,
+    };
+  }
+
+  const gitSha =
+    String(runCommand('git', ['-C', worktreePath, 'rev-parse', 'HEAD']) || '').trim() || null;
+  const gitRef = resolveGitRefForWorktree(worktreePath, runCommand);
+
+  return {
+    gitRef,
+    gitSha,
+    gitMetadataSource: `localhost:${localhostPort}`,
+  };
+}
+
+function implicitDefaultHostBlockerMessage(env = process.env, allowedAuthHostHints) {
+  const gitRef = String(env.SWOP_QA_GIT_REF || '').trim();
+  const refLabel = gitRef ? ` for ${gitRef}` : '';
+  return [
+    `Authenticated QA cannot use the implicit production default host${refLabel} without an explicit opt-in.`,
+    'Choose the review surface explicitly so branch validation cannot silently run against production:',
+    '- pass --local-port=<clean-branch-port> or set SWOP_QA_LOCAL_PORT=<clean-branch-port>',
+    '- or pass --url=http://localhost:<clean-branch-port>/dashboard/chat',
+    '- or pass --url=https://www.swopme.app/dashboard/chat when you intentionally want production/main QA',
+    ...allowedAuthHostHints.map((value) => `Suggested host: ${value}`),
+    'If you intentionally want the implicit production default host from a manual checkout, rerun with SWOP_QA_ALLOW_DEFAULT_HOST=true or --allow-default-host.',
+  ].join('\n');
+}
+
+function isPreviewHost(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
+function previewHostBlockerMessage(url, allowedAuthHostHints) {
+  return [
+    `Authenticated QA on ${url} is blocked by Privy allowed-origin/frame-ancestors policy for raw preview hosts.`,
+    'Use an allowed auth surface for runtime proof instead, such as:',
+    ...allowedAuthHostHints.map((value) => `- ${value}`),
+    'If you intentionally need the blocked preview-auth diagnostic path, rerun with SWOP_QA_ALLOW_PREVIEW_HOST=true or --allow-preview-host.',
+  ].join('\n');
 }
 
 function buildCardCommandContracts(args) {
@@ -252,10 +525,15 @@ Usage:
   node scripts/qa/astro-card-smoke.mjs --chrome-url=http://127.0.0.1:9222
   node scripts/qa/astro-card-smoke.mjs --launch --alert-email=you@example.com
   node scripts/qa/astro-card-smoke.mjs --launch --swap-taker=<funded-solana-wallet>
+  node scripts/qa/astro-card-smoke.mjs --launch --local-port=3001
+  node scripts/qa/astro-card-smoke.mjs --launch --allow-default-host
 
 Modes:
   --setup-login  Opens the QA Chrome profile to Swop and exits so you can log in once.
   --launch       Starts a dedicated Chrome profile with remote debugging if needed.
+  --local-port   Uses http://localhost:<port>/dashboard/chat for clean branch-specific QA.
+  --allow-default-host  Allows the implicit production default host outside the scheduled origin/main smoke.
+  --allow-preview-host  Allows raw .vercel.app preview URLs for auth-blocker diagnostics only.
 
 Alerts:
   Set SWOP_QA_ALERT_EMAIL or pass --alert-email to email a failure report.
@@ -295,12 +573,26 @@ function finishStep(step, status, detail = '') {
   return step;
 }
 
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status}`);
+async function fetchJson(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`${url} returned ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`${url} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
 }
 
 async function waitForChrome(baseUrl, timeoutMs = 20000) {
@@ -308,7 +600,7 @@ async function waitForChrome(baseUrl, timeoutMs = 20000) {
   let lastError = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      return await fetchJson(`${baseUrl}/json/version`);
+      return await fetchJson(`${baseUrl}/json/version`, {}, 2000);
     } catch (error) {
       lastError = error;
       await sleep(500);
@@ -342,15 +634,15 @@ function launchChrome(args) {
 }
 
 async function listTargets(baseUrl) {
-  return fetchJson(`${baseUrl}/json/list`);
+  return fetchJson(`${baseUrl}/json/list`, {}, 5000);
 }
 
 async function openTarget(baseUrl, url) {
   const endpoint = `${baseUrl}/json/new?${encodeURIComponent(url)}`;
   try {
-    return await fetchJson(endpoint, { method: 'PUT' });
+    return await fetchJson(endpoint, { method: 'PUT' }, 5000);
   } catch {
-    return fetchJson(endpoint);
+    return fetchJson(endpoint, {}, 5000);
   }
 }
 
@@ -362,25 +654,40 @@ async function closeTarget(baseUrl, targetId) {
   }
 }
 
+function normalizeSwopTargetUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+export function isMatchingSwopTargetUrl(targetUrl, swopUrl) {
+  const desired = normalizeSwopTargetUrl(swopUrl);
+  const current = normalizeSwopTargetUrl(targetUrl);
+  return Boolean(desired && current && desired === current);
+}
+
 async function getOrOpenSwopTarget(baseUrl, swopUrl) {
   const targets = await listTargets(baseUrl);
   const existing = targets.find(
     (target) =>
       target.type === 'page' &&
       target.webSocketDebuggerUrl &&
-      String(target.url || '').includes('/dashboard/chat')
+      isMatchingSwopTargetUrl(target.url, swopUrl)
   );
   if (existing) return existing;
 
   const opened = await openTarget(baseUrl, swopUrl);
-  if (opened.webSocketDebuggerUrl) return opened;
+  if (opened.webSocketDebuggerUrl && isMatchingSwopTargetUrl(opened.url, swopUrl)) return opened;
 
   const updated = await listTargets(baseUrl);
   const target = updated.find(
     (candidate) =>
       candidate.type === 'page' &&
       candidate.webSocketDebuggerUrl &&
-      String(candidate.url || '').includes('/dashboard/chat')
+      isMatchingSwopTargetUrl(candidate.url, swopUrl)
   );
   if (!target) throw new Error('Could not open a Swop chat tab through Chrome DevTools.');
   return target;
@@ -473,6 +780,20 @@ async function pageText(client) {
   return evaluate(client, () => document.body?.innerText || '');
 }
 
+export function detectSwopShellState(text) {
+  const normalized = String(text || '');
+  if (/Messages/i.test(normalized) && /Astro/i.test(normalized)) return 'chat';
+  if (
+    /Configuration Error/i.test(normalized) ||
+    /environment variable is not set/i.test(normalized) ||
+    /Missing required environment variables/i.test(normalized)
+  ) {
+    return 'config-error';
+  }
+  if (/sign in|log in|login/i.test(normalized) && !/Messages/i.test(normalized)) return 'login';
+  return null;
+}
+
 async function waitFor(client, description, predicate, timeoutMs = 30000, intervalMs = 750) {
   const started = Date.now();
   let lastValue = null;
@@ -497,6 +818,23 @@ async function waitForText(client, description, patterns, timeoutMs = 30000) {
     },
     timeoutMs
   );
+}
+
+async function assertChromeTargetResponsive(client, phase = 'before page-auth') {
+  try {
+    await client.send(
+      'Runtime.evaluate',
+      {
+        expression: 'document.readyState',
+        returnByValue: true,
+      },
+      5000
+    );
+  } catch (error) {
+    throw new Error(
+      `Chrome DevTools target became unresponsive ${phase}: ${error.message}`
+    );
+  }
 }
 
 function appOrigin(url) {
@@ -853,9 +1191,20 @@ async function sendPrompt(client, prompt) {
 }
 
 async function assertLoggedIn(client) {
-  await waitForText(client, 'authenticated chat shell', [/Messages/i, /Astro/i], 45000);
-  const text = await pageText(client);
-  if (/sign in|log in|login/i.test(text) && !/Messages/i.test(text)) {
+  const state = await waitFor(
+    client,
+    'authenticated chat shell, configuration error, or login screen',
+    async () => {
+      return detectSwopShellState(await pageText(client)) || false;
+    },
+    45000
+  );
+  if (state === 'config-error') {
+    throw new Error(
+      'Swop loaded a configuration error. Required Privy environment variables are missing for this QA host.'
+    );
+  }
+  if (state === 'login') {
     throw new Error('Swop appears to be on a login screen. Run --setup-login first and sign in.');
   }
 }
@@ -1052,7 +1401,9 @@ async function tryPredictionOutcomeClick(client) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const allowedAuthHostHints = buildAllowedAuthHostHints(args);
   const cardContracts = buildCardCommandContracts(args);
+  const gitMetadata = inferGitMetadata(args, process.env);
   const report = {
     name: 'astro-card-smoke',
     startedAt: timestamp(),
@@ -1060,8 +1411,9 @@ async function main() {
     url: args.url,
     chromeUrl: args.chromeUrl,
     profileDir: args.profileDir,
-    gitRef: process.env.SWOP_QA_GIT_REF || null,
-    gitSha: process.env.SWOP_QA_GIT_SHA || null,
+    gitRef: gitMetadata.gitRef,
+    gitSha: gitMetadata.gitSha,
+    gitMetadataSource: gitMetadata.gitMetadataSource,
     swapQa: {
       inputMint: args.swapInputMint,
       outputMint: args.swapOutputMint,
@@ -1081,42 +1433,98 @@ async function main() {
       errors: [],
       exceptions: [],
     },
+    blockedBy: null,
     status: 'running',
   };
 
   mkdirSync(args.logDir, { recursive: true });
 
-  if (args.launch || args.setupLogin) {
-    try {
-      await waitForChrome(args.chromeUrl, 1200);
-    } catch {
-      const pid = launchChrome(args);
-      report.warnings.push(`Launched Chrome QA profile with pid ${pid}.`);
-    }
-  }
-
-  await waitForChrome(args.chromeUrl, 30000);
-
-  if (args.setupLogin) {
-    report.status = 'setup-login';
+  if (shouldBlockImplicitDefaultHost(args, process.env)) {
+    report.status = 'fail';
+    report.blockedBy = 'implicit-default-host';
+    report.error = implicitDefaultHostBlockerMessage(process.env, allowedAuthHostHints);
     report.finishedAt = timestamp();
     writeReport(args, report);
-    console.log(`Chrome QA profile is open at ${args.url}. Log in once, then run npm run qa:astro-cards -- --launch.`);
+    process.exitCode = 1;
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: report.status,
+            failed: 1,
+            warnings: 0,
+            blockedBy: 'implicit-default-host',
+            recommendedUrls: allowedAuthHostHints,
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(report.error);
+    }
     return;
   }
 
-  const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
-  const client = new CdpClient(target.webSocketDebuggerUrl);
-  await client.connect();
+  if (isPreviewHost(args.url) && !args.allowPreviewHost) {
+    report.status = 'fail';
+    report.blockedBy = 'preview-auth-host';
+    report.error = previewHostBlockerMessage(args.url, allowedAuthHostHints);
+    report.finishedAt = timestamp();
+    writeReport(args, report);
+    process.exitCode = 1;
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            status: report.status,
+            failed: 1,
+            warnings: 0,
+            blockedBy: 'preview-auth-host',
+            recommendedUrls: allowedAuthHostHints,
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      console.error(report.error);
+    }
+    return;
+  }
 
-  client.on('Log.entryAdded', (params) => {
-    if (params.entry?.level === 'error') report.console.errors.push(params.entry);
-  });
-  client.on('Runtime.exceptionThrown', (params) => {
-    report.console.exceptions.push(params.exceptionDetails);
-  });
+  let client = null;
+  let setupLoginOnly = false;
 
   try {
+    if (args.launch || args.setupLogin) {
+      try {
+        await waitForChrome(args.chromeUrl, 1200);
+      } catch {
+        const pid = launchChrome(args);
+        report.warnings.push(`Launched Chrome QA profile with pid ${pid}.`);
+      }
+    }
+
+    await waitForChrome(args.chromeUrl, 30000);
+
+    if (args.setupLogin) {
+      report.status = 'setup-login';
+      setupLoginOnly = true;
+      return;
+    }
+
+    const target = await getOrOpenSwopTarget(args.chromeUrl, args.url);
+    client = new CdpClient(target.webSocketDebuggerUrl);
+    await client.connect();
+
+    client.on('Log.entryAdded', (params) => {
+      if (params.entry?.level === 'error') report.console.errors.push(params.entry);
+    });
+    client.on('Runtime.exceptionThrown', (params) => {
+      report.console.exceptions.push(params.exceptionDetails);
+    });
+
     await client.send('Page.enable');
     await client.send('Runtime.enable');
     await client.send('Log.enable');
@@ -1128,21 +1536,46 @@ async function main() {
       mobile: false,
     });
     await client.send('Page.bringToFront');
+    await assertChromeTargetResponsive(client, 'before page-auth');
 
     const currentUrl = target.url || '';
-    if (!currentUrl.includes('/dashboard/chat')) {
+    if (!isMatchingSwopTargetUrl(currentUrl, args.url)) {
       await client.send('Page.navigate', { url: args.url });
       await sleep(3000);
+      await assertChromeTargetResponsive(client, 'after navigation');
     }
 
-    await waitForText(client, 'Swop page content', ['Swop', 'Messages'], args.timeoutMs);
+    await waitForText(
+      client,
+      'Swop page content',
+      ['Swop', 'Messages', 'Configuration Error', 'environment variable is not set'],
+      args.timeoutMs
+    );
     await runCardChecks({ client, baseUrl: args.chromeUrl, args, report });
     report.status = report.steps.some((step) => step.status === 'fail') ? 'fail' : 'pass';
   } catch (error) {
     report.status = 'fail';
     report.error = error.stack || error.message;
     const activeStep = report.steps.find((step) => step.status === 'pending');
-    if (activeStep) finishStep(activeStep, 'fail', error.message);
+    const blocker = classifyQaBlocker(report.error, report.steps, args.url);
+    const failureDetail = blocker
+      ? `${blocker.detail} Chrome endpoint: ${args.chromeUrl}.`
+      : error.message;
+    if (activeStep) finishStep(activeStep, 'fail', failureDetail);
+    else if (blocker) {
+      report.steps.push(
+        finishStep(
+          createStep('chrome-devtools-health'),
+          'fail',
+          failureDetail
+        )
+      );
+    }
+    if (blocker) {
+      report.blockedBy = blocker.blockedBy;
+      report.warnings.push(failureDetail);
+      report.error = `${failureDetail}\n\nOriginal error:\n${report.error}`;
+    }
     process.exitCode = 1;
   } finally {
     report.finishedAt = timestamp();
@@ -1161,7 +1594,14 @@ async function main() {
         writeReport(args, report);
       }
     }
-    await client.close();
+    await client?.close();
+  }
+
+  if (setupLoginOnly) {
+    console.log(
+      `Chrome QA profile is open at ${args.url}. Log in once, then run npm run qa:astro-cards -- --launch.`
+    );
+    return;
   }
 
   const summary = {
@@ -1170,6 +1610,7 @@ async function main() {
     skipped: report.steps.filter((step) => step.status === 'skip').length,
     failed: report.steps.filter((step) => step.status === 'fail').length,
     warnings: report.warnings.length,
+    blockedBy: report.blockedBy,
     contracts: report.cardContracts.length,
     logDir: args.logDir,
   };
@@ -1279,7 +1720,9 @@ async function sendFailureEmail(args, report, reportPath) {
   };
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error.stack || error.message);
+    process.exit(1);
+  });
+}
