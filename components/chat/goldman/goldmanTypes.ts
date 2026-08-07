@@ -221,3 +221,56 @@ export type GoldmanActivityEntry = {
   label?: string | null;
   detail?: string | null;
 };
+
+// --- Allocation rebalance (console REBALANCE button) ---
+
+export type GoldmanAllocationBucket = {
+  key: 'perps' | 'predictions' | 'wallet';
+  label: string;
+  currentUsd: number;
+  currentPct: number;
+  // null = no percentage set for that bucket, so it is left unmanaged.
+  targetPct: number | null;
+  targetUsd: number | null;
+  driftUsd: number | null;
+};
+
+export type GoldmanRebalanceMove = {
+  venue: 'perps' | 'predictions';
+  action: 'fund' | 'withdraw';
+  amountUsd: number;
+  detail: string;
+};
+
+export type GoldmanRebalanceBlocker = {
+  venue: 'perps' | 'predictions' | null;
+  reason: string;
+  detail: string;
+};
+
+export type GoldmanRebalancePlan = {
+  totalUsd: number;
+  reserveUsd: number;
+  availableUsd: number;
+  targetsConfigured: boolean;
+  buckets: GoldmanAllocationBucket[];
+  moves: GoldmanRebalanceMove[];
+  blockers: GoldmanRebalanceBlocker[];
+};
+
+export type GoldmanRebalanceLeg = {
+  venue: 'perps' | 'predictions';
+  action: 'fund' | 'withdraw';
+  requestedUsd: number;
+  status: string;
+  amountUsd: number | null;
+  transactionHash: string | null;
+  detail: string | null;
+};
+
+export type GoldmanRebalanceResult = {
+  supported: boolean;
+  dryRun: boolean;
+  plan: GoldmanRebalancePlan | null;
+  executed: GoldmanRebalanceLeg[];
+};

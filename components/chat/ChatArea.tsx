@@ -96,6 +96,7 @@ import {
   QrCode,
   Radio,
   RefreshCw,
+  Scale,
   Search,
   Send,
   ShieldCheck,
@@ -195,6 +196,7 @@ import { StrategyApprovalModal } from '@/components/chat/goldman/StrategyApprova
 import GoldmanWithdrawModal from '@/components/chat/goldman/GoldmanWithdrawModal';
 import { GoldmanPerformanceSection } from '@/components/chat/goldman/GoldmanPerformanceSection';
 import { AUTONOMY_GATE_EXPLAINER } from '@/components/chat/goldman/goldmanAutonomy';
+import { buildGoldmanAllocationRows } from '@/components/chat/goldman/goldmanAllocation';
 import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFeed';
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
@@ -202,6 +204,7 @@ import {
   archiveGoldmanStrategy,
   closeGoldmanPosition,
   closeGoldmanPredictionPosition,
+  rebalanceGoldmanVault,
 } from '@/components/chat/goldman/goldmanApi';
 import {
   AlertDialog,
@@ -215,6 +218,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import type {
   GoldmanActivityEntry,
+  GoldmanRebalanceLeg,
+  GoldmanRebalancePlan,
   GoldmanStrategyFile,
   GoldmanStrategyRuntimeCardPayload,
   GoldmanStrategyVault,
@@ -9176,6 +9181,78 @@ function GoldmanAccessStation({
     }
   }, [closeTarget, groupId, accessToken, perpsQueryClient]);
 
+  // Allocation rebalance. The ALLOCATION dials only steered sizing inside a
+  // running cycle, so an idle vault never drifted back toward its targets —
+  // this is the on-demand correction. Always previews (server dry run) before
+  // it moves anything, because the legs are real swaps and bridge deposits.
+  const [rebalancePlan, setRebalancePlan] = useState<GoldmanRebalancePlan | null>(
+    null
+  );
+  const [rebalanceLegs, setRebalanceLegs] = useState<GoldmanRebalanceLeg[]>([]);
+  const [isRebalancing, setIsRebalancing] = useState(false);
+  const [rebalanceSupported, setRebalanceSupported] = useState(true);
+
+  const runRebalance = useCallback(
+    async (dryRun: boolean) => {
+      if (!groupId || !accessToken) {
+        toast.error('Rebalancing is not available from this panel.');
+        return;
+      }
+      setIsRebalancing(true);
+      try {
+        const result = await rebalanceGoldmanVault({
+          groupId,
+          accessToken,
+          dryRun,
+        });
+        if (!result.supported) {
+          setRebalanceSupported(false);
+          toast.error('This vault’s backend does not support rebalancing yet.');
+          return;
+        }
+        setRebalancePlan(result.plan);
+        setRebalanceLegs(result.executed);
+        if (dryRun) {
+          if (!result.plan?.moves.length) {
+            toast.success(
+              result.plan?.blockers[0]?.detail ||
+                'Already within tolerance of your allocation targets.'
+            );
+          }
+          return;
+        }
+        const moved = result.executed.filter(
+          (leg) => leg.status === 'executed'
+        ).length;
+        if (moved > 0) {
+          toast.success(
+            `Rebalance submitted — ${moved} leg${moved === 1 ? '' : 's'} on the way.`
+          );
+          await perpsQueryClient.invalidateQueries({
+            predicate: (query) =>
+              String(query.queryKey?.[0] ?? '')
+                .toLowerCase()
+                .includes('goldman') || query.queryKey?.[0] === 'hl-positions',
+          });
+        } else {
+          toast.error(
+            result.executed[0]?.detail ||
+              'Nothing moved — see the notes below the button.'
+          );
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'The rebalance could not be started.'
+        );
+      } finally {
+        setIsRebalancing(false);
+      }
+    },
+    [groupId, accessToken, perpsQueryClient]
+  );
+
   const openStrategyFileEditor = useCallback((file: GoldmanStrategyFile) => {
     setEditingStrategyFile(file);
     setStrategyFileDraft(file.content || '');
@@ -9329,6 +9406,14 @@ function GoldmanAccessStation({
       .reduce((sum, position) => sum + toFiniteNumber(position.currentValue), 0);
   const vaultPerpsUsd = toFiniteNumber(consoleData?.perpsAccount?.accountValue);
   const vaultTotalUsd = vaultWalletUsd + vaultPredictionsUsd + vaultPerpsUsd;
+  // Target-vs-actual strip driving the REBALANCE control.
+  const allocationTargetRows = buildGoldmanAllocationRows({
+    perpsTargetPct: Number(limits.perpsAllocationPct) || 0,
+    predictionsTargetPct: Number(limits.predictionsAllocationPct) || 0,
+    walletUsd: vaultWalletUsd,
+    predictionsUsd: vaultPredictionsUsd,
+    perpsUsd: vaultPerpsUsd,
+  });
   const vaultTokenRows = (consoleData?.walletPortfolioTokens || [])
     .map((token) => ({
       key: `${token.symbol}-${token.chain}-${token.address || 'native'}`,
@@ -9420,6 +9505,147 @@ function GoldmanAccessStation({
             </div>
           ))}
         </div>
+
+        {allocationTargetRows.length > 0 && rebalanceSupported && (
+          <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                allocation
+              </span>
+              <button
+                type="button"
+                data-testid="goldman-rebalance-button"
+                // Each keystroke in an ALLOCATION box persists on its own, so
+                // planning mid-save would read the previous percentage.
+                disabled={isRebalancing || isVaultBusy || isSavingAccessStation}
+                onClick={() => {
+                  setRebalanceLegs([]);
+                  void runRebalance(true);
+                }}
+                className="dm-btn dm-mono flex h-6 items-center gap-1 rounded-[6px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 px-2 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
+              >
+                {isRebalancing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Scale className="h-3 w-3" />
+                )}
+                Rebalance
+              </button>
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {allocationTargetRows.map((row) => (
+                <div
+                  key={row.key}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="dm-mono text-[9.5px] font-semibold uppercase tracking-[0.06em] text-[#9396a0]">
+                    {row.key}
+                  </span>
+                  <span className="dm-mono flex items-center gap-1.5 text-[9.5px] font-semibold">
+                    <span className="text-[#cdd0d7]">{row.currentPct}%</span>
+                    <span className="text-[#5a5e69]">→</span>
+                    <span className="text-[#f4c95d]">{row.targetPct}%</span>
+                    <span
+                      className={`min-w-[52px] text-right ${
+                        Math.abs(row.driftUsd) < 1
+                          ? 'text-[#5a5e69]'
+                          : row.driftUsd > 0
+                          ? 'text-[#3fe08f]'
+                          : 'text-[#ff8585]'
+                      }`}
+                    >
+                      {row.driftUsd > 0 ? '+' : ''}
+                      {formatCompactUsd(row.driftUsd)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {rebalancePlan && (
+              <div className="mt-2 border-t border-white/[0.06] pt-2">
+                {rebalancePlan.moves.length > 0 && (
+                  <>
+                    <div className="space-y-1">
+                      {rebalancePlan.moves.map((planMove, index) => (
+                        <div
+                          key={`${planMove.venue}-${planMove.action}-${index}`}
+                          className="flex items-start gap-1.5"
+                        >
+                          <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-[#f4c95d]" />
+                          <span className="text-[9.5px] leading-snug text-[#c9cdd6]">
+                            {planMove.detail}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {rebalanceLegs.length === 0 && (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          data-testid="goldman-rebalance-confirm"
+                          disabled={isRebalancing}
+                          onClick={() => void runRebalance(false)}
+                          className="dm-btn dm-mono flex h-7 items-center justify-center gap-1.5 rounded-[7px] border border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[9px] font-bold uppercase tracking-[0.08em] text-[#3fe08f] disabled:cursor-default disabled:opacity-50"
+                        >
+                          {isRebalancing ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : null}
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isRebalancing}
+                          onClick={() => {
+                            setRebalancePlan(null);
+                            setRebalanceLegs([]);
+                          }}
+                          className="dm-btn dm-mono flex h-7 items-center justify-center rounded-[7px] border border-white/[0.07] bg-black/20 text-[9px] font-bold uppercase tracking-[0.08em] text-[#9396a0] disabled:cursor-default disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+                {rebalanceLegs.length > 0 && (
+                  <div className="space-y-1">
+                    {rebalanceLegs.map((leg, index) => (
+                      <div
+                        key={`${leg.venue}-${leg.action}-${index}`}
+                        className="flex items-start gap-1.5"
+                      >
+                        <span
+                          className={`mt-[3px] h-1 w-1 shrink-0 rounded-full ${
+                            leg.status === 'executed'
+                              ? 'bg-[#3fe08f]'
+                              : leg.status === 'proposal'
+                              ? 'bg-[#f4c95d]'
+                              : 'bg-[#ff5d63]'
+                          }`}
+                        />
+                        <span className="text-[9.5px] leading-snug text-[#9aa0ab]">
+                          <span className="font-semibold uppercase text-[#c9cdd6]">
+                            {leg.venue}
+                          </span>{' '}
+                          {leg.detail || leg.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {rebalancePlan.blockers.map((blocker, index) => (
+                  <div
+                    key={`${blocker.reason}-${index}`}
+                    className="mt-1.5 text-[9.5px] leading-snug text-[#d7c987]"
+                  >
+                    {blocker.detail}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {vaultTokenRows.length > 0 && (
           <div className="mt-2 max-h-[128px] overflow-y-auto rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">

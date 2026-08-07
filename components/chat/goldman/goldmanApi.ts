@@ -12,6 +12,8 @@ import type {
   GoldmanAutonomyLevel,
   GoldmanAutonomyResult,
   GoldmanBrainState,
+  GoldmanRebalancePlan,
+  GoldmanRebalanceResult,
 } from './goldmanTypes';
 
 function goldmanAgentUrl(groupId: string, suffix: string) {
@@ -408,4 +410,61 @@ export async function closeGoldmanPredictionPosition({
     ?.data?.closed;
   if (!closed?.tokenId) throw new Error('Could not close that position.');
   return closed;
+}
+
+/**
+ * Rebalance the vault toward the console's ALLOCATION percentages.
+ *
+ * `dryRun: true` returns the plan (bucket drift + the legs that would move)
+ * without touching money — the button previews first, then executes on
+ * confirm. A 404 means the backend hasn't shipped the endpoint yet, so the
+ * control hides rather than erroring.
+ */
+export async function rebalanceGoldmanVault({
+  groupId,
+  accessToken,
+  dryRun = false,
+}: {
+  groupId: string;
+  accessToken: string;
+  dryRun?: boolean;
+}): Promise<GoldmanRebalanceResult> {
+  const response = await apiFetch(
+    goldmanAgentUrl(groupId, '/strategy-vault/rebalance'),
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders(accessToken),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ dryRun }),
+    }
+  );
+
+  if (response.status === 404) {
+    return { supported: false, dryRun, plan: null, executed: [] };
+  }
+
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      (body as { message?: string } | null)?.message ||
+        `Rebalance failed (${response.status})`
+    );
+  }
+
+  const data = (body as {
+    data?: {
+      dryRun?: boolean;
+      plan?: GoldmanRebalancePlan;
+      executed?: GoldmanRebalanceResult['executed'];
+    };
+  } | null)?.data;
+
+  return {
+    supported: true,
+    dryRun: Boolean(data?.dryRun ?? dryRun),
+    plan: data?.plan ?? null,
+    executed: Array.isArray(data?.executed) ? data.executed : [],
+  };
 }
