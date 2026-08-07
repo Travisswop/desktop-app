@@ -98,6 +98,7 @@ import {
   RefreshCw,
   Scale,
   Search,
+  Sparkles,
   Send,
   ShieldCheck,
   Upload,
@@ -9408,6 +9409,18 @@ function GoldmanAccessStation({
     );
   }, [onQuickCommand]);
 
+  // Hands the playbook off to Goldman in chat. It asks what you want in the
+  // file and offers three starting points before writing anything — the value
+  // is in the conversation, so this seeds it rather than generating blind.
+  const handleDraftPlaybookWithAi = useCallback(
+    (fileName: string) => {
+      onQuickCommand?.(
+        `@goldman help me write my ${fileName} playbook — ask me what I want in it and suggest three approaches that fit this vault`
+      );
+    },
+    [onQuickCommand]
+  );
+
   const handleExplainStrategy = useCallback(() => {
     if (activeStrategy?.title) {
       onQuickCommand?.(
@@ -10204,29 +10217,47 @@ function GoldmanAccessStation({
                     if (!laneFile) return null;
                     const authored = Boolean(laneFile.updatedAt);
                     return (
-                      <button
-                        type="button"
-                        onClick={() => openStrategyFileEditor(laneFile)}
-                        className="mb-1.5 flex w-full items-center justify-between rounded-[8px] border border-white/[0.07] bg-black/25 px-2.5 py-1.5 text-left hover:border-[#f4c95d]/40"
-                      >
-                        <span className="min-w-0">
-                          <span className="dm-mono block truncate text-[10px] font-semibold text-[#c9cdd6]">
-                            {laneFile.file}
-                          </span>
-                          <span className="dm-mono block truncate text-[8.5px] text-[#5a5e69]">
-                            {authored ? 'rules attached' : 'no rules yet — tap to write'}
-                          </span>
-                        </span>
-                        <span
-                          className={`dm-mono shrink-0 rounded-[5px] border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] ${
-                            authored
-                              ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
-                              : 'border-white/[0.08] bg-black/30 text-[#737783]'
-                          }`}
+                      // Two affordances, so the row is a div: write it yourself
+                      // (opens the editor) or write it WITH Goldman. Most owners
+                      // know what they want to trade but not how to phrase it as
+                      // standing rules, and the blank editor was the dead end.
+                      <div className="mb-1.5 flex items-stretch gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openStrategyFileEditor(laneFile)}
+                          className="flex min-w-0 flex-1 items-center justify-between rounded-[8px] border border-white/[0.07] bg-black/25 px-2.5 py-1.5 text-left hover:border-[#f4c95d]/40"
                         >
-                          {authored ? 'edit' : 'add'}
-                        </span>
-                      </button>
+                          <span className="min-w-0">
+                            <span className="dm-mono block truncate text-[10px] font-semibold text-[#c9cdd6]">
+                              {laneFile.file}
+                            </span>
+                            <span className="dm-mono block truncate text-[8.5px] text-[#5a5e69]">
+                              {authored
+                                ? 'rules attached'
+                                : 'no rules yet — write it or ask Goldman'}
+                            </span>
+                          </span>
+                          <span
+                            className={`dm-mono shrink-0 rounded-[5px] border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] ${
+                              authored
+                                ? 'border-[#3fe08f]/30 bg-[#3fe08f]/10 text-[#3fe08f]'
+                                : 'border-white/[0.08] bg-black/30 text-[#737783]'
+                            }`}
+                          >
+                            {authored ? 'edit' : 'add'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          title={`Write ${laneFile.file} with Goldman`}
+                          disabled={!onQuickCommand}
+                          onClick={() => handleDraftPlaybookWithAi(laneFile.file)}
+                          className="dm-btn dm-mono flex shrink-0 items-center gap-1 rounded-[8px] border border-[#f4c95d]/25 bg-[#f4c95d]/10 px-2 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          AI
+                        </button>
+                      </div>
                     );
                   })()}
                   {laneStrategies.length === 0 ? (
@@ -11015,27 +11046,41 @@ function GoldmanAccessStation({
       <SectionLabel>strategy md files</SectionLabel>
       <ConsoleCard padClass="p-0">
         {strategyFiles.map((file) => (
-          <button
+          <div
             key={file.file}
-            type="button"
-            onClick={() => openStrategyFileEditor(file)}
-            className="dm-btn flex w-full items-center gap-3 border-t border-white/[0.045] px-3 py-3 text-left first:border-t-0 disabled:cursor-default"
+            className="flex items-stretch border-t border-white/[0.045] first:border-t-0"
           >
-            <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] bg-[#262b34] text-[#cfd6e6]">
-              <FileText className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="dm-mono block truncate text-[12px] font-semibold text-[#eceef2]">
-                {file.file}
+            <button
+              type="button"
+              onClick={() => openStrategyFileEditor(file)}
+              className="dm-btn flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left disabled:cursor-default"
+            >
+              <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[8px] bg-[#262b34] text-[#cfd6e6]">
+                <FileText className="h-4 w-4" />
               </span>
-              <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
-                {file.updatedAt ? 'saved markdown file' : file.detail}
+              <span className="min-w-0 flex-1">
+                <span className="dm-mono block truncate text-[12px] font-semibold text-[#eceef2]">
+                  {file.file}
+                </span>
+                <span className="dm-mono mt-1 block truncate text-[10px] font-semibold text-[#5a5e69]">
+                  {file.updatedAt ? 'saved markdown file' : file.detail}
+                </span>
               </span>
-            </span>
-            <span className="dm-mono rounded-[6px] border border-white/[0.07] bg-black/20 px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
-              {file.status}
-            </span>
-          </button>
+              <span className="dm-mono rounded-[6px] border border-white/[0.07] bg-black/20 px-2 py-1 text-[8.5px] font-bold uppercase tracking-[0.08em] text-[#9396a0]">
+                {file.status}
+              </span>
+            </button>
+            <button
+              type="button"
+              title={`Write ${file.file} with Goldman`}
+              disabled={!onQuickCommand}
+              onClick={() => handleDraftPlaybookWithAi(file.file)}
+              className="dm-btn dm-mono flex shrink-0 items-center gap-1 border-l border-white/[0.045] px-3 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#f4c95d] disabled:cursor-default disabled:opacity-50"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI
+            </button>
+          </div>
         ))}
         <div className="grid grid-cols-2 gap-2 border-t border-white/[0.045] p-3">
           <button
