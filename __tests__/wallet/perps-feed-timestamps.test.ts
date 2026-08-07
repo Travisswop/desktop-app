@@ -2,6 +2,7 @@ import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationFillsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   isPerpsEntryLimitOrder,
@@ -185,6 +186,52 @@ describe('perps feed timestamps', () => {
     ]);
 
     expect(closeFills.BTC?.px).toBe(104500);
+  });
+
+  it('captures the latest liquidation snapshot by coin', () => {
+    const liquidationFills = inferPerpsLiquidationFillsByCoin([
+      {
+        coin: 'ETH',
+        px: '1679',
+        closedPnl: '-21.5',
+        fee: '0.41',
+        time: Date.parse('2026-06-15T10:00:00Z'),
+        oid: 444,
+        liquidation: { markPx: '1680' },
+      },
+      {
+        coin: 'ETH',
+        px: '1675',
+        closedPnl: '-22.1',
+        fee: '0.44',
+        time: Date.parse('2026-06-15T10:05:00Z'),
+        oid: 555,
+        liquidation: { markPx: '1676' },
+      },
+    ]);
+
+    expect(liquidationFills.ETH).toEqual({
+      coin: 'ETH',
+      px: 1675,
+      markPx: 1676,
+      closedPnl: -22.1,
+      feeUsd: 0.44,
+      orderId: '555',
+      timestamp: '2026-06-15T10:05:00.000Z',
+    });
+  });
+
+  it('ignores future liquidation fills from skewed client clocks', () => {
+    const liquidationFills = inferPerpsLiquidationFillsByCoin([
+      {
+        coin: 'BTC',
+        px: '104000',
+        time: Date.parse('2026-06-15T12:10:01Z'),
+        liquidation: { markPx: '104100' },
+      },
+    ]);
+
+    expect(liquidationFills).toEqual({});
   });
 
   it('maps long reduce-only triggers to take-profit and stop-loss prices', () => {
