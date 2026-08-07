@@ -6,11 +6,12 @@ import { useUser } from '@/lib/UserContext';
 import {
   buildPerpsActiveLimitOrderSnapshot,
   buildPerpsPositionKey,
+  buildPerpsReconcileSnapshotKey,
   inferPerpsCloseFillsByCoin,
+  inferPerpsLiquidationsByCoin,
   inferPerpsPositionRiskPrices,
   inferPerpsPositionOpenedFill,
   qualifyPerpsPositionCoin,
-  type PerpsLiquidationFillSnapshot,
   type PerpsFillLike,
   type PerpsActiveLimitOrderSnapshot,
   reconcilePerpsPositionFeed,
@@ -58,42 +59,6 @@ function markPriceFromPosition(position: HLPosition) {
   }
 
   return entryPrice;
-}
-
-function fillTimestamp(fill: HyperliquidUserFill) {
-  const milliseconds = Number(fill.time);
-  return Number.isFinite(milliseconds)
-    ? new Date(milliseconds).toISOString()
-    : new Date().toISOString();
-}
-
-function liquidationFillsByCoin(fills: unknown) {
-  if (!Array.isArray(fills)) return {};
-
-  return fills.reduce<Record<string, PerpsLiquidationFillSnapshot>>(
-    (liquidations, fill: HyperliquidUserFill) => {
-      if (!fill?.liquidation || !fill.coin) return liquidations;
-
-      const coin = String(fill.coin).trim().toUpperCase();
-      if (!coin || liquidations[coin]) return liquidations;
-
-      liquidations[coin] = {
-        coin,
-        px: toPerpsFeedNumber(fill.px),
-        markPx: toPerpsFeedNumber(fill.liquidation.markPx || fill.px),
-        closedPnl: toPerpsFeedNumber(fill.closedPnl),
-        feeUsd: toPerpsFeedNumber(fill.fee),
-        orderId:
-          fill.oid === undefined || fill.oid === null
-            ? undefined
-            : String(fill.oid),
-        timestamp: fillTimestamp(fill),
-      };
-
-      return liquidations;
-    },
-    {},
-  );
 }
 
 async function fetchRecentUserFills(masterAddress: string) {
@@ -213,22 +178,6 @@ export default function PerpsFeedBackfill() {
           isActiveLimitOrderSnapshot(order) &&
           !activePositionKeySet.has(order.positionKey.toLowerCase()),
       );
-    const reconcileSnapshotKey = [
-      masterAddress,
-      Object.keys(markPricesByCoin).length > 0 ? 'marks-ready' : 'marks-pending',
-      `dexes=${observedDexes.map((dex) => dex || 'main').sort().join('|')}`,
-      ...activePositionKeys.map((key) => key.toLowerCase()).sort(),
-      ...activeLimitOrders
-        .map((order) =>
-          [
-            'limit',
-            order.positionKey.toLowerCase(),
-            order.orderId || '',
-            order.limitPrice,
-          ].join('='),
-        )
-        .sort(),
-    ].join(':');
 
     let cancelled = false;
 
@@ -239,6 +188,21 @@ export default function PerpsFeedBackfill() {
       })
       .then((recentFills) => {
         if (cancelled) return;
+
+        const closedFillsByCoin = inferPerpsCloseFillsByCoin(recentFills);
+        const liquidationsByCoin = inferPerpsLiquidationsByCoin(recentFills);
+        const reconcileSnapshotKey = buildPerpsReconcileSnapshotKey({
+          masterAddress,
+          priceMapState:
+            Object.keys(markPricesByCoin).length > 0
+              ? 'marks-ready'
+              : 'marks-pending',
+          observedDexes,
+          activePositionKeys,
+          activeLimitOrders,
+          liquidationsByCoin,
+          closedFillsByCoin,
+        });
 
         if (!reconciledSnapshotsRef.current.has(reconcileSnapshotKey)) {
           reconciledSnapshotsRef.current.add(reconcileSnapshotKey);
@@ -251,8 +215,8 @@ export default function PerpsFeedBackfill() {
             activeLimitOrders,
             observedDexes,
             markPricesByCoin,
-            liquidationsByCoin: liquidationFillsByCoin(recentFills),
-            closedFillsByCoin: inferPerpsCloseFillsByCoin(recentFills),
+            liquidationsByCoin,
+            closedFillsByCoin,
           }).catch((error) => {
             reconciledSnapshotsRef.current.delete(reconcileSnapshotKey);
             console.warn('Failed to reconcile perps feed cards:', error);
