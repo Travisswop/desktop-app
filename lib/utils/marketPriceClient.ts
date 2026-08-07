@@ -10,9 +10,9 @@ import {
 import { apiFetch } from "@/lib/api/apiFetch";
 
 type PriceCacheEntry = {
-  price?: number;
+  snapshot?: TokenLivePriceSnapshot;
   expiresAt: number;
-  promise?: Promise<number | null>;
+  promise?: Promise<TokenLivePriceSnapshot>;
 };
 
 type FetchTokenLivePriceOptions = {
@@ -21,8 +21,69 @@ type FetchTokenLivePriceOptions = {
   authToken?: string | null;
 };
 
+export type MarketPriceProviderFailure = {
+  provider?: string;
+  code?: string;
+  reason?: string;
+  retryable?: boolean;
+};
+
+export type TokenLivePriceSnapshot = {
+  price: number | null;
+  degraded: boolean;
+  providerFailures: MarketPriceProviderFailure[];
+};
+
 const PRICE_CACHE_TTL_MS = 30_000;
 const priceCache = new Map<string, PriceCacheEntry>();
+
+function normalizeProviderFailures(
+  value: unknown,
+): MarketPriceProviderFailure[] {
+  if (!Array.isArray(value)) return [];
+
+  const normalized: MarketPriceProviderFailure[] = [];
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const provider =
+      typeof (entry as any).provider === "string"
+        ? (entry as any).provider
+        : undefined;
+    const code =
+      typeof (entry as any).code === "string" ? (entry as any).code : undefined;
+    const reason =
+      typeof (entry as any).reason === "string"
+        ? (entry as any).reason
+        : undefined;
+    const retryable =
+      typeof (entry as any).retryable === "boolean"
+        ? (entry as any).retryable
+        : undefined;
+
+    if (!provider && !code && !reason && retryable === undefined) continue;
+
+    normalized.push({
+      provider,
+      code,
+      reason,
+      retryable,
+    });
+  }
+
+  return normalized;
+}
+
+function getSnapshotMetadata(payload: unknown) {
+  const data = (payload as any)?.data ?? payload;
+  const providerFailures = normalizeProviderFailures(data?.providerFailures);
+
+  return {
+    degraded: Boolean(data?.degraded || providerFailures.length > 0),
+    providerFailures,
+  };
+}
 
 function getPriceCacheKey(outputToken: any): string | null {
   const chain = getTokenMarketChain(outputToken);
@@ -37,33 +98,42 @@ function getPriceCacheKey(outputToken: any): string | null {
   return address ? `address:${chain}:${address.toLowerCase()}` : null;
 }
 
-export async function fetchTokenLivePrice({
+export async function fetchTokenLivePriceSnapshot({
   outputToken,
   apiUrl,
   authToken,
-}: FetchTokenLivePriceOptions): Promise<number | null> {
+}: FetchTokenLivePriceOptions): Promise<TokenLivePriceSnapshot> {
   const fallbackPrice = getTokenFallbackPrice(outputToken);
   const chain = getTokenMarketChain(outputToken);
   const baseUrl = apiUrl?.replace(/\/$/, "");
+  const fallbackSnapshot: TokenLivePriceSnapshot = {
+    price: fallbackPrice,
+    degraded: false,
+    providerFailures: [],
+  };
 
-  if (!chain || !baseUrl) return fallbackPrice;
+  if (!chain || !baseUrl) return fallbackSnapshot;
 
   const cacheKey = getPriceCacheKey(outputToken);
   const now = Date.now();
   const cached = cacheKey ? priceCache.get(cacheKey) : undefined;
 
-  if (cached?.price && cached.expiresAt > now) {
-    return cached.price;
+  if (cached?.snapshot && cached.expiresAt > now) {
+    return cached.snapshot;
   }
 
   if (cached?.promise) {
-    return (await cached.promise) ?? fallbackPrice;
+    try {
+      return await cached.promise;
+    } catch {
+      return fallbackSnapshot;
+    }
   }
 
   const fetchPromise = (async () => {
     if (isNativeMarketToken(outputToken)) {
       const tokenId = getNativeMarketId(chain);
-      if (!tokenId) return fallbackPrice;
+      if (!tokenId) return fallbackSnapshot;
 
       const res = await apiFetch(`${baseUrl}/api/v5/market/token/${tokenId}`, {
         method: "GET",
@@ -75,11 +145,14 @@ export async function fetchTokenLivePrice({
 
       if (!res.ok) throw new Error("Native price fetch failed");
       const json = await res.json();
-      return parseMarketPrice(json.data?.price) ?? fallbackPrice;
+      return {
+        price: parseMarketPrice(json.data?.price) ?? fallbackPrice,
+        ...getSnapshotMetadata(json),
+      };
     }
 
     const address = getTokenMarketAddress(outputToken);
-    if (!address) return fallbackPrice;
+    if (!address) return fallbackSnapshot;
 
     const res = await apiFetch(`${baseUrl}/api/v5/market/prices`, {
       method: "POST",
@@ -92,28 +165,49 @@ export async function fetchTokenLivePrice({
 
     if (!res.ok) throw new Error("Price fetch failed");
     const json = await res.json();
-    return extractPriceFromMarketResponse(json, address) ?? fallbackPrice;
+    return {
+      price: extractPriceFromMarketResponse(json, address) ?? fallbackPrice,
+      ...getSnapshotMetadata(json),
+    };
   })();
 
   if (cacheKey) {
     priceCache.set(cacheKey, {
-      price: cached?.price,
+      snapshot: cached?.snapshot,
       expiresAt: cached?.expiresAt ?? 0,
       promise: fetchPromise,
     });
   }
 
   try {
-    const price = await fetchPromise;
-    if (cacheKey && price) {
+    const snapshot = await fetchPromise;
+    if (cacheKey && snapshot.price !== null) {
       priceCache.set(cacheKey, {
-        price,
+        snapshot,
         expiresAt: Date.now() + PRICE_CACHE_TTL_MS,
       });
     }
-    return price;
+    return snapshot;
   } catch {
     if (cacheKey) priceCache.delete(cacheKey);
-    return fallbackPrice;
+    return fallbackSnapshot;
   }
+}
+
+export async function fetchTokenLivePrice({
+  outputToken,
+  apiUrl,
+  authToken,
+}: FetchTokenLivePriceOptions): Promise<number | null> {
+  const snapshot = await fetchTokenLivePriceSnapshot({
+    outputToken,
+    apiUrl,
+    authToken,
+  });
+
+  return snapshot.price;
+}
+
+export function resetMarketPriceCacheForTests() {
+  priceCache.clear();
 }
