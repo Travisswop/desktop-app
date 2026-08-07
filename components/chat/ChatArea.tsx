@@ -8120,7 +8120,7 @@ const GOLDMAN_CONSOLE_HELP: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     'Stations',
-    'Switch a venue on or off — Perps, Predictions, Swaps, Sends, Aave. Off means Goldman cannot use that venue at all.',
+    'Switch a venue on or off — Perps, Predictions, Swaps, Sends. Off means Goldman cannot use that venue at all.',
   ],
   [
     'Approval',
@@ -8181,14 +8181,6 @@ const GOLDMAN_ACCESS_ROWS: Array<{
     iconClassName: 'bg-[#402525] text-[#ff8585]',
   },
   {
-    key: 'aave',
-    label: 'Aave',
-    shortLabel: 'aave',
-    detail: 'Supply, withdraw, borrow, and repay on Aave',
-    icon: ShieldCheck,
-    iconClassName: 'bg-[#14342f] text-[#68e0c8]',
-  },
-  {
     key: 'vault',
     label: 'Sack vault',
     shortLabel: 'vault',
@@ -8214,12 +8206,13 @@ const GOLDMAN_ACCESS_ROWS: Array<{
   },
 ];
 
+// Aave stays in the access-key union (the backend still normalizes it, and the
+// executor is intact for when the venue ships) but is not offered as a control.
 const GOLDMAN_WRITE_ACCESS_KEYS: GoldmanAccessKey[] = [
   'perps',
   'predictions',
   'swaps',
   'sends',
-  'aave',
   'vault',
 ];
 
@@ -9404,7 +9397,9 @@ function GoldmanAccessStation({
 
   const handleAskStrategyIdeas = useCallback(() => {
     onQuickCommand?.(
-      '@goldman suggest three strategy ideas for this vault, including one autonomous DeFi idea using Aave with clear risk limits'
+      // Asked for an Aave idea by name, which is why every set of suggestions
+      // led with a venue the product has not integrated.
+      '@goldman suggest three strategy ideas for this vault across perps, predictions and swaps, each with clear risk limits'
     );
   }, [onQuickCommand]);
 
