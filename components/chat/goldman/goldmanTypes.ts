@@ -148,6 +148,33 @@ export type GoldmanStrategyVault = {
   // Versioned AI-trading acknowledgement. Absent on older backends, which the
   // console reads as "not required" — the server is the real gate either way.
   riskDisclosure?: GoldmanRiskDisclosureState | null;
+  // Betting collateral lives at the registered deposit wallet, NOT the vault
+  // EOA — the console must count it there or moving it looks like losing it.
+  predictionsCollateral?: GoldmanPredictionsCollateral | null;
+  // Newest-first record of every movement the agent made.
+  moneyLog?: GoldmanMoneyLogEntry[];
+};
+
+export type GoldmanPredictionsCollateral = {
+  depositWalletAddress: string | null;
+  depositPusdUsd: number;
+  vaultPusdUsd: number;
+};
+
+export type GoldmanMoneyLogEntry = {
+  at: string;
+  kind: 'deposit' | 'withdraw' | 'convert' | string;
+  from: string;
+  to: string;
+  fromLabel: string;
+  toLabel: string;
+  amountUsd: number;
+  token: string | null;
+  chain: string | null;
+  txHash: string | null;
+  explorerUrl: string | null;
+  detail: string | null;
+  source: string | null;
 };
 
 export type GoldmanRiskDisclosureState = {

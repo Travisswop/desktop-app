@@ -8503,12 +8503,29 @@ async function readGoldmanStrategyVault({
     // Money the treasury has moved that hasn't landed yet. Absent on older
     // backends — the console then behaves exactly as it did before.
     inFlight: Array.isArray(body?.data?.inFlight) ? body.data.inFlight : [],
+    predictionsCollateral: body?.data?.predictionsCollateral ?? null,
+    moneyLog: Array.isArray(body?.data?.moneyLog) ? body.data.moneyLog : [],
   };
 }
 
 // Backend branches disagree on the strategy identifier field (`id` vs
 // `_id`); normalize at every ingestion point so the rest of the UI can key
 // off `strategy.id`.
+// Relative time for the movement log. Anything older than a day is shown as a
+// date — "31h ago" makes nobody's day easier.
+function formatMoneyLogTime(at: string): string {
+  const ts = Date.parse(at);
+  if (!Number.isFinite(ts)) return '';
+  const ageMs = Date.now() - ts;
+  if (ageMs < 60_000) return 'just now';
+  if (ageMs < 3_600_000) return `${Math.round(ageMs / 60_000)}m ago`;
+  if (ageMs < 86_400_000) return `${Math.round(ageMs / 3_600_000)}h ago`;
+  return new Date(ts).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 function normalizeGoldmanStrategyIdentity(
   strategy: GoldmanTradingStrategy & { _id?: string | null }
 ): GoldmanTradingStrategy {
@@ -8941,6 +8958,7 @@ function GoldmanAccessStation({
     'console'
   );
   const [showHelp, setShowHelp] = useState(false);
+  const [showMoneyLog, setShowMoneyLog] = useState(false);
   // Stage-1 simplification: the per-venue toggle matrix defaults hidden
   // behind the Autopilot switch.
   const [showAdvancedAccess, setShowAdvancedAccess] = useState(false);
@@ -9482,8 +9500,16 @@ function GoldmanAccessStation({
     0,
     toFiniteNumber(consoleData?.walletPortfolioBalance) - vaultPusdUsd
   );
+  // Collateral positioned for betting sits at the vault's Polymarket deposit
+  // wallet, which no client-side balance hook reads — moving pUSD there used to
+  // delete it from this total ($5 "went missing" on 2026-08-07). The server
+  // reads that address and reports it here.
+  const vaultDepositCollateralUsd = toFiniteNumber(
+    strategyVault?.predictionsCollateral?.depositPusdUsd
+  );
   const vaultPredictionsUsd =
     vaultPusdUsd +
+    vaultDepositCollateralUsd +
     toFiniteNumber(consoleData?.predictionPortfolioUsdcBalance) +
     (consoleData?.predictionPositions || [])
       // Open bets AND settled-but-unclaimed winnings are both real value —
@@ -9502,6 +9528,7 @@ function GoldmanAccessStation({
   // can know the exact moment a bridge credits, so folding it in would trade a
   // total that dips for one that double-counts. Showing it on its own line
   // makes the dip legible instead — the money is named, not missing.
+  const vaultMoneyLog = strategyVault?.moneyLog || [];
   const vaultInFlight = (strategyVault?.inFlight || []).filter(
     (entry) => toFiniteNumber(entry?.amountUsd) > 0
   );
@@ -9795,6 +9822,78 @@ function GoldmanAccessStation({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Money movement. A balance that changes with no account of what
+            moved is indistinguishable from money going missing, which is
+            exactly how a routine $5 collateral transfer read to its owner.
+            Every movement, newest first, with the transaction behind it. */}
+        {vaultMoneyLog.length > 0 && (
+          <div className="mt-2 rounded-[9px] border border-white/[0.06] bg-black/20 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setShowMoneyLog((open) => !open)}
+              className="flex w-full items-center justify-between gap-2"
+            >
+              <span className="dm-mono text-[8px] font-bold uppercase tracking-[0.12em] text-[#5a5e69]">
+                money movement
+              </span>
+              <span className="dm-mono flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-[0.1em] text-[#9396a0]">
+                {vaultMoneyLog.length}
+                <ChevronDown
+                  className={`h-3 w-3 transition-transform ${
+                    showMoneyLog ? 'rotate-180' : ''
+                  }`}
+                />
+              </span>
+            </button>
+            <div className="mt-1.5 space-y-1.5">
+              {(showMoneyLog ? vaultMoneyLog : vaultMoneyLog.slice(0, 3)).map(
+                (entry, index) => (
+                  <div
+                    key={`${entry.txHash || entry.at}-${index}`}
+                    className="flex items-start justify-between gap-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="dm-mono block truncate text-[9.5px] font-semibold text-[#c9cdd6]">
+                        {entry.fromLabel}
+                        <span className="mx-1 text-[#5a5e69]">→</span>
+                        {entry.toLabel}
+                      </span>
+                      <span className="dm-mono block truncate text-[8.5px] text-[#5a5e69]">
+                        {formatMoneyLogTime(entry.at)}
+                        {entry.token ? ` · ${entry.token}` : ''}
+                        {entry.chain ? ` on ${entry.chain}` : ''}
+                        {entry.source === 'rebalance' ? ' · rebalance' : ''}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span
+                        className={`dm-mono text-[10px] font-semibold ${
+                          entry.to === 'wallet'
+                            ? 'text-[#3fe08f]'
+                            : 'text-[#cdd0d7]'
+                        }`}
+                      >
+                        {formatCompactUsd(toFiniteNumber(entry.amountUsd))}
+                      </span>
+                      {entry.explorerUrl && (
+                        <a
+                          href={entry.explorerUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          title="View transaction"
+                          className="grid h-5 w-5 place-items-center rounded-[5px] border border-white/[0.07] bg-black/25 text-[#9396a0] hover:text-[#f4c95d]"
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
           </div>
         )}
 
