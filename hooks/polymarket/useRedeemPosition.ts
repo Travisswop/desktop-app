@@ -18,6 +18,10 @@ import {
 } from "@/constants/polymarket";
 import { isStaleNonceRedeemError } from "@/lib/polymarket/position-payout";
 import { submitSponsoredSafeExecTransaction } from "@/lib/polymarket/sponsored-safe";
+import {
+  newClaimAttemptId,
+  reportPredictionClaimAttempt,
+} from "@/lib/polymarket/claim-telemetry";
 
 export interface RedeemParams {
   conditionId: string;
@@ -737,6 +741,29 @@ export function useRedeemPosition() {
       setIsRedeeming(true);
       setError(null);
 
+      // One id threads every stage of this claim through the ledger, so a
+      // failure can be traced to the exact step it died at.
+      const attemptId = newClaimAttemptId();
+      const reportClaim = (
+        status: Parameters<typeof reportPredictionClaimAttempt>[0]["status"],
+        stage: string,
+        extra?: Record<string, unknown>,
+      ) =>
+        void reportPredictionClaimAttempt(
+          {
+            attemptId,
+            status,
+            stage,
+            conditionId: params.conditionId,
+            marketId: params.conditionId,
+            asset: params.asset,
+            wallet: params.safeAddress,
+            amountUsd: params.size ?? null,
+            ...extra,
+          },
+          accessToken,
+        );
+
       try {
         const redeemWalletType = params.walletType ?? walletType;
         const redeemDepositWalletAddress =
@@ -913,6 +940,22 @@ export function useRedeemPosition() {
         queryClient.invalidateQueries({ queryKey: ["pusdBalance"] });
         queryClient.invalidateQueries({ queryKey: ["legacyUsdcBalance"] });
 
+        if (normalizationError) {
+          // The claim landed but the payout is sitting in a token no balance
+          // counts — the exact silent state this ledger exists to catch.
+          reportClaim("failed", "claim_conversion_failed", {
+            txHash: result.txId,
+            amountUsd: result.redeemedAmount ?? params.size ?? null,
+            errorMessage: normalizationError,
+            retryable: true,
+          });
+        } else {
+          reportClaim("confirmed", "claim_confirmed", {
+            txHash: result.txId,
+            amountUsd: result.redeemedAmount ?? params.size ?? null,
+          });
+        }
+
         return {
           success: result.success,
           txId: result.txId,
@@ -925,6 +968,9 @@ export function useRedeemPosition() {
       } catch (err) {
         const error =
           err instanceof Error ? err : new Error("Failed to redeem position");
+        reportClaim("failed", "claim_failed", {
+          errorMessage: error.message,
+        });
         console.debug("[Polymarket Redeem] failed", {
           message: error.message,
           params,
