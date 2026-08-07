@@ -33,6 +33,7 @@ import repostImg from '@/public/images/custom-icons/feed_repost.png';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import isUrl from '@/lib/isUrl';
 import { useModalStore } from '@/zustandStore/modalstore';
 import {
@@ -50,6 +51,10 @@ import {
   buildFeedShareUrl,
   writeTextToClipboard,
 } from '@/lib/feedShare';
+
+// The reply modal renders `fromNow()`; without this it depends on some other
+// component (FeedItem) having extended dayjs first, and throws when it hasn't.
+dayjs.extend(relativeTime);
 
 // New self-contained repost composer
 
@@ -101,7 +106,6 @@ const Reaction = memo(
     repostCount,
     viewsCount,
     isLiked = false,
-    isFromFeedDetailsPage = false,
     onRepostSuccess,
     onPostInteraction,
     feed,
@@ -158,14 +162,13 @@ const Reaction = memo(
       [likeCount, latestCommentCount, repostCount, viewsCount],
     );
 
+    // Always open the reply composer in place. Navigating to the post page
+    // instead (the old feed behaviour) reads as "the button did nothing" —
+    // the destination looks near-identical and has no reply box of its own.
     const handleCommentAction = useCallback(() => {
       if (!postId) return;
-      if (!isFromFeedDetailsPage) {
-        router.push(`/feed/${postId}#comments`);
-        return;
-      }
       setIsCommentInputOpen(true);
-    }, [isFromFeedDetailsPage, postId, router]);
+    }, [postId]);
 
     // ── Effects ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -562,6 +565,10 @@ const Reaction = memo(
             placement="center"
             backdrop="opaque"
             scrollBehavior="inside"
+            // The enter animation is rAF-driven: in a throttled/backgrounded
+            // tab it can stall part-way and leave the dialog stuck at ~25%
+            // opacity underneath the post card. Render it opaque immediately.
+            disableAnimation
             classNames={{
               base: 'max-w-xl rounded-2xl max-h-[calc(100dvh-7rem)] overflow-hidden',
               backdrop: 'bg-black/70',

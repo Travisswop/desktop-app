@@ -33,6 +33,7 @@ const CommentMain = memo(
       >
         <button
           type="button"
+          aria-label="Reply"
           onClick={handleCommentOpen}
           className="flex items-center gap-1 text-sm font-medium w-12"
         >

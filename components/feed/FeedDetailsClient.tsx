@@ -1,7 +1,7 @@
 "use client";
 import FeedItem from "@/components/feed/FeedItem";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { IoArrowBack } from "react-icons/io5";
 import CommentItem from "./CommentItem";
 import { FiMessageCircle } from "react-icons/fi";
@@ -11,6 +11,10 @@ import FeedLoading from "../loading/FeedLoading";
 import { CommentSkeleton } from "../loading/CommentLoading";
 import { useScroll, useTransform } from "framer-motion";
 import { MotionDiv } from "../Motion";
+import Image from "next/image";
+import CommentInput from "./comment/CommentInput";
+import { useUser } from "@/lib/UserContext";
+import isUrl from "@/lib/isUrl";
 
 interface FeedItemType {
   _id: string;
@@ -43,6 +47,14 @@ export default function FeedDetailsClient({
 }) {
   const [feed, setFeed] = useState(feedData);
   const router = useRouter();
+  const { user }: any = useUser();
+
+  const viewerProfilePic = useMemo(() => {
+    const primary = user?.microsites?.find(
+      (site: any) => site._id === user?.primaryMicrosite,
+    );
+    return primary?.profilePic || "";
+  }, [user?.microsites, user?.primaryMicrosite]);
 
   console.log("feed data", feed);
 
@@ -210,6 +222,43 @@ export default function FeedDetailsClient({
           ))}
         </div>
       </div>
+
+      {/* Inline reply composer — the post page's primary way to reply */}
+      {accessToken && (
+        <div className="flex gap-3 border-b border-gray-100 pb-4 pt-1">
+          <div className="mt-1 h-9 w-9 shrink-0 overflow-hidden rounded-full bg-gray-200">
+            {viewerProfilePic && (
+              <Image
+                src={
+                  isUrl(viewerProfilePic)
+                    ? viewerProfilePic
+                    : `/images/user_avator/${viewerProfilePic}@3x.png`
+                }
+                alt="you"
+                width={36}
+                height={36}
+                className="h-full w-full object-cover"
+              />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <CommentInput
+              postId={feed?._id}
+              accessToken={accessToken}
+              latestCommentCount={feed?.commentCount || 0}
+              setLatestCommentCount={(count) =>
+                setFeed((prev: any) => ({
+                  ...prev,
+                  commentCount:
+                    typeof count === "function"
+                      ? count(prev?.commentCount || 0)
+                      : count,
+                }))
+              }
+            />
+          </div>
+        </div>
+      )}
 
       {/* Skeleton */}
       {/* Initial load */}
