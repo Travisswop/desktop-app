@@ -46,6 +46,19 @@ export type GoldmanStrategyRuntime = {
   lastError?: string | null;
   cycleCount?: number | null;
   lastEvaluation?: GoldmanStrategyEvaluation | null;
+  // Why the agent cannot trade right now. A "running" strategy that never
+  // opens anything is otherwise indistinguishable from a working one.
+  configIssues?: GoldmanConfigIssue[] | null;
+};
+
+export type GoldmanConfigIssueSeverity = 'blocking' | 'warning' | 'info';
+
+export type GoldmanConfigIssue = {
+  code: string;
+  severity: GoldmanConfigIssueSeverity | string;
+  title: string;
+  detail: string;
+  fix?: string | null;
 };
 
 export type GoldmanTakeProfitRung = {

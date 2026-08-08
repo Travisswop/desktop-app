@@ -203,6 +203,7 @@ import { GoldmanActivityFeed } from '@/components/chat/goldman/GoldmanActivityFe
 import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonomyControl';
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import { GoldmanThinkingPanel } from '@/components/chat/goldman/GoldmanThinkingPanel';
+import { GoldmanConfigIssuesPanel } from '@/components/chat/goldman/GoldmanConfigIssuesPanel';
 import {
   acceptGoldmanRiskDisclosure,
   archiveGoldmanStrategy,
@@ -10239,6 +10240,9 @@ function GoldmanAccessStation({
                         </div>
                         {/* Live cycle telemetry belongs to the plan producing
                             it, not to a vault-wide card above every section. */}
+                        {/* Above the telemetry on purpose: when a plan cannot
+                            trade, the reason outranks what it looked at. */}
+                        <GoldmanConfigIssuesPanel strategy={strategy} />
                         <GoldmanThinkingPanel
                           strategy={strategy}
                           formatUsd={formatCompactUsd}
