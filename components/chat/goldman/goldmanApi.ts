@@ -15,6 +15,7 @@ import type {
   GoldmanRebalancePlan,
   GoldmanRebalanceResult,
   GoldmanRiskDisclosureState,
+  GoldmanTradingStrategy,
 } from './goldmanTypes';
 
 function goldmanAgentUrl(groupId: string, suffix: string) {
@@ -379,6 +380,45 @@ export async function archiveGoldmanStrategy({
       body?.message || `Could not remove the plan (${response.status}).`
     );
   }
+}
+
+/**
+ * Retune which markets a LIVE plan scans, without redrafting and re-approving
+ * it. `assets` is the field that decides the tradable universe: an explicit
+ * list wins outright over the text inference that once read the word
+ * "Hyperliquid" in a title as the HYPE ticker.
+ *
+ * Server normalizes (upper/trim/dedupe/cap 12) and returns the saved strategy.
+ */
+export async function updateGoldmanStrategyAssets({
+  groupId,
+  accessToken,
+  strategyId,
+  assets,
+}: {
+  groupId: string;
+  accessToken: string;
+  strategyId: string;
+  assets: string[];
+}): Promise<GoldmanTradingStrategy | null> {
+  const response = await apiFetch(
+    goldmanAgentUrl(
+      groupId,
+      `/strategies/${encodeURIComponent(strategyId)}/assets`
+    ),
+    {
+      method: 'PATCH',
+      headers: { ...authHeaders(accessToken), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assets }),
+    }
+  );
+  const body = await parseBody(response);
+  if (!response.ok) {
+    throw new Error(
+      body?.message || `Could not update the markets (${response.status}).`
+    );
+  }
+  return body?.data?.strategy ?? null;
 }
 
 export async function closeGoldmanPredictionPosition({

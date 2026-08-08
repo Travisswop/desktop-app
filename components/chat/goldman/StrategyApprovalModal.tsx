@@ -5,7 +5,7 @@
 // strategy is allowed to do (rules, limits, per-venue autonomy, brain
 // reasoning) before the approve_agent_action socket event fires.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Ban, BrainCircuit, Check, Loader2, ShieldCheck, X } from 'lucide-react';
 import type { AgentActionProposal } from '@/hooks/useGroupAgents';
 import type { GoldmanAccessStation } from '@/hooks/useGroupAgents';
@@ -149,7 +149,10 @@ export function StrategyApprovalModal({
   proposal: AgentActionProposal;
   accessStation?: GoldmanAccessStation | null;
   isPending: boolean;
-  onApprove: () => void;
+  // Edited values ride along as approvalParams; the backend already accepts
+  // assets/maxOrderUsd/maxDailySpendUsd/maxOpenPositions on a strategy
+  // approval, so editing here needs no new endpoint.
+  onApprove: (approvalParams?: Record<string, unknown>) => void;
   onReject: () => void;
   onClose: () => void;
 }) {
@@ -196,6 +199,23 @@ export function StrategyApprovalModal({
     Object.assign(merged, limits);
     return buildRows(merged);
   }, [limits, params]);
+
+  // Only the fields sanitizeStrategyApprovalParams accepts are editable —
+  // anything else would be rejected outright by the server.
+  const EDITABLE_LIMITS = ['maxOrderUsd', 'maxDailySpendUsd'] as const;
+  const [limitEdits, setLimitEdits] = useState<Record<string, string>>({});
+  const editedApprovalParams = useMemo(() => {
+    const out: Record<string, unknown> = {};
+    for (const key of EDITABLE_LIMITS) {
+      const raw = limitEdits[key];
+      if (raw === undefined) continue;
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) continue;
+      out[key] = value;
+    }
+    return out;
+  }, [limitEdits]);
+  const hasEdits = Object.keys(editedApprovalParams).length > 0;
 
   const venueAutonomy = useMemo(
     () => deriveVenueAutonomy(venues, accessStation?.access),
@@ -314,19 +334,51 @@ export function StrategyApprovalModal({
             <div className="rounded-[10px] border border-[#f4c95d]/20 bg-[#f4c95d]/[0.06] px-3 py-2.5">
               <div className={TICKET_LABEL_CLASS}>hard limits</div>
               <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                {limitRows.map((row) => (
-                  <div
-                    key={`limit-${row.key}`}
-                    className="flex items-center justify-between gap-3 rounded-[8px] border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
-                  >
-                    <span className="dm-mono truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-[#9396a0]">
-                      {row.label}
-                    </span>
-                    <span className="dm-mono text-[11.5px] font-bold text-[#eceef2]">
-                      {row.value}
-                    </span>
-                  </div>
-                ))}
+                {limitRows.map((row) => {
+                  const editable = (EDITABLE_LIMITS as readonly string[]).includes(
+                    row.key
+                  );
+                  return (
+                    <div
+                      key={`limit-${row.key}`}
+                      className="flex items-center justify-between gap-3 rounded-[8px] border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
+                    >
+                      <span className="dm-mono truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-[#9396a0]">
+                        {row.label}
+                      </span>
+                      {editable ? (
+                        // Change it here instead of asking in chat for a
+                        // redraft — the approval carries the edit.
+                        <span className="flex items-center gap-1">
+                          <span className="dm-mono text-[11px] font-bold text-[#5a5e69]">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={
+                              limitEdits[row.key] ??
+                              String(row.value).replace(/[^0-9.]/g, '')
+                            }
+                            onChange={(event) =>
+                              setLimitEdits((prev) => ({
+                                ...prev,
+                                [row.key]: event.target.value,
+                              }))
+                            }
+                            disabled={isPending}
+                            className="dm-mono h-7 w-[86px] rounded-[6px] border border-white/[0.09] bg-[#0e1014] px-2 text-right text-[11.5px] font-bold text-[#eceef2] outline-none focus:border-[#f4c95d]/50 disabled:opacity-50"
+                          />
+                        </span>
+                      ) : (
+                        <span className="dm-mono text-[11.5px] font-bold text-[#eceef2]">
+                          {row.value}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -410,7 +462,9 @@ export function StrategyApprovalModal({
             <button
               type="button"
               data-testid="goldman-approval-modal-approve"
-              onClick={onApprove}
+              onClick={() =>
+                onApprove(hasEdits ? editedApprovalParams : undefined)
+              }
               disabled={isPending}
               className={TICKET_PRIMARY_BUTTON_CLASS}
             >
@@ -419,7 +473,7 @@ export function StrategyApprovalModal({
               ) : (
                 <Check className="h-3.5 w-3.5" />
               )}
-              Approve strategy
+              {hasEdits ? 'Approve with changes' : 'Approve strategy'}
             </button>
             <button
               type="button"

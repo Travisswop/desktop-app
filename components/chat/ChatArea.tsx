@@ -204,9 +204,11 @@ import { GoldmanAutonomyControl } from '@/components/chat/goldman/GoldmanAutonom
 import { GoldmanBrainControls } from '@/components/chat/goldman/GoldmanBrainControls';
 import { GoldmanThinkingPanel } from '@/components/chat/goldman/GoldmanThinkingPanel';
 import { GoldmanConfigIssuesPanel } from '@/components/chat/goldman/GoldmanConfigIssuesPanel';
+import { GoldmanFocusMarkets } from '@/components/chat/goldman/GoldmanFocusMarkets';
 import {
   acceptGoldmanRiskDisclosure,
   archiveGoldmanStrategy,
+  updateGoldmanStrategyAssets,
   closeGoldmanPosition,
   closeGoldmanPredictionPosition,
   isGoldmanRiskDisclosureError,
@@ -3622,6 +3624,34 @@ export default function ChatArea({
     },
     [accessToken, goldmanGroupId, goldmanStrategyVaultQueryKey, queryClient]
   );
+  const handleSaveGoldmanStrategyAssets = useCallback(
+    async (strategyId: string, assets: string[]) => {
+      if (!goldmanGroupId || !accessToken) return;
+      try {
+        await updateGoldmanStrategyAssets({
+          groupId: goldmanGroupId,
+          accessToken,
+          strategyId,
+          assets,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: goldmanStrategyVaultQueryKey,
+        });
+        toast.success(
+          assets.length
+            ? `Now trading ${assets.join(', ')}.`
+            : 'Markets cleared — Goldman will infer them from the plan.'
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Could not update the markets.'
+        );
+      }
+    },
+    [accessToken, goldmanGroupId, goldmanStrategyVaultQueryKey, queryClient]
+  );
   const handleSaveGoldmanStrategyFile = useCallback(
     async (fileName: string, content: string) => {
       if (!goldmanGroupId || !accessToken) {
@@ -5655,10 +5685,15 @@ export default function ChatArea({
     await executeApproveProposal(proposalId, approvalParams);
   };
 
-  const handleStrategyReviewApprove = async () => {
+  const handleStrategyReviewApprove = async (
+    // Edits made in the review modal ride along as approvalParams, which the
+    // server merges into the proposal before it executes.
+    approvalParams?: Record<string, unknown>
+  ) => {
     if (!strategyReviewProposal) return;
     const approved = await executeApproveProposal(
-      strategyReviewProposal.proposalId
+      strategyReviewProposal.proposalId,
+      approvalParams
     );
     if (approved) setStrategyReviewProposal(null);
   };
@@ -7336,6 +7371,7 @@ export default function ChatArea({
         isTogglingGoldmanStrategy={isTogglingGoldmanStrategy}
         onToggleGoldmanStrategyById={handleToggleGoldmanStrategyById}
         onArchiveGoldmanStrategyById={handleArchiveGoldmanStrategyById}
+        onSaveGoldmanStrategyAssets={handleSaveGoldmanStrategyAssets}
         onPositionClick={handleAstroConsolePositionClick}
         accessToken={accessToken}
         goldmanSessionActivity={goldmanSessionActivity}
@@ -7350,7 +7386,9 @@ export default function ChatArea({
             )?.config?.accessStation || null
           }
           isPending={pendingProposalId === strategyReviewProposal.proposalId}
-          onApprove={() => void handleStrategyReviewApprove()}
+          onApprove={(approvalParams) =>
+            void handleStrategyReviewApprove(approvalParams)
+          }
           onReject={() => void handleStrategyReviewReject()}
           onClose={() => setStrategyReviewProposal(null)}
         />
@@ -8881,6 +8919,7 @@ function GoldmanAccessStation({
   onSaveStrategyFile,
   onToggleStrategyById,
   onArchiveStrategyById,
+  onSaveStrategyAssets,
   accessToken,
   sessionActivity,
 }: {
@@ -8906,6 +8945,7 @@ function GoldmanAccessStation({
   ) => Promise<GoldmanStrategyFile | null>;
   onToggleStrategyById?: (strategyId: string, action: 'run' | 'stop') => void;
   onArchiveStrategyById?: (strategyId: string) => void;
+  onSaveStrategyAssets?: (strategyId: string, assets: string[]) => Promise<void>;
   accessToken?: string | null;
   sessionActivity?: GoldmanActivityEntry[];
 }) {
@@ -10243,6 +10283,17 @@ function GoldmanAccessStation({
                         {/* Above the telemetry on purpose: when a plan cannot
                             trade, the reason outranks what it looked at. */}
                         <GoldmanConfigIssuesPanel strategy={strategy} />
+                        {/* Which markets this plan may scan. Sits with the
+                            plan because it IS the plan's scope, not a global
+                            setting. */}
+                        {onSaveStrategyAssets && strategy.id && (
+                          <GoldmanFocusMarkets
+                            strategy={strategy}
+                            onSave={(assets) =>
+                              onSaveStrategyAssets(strategy.id as string, assets)
+                            }
+                          />
+                        )}
                         <GoldmanThinkingPanel
                           strategy={strategy}
                           formatUsd={formatCompactUsd}
@@ -10956,10 +11007,12 @@ function GoldmanAccessStation({
 
       <GoldmanBrainControls groupId={groupId} accessToken={accessToken} />
 
-      {/* Stage-2 simplification: the plan is the only authoring surface in
-          the main flow — the raw rulebook files (and their Publish compile
-          step) live behind Advanced with the venue matrix. */}
-      {showAdvancedAccess && (
+      {/* These were behind Advanced on the theory that the plan is the only
+          authoring surface worth showing. In practice owners went looking for
+          the rulebook files, could not find them, and concluded they were not
+          editable at all — so the cards live in the main flow now. The Publish
+          compile step stays with them because it is what makes an edit take
+          effect. */}
       <>
       <SectionLabel>strategy md files</SectionLabel>
       <ConsoleCard padClass="p-0">
@@ -11022,7 +11075,6 @@ function GoldmanAccessStation({
         </div>
       </ConsoleCard>
       </>
-      )}
 
       <SectionLabel>audit</SectionLabel>
       <ConsoleCard padClass="p-0">
@@ -11238,6 +11290,7 @@ function DmContextPanel({
   isTogglingGoldmanStrategy,
   onToggleGoldmanStrategyById,
   onArchiveGoldmanStrategyById,
+  onSaveGoldmanStrategyAssets,
   onPositionClick,
   accessToken,
   goldmanSessionActivity,
@@ -11269,6 +11322,10 @@ function DmContextPanel({
     action: 'run' | 'stop'
   ) => void;
   onArchiveGoldmanStrategyById?: (strategyId: string) => void;
+  onSaveGoldmanStrategyAssets?: (
+    strategyId: string,
+    assets: string[]
+  ) => Promise<void>;
   onPositionClick?: (selection: AstroConsolePositionSelection) => void;
   accessToken?: string | null;
   goldmanSessionActivity?: GoldmanActivityEntry[];
@@ -11305,6 +11362,7 @@ function DmContextPanel({
         onSaveStrategyFile={onSaveGoldmanStrategyFile}
         onToggleStrategyById={onToggleGoldmanStrategyById}
         onArchiveStrategyById={onArchiveGoldmanStrategyById}
+        onSaveStrategyAssets={onSaveGoldmanStrategyAssets}
         accessToken={accessToken}
         sessionActivity={goldmanSessionActivity}
       />
